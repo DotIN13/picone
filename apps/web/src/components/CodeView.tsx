@@ -155,7 +155,7 @@ const theme = EditorView.theme({
   "&": { backgroundColor: "transparent", color: "var(--v2-text-text-base)", height: "100%" },
   ".cm-scroller": {
     fontFamily: "var(--v2-font-family-mono)",
-    fontSize: "12.5px",
+    fontSize: "calc(12.5px * var(--font-scale))",
     fontWeight: "400",
     lineHeight: "1.6",
   },

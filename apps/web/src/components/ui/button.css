@@ -7,7 +7,7 @@
   border: none;
   border-radius: 6px;
   font-weight: 530;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   line-height: 20px;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);

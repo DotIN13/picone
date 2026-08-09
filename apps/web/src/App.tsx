@@ -53,8 +53,8 @@ export function App() {
               fallback={
                 <>
                   <div class="flex flex-col items-center gap-1">
-                    <h1 class="text-[18px] font-[530] tracking-[-0.2px]">Picone</h1>
-                    <p class="text-[13px] text-v2-text-text-muted">Open a workspace to begin.</p>
+                    <h1 class="text-[calc(18px*var(--font-scale))] font-[530] tracking-[-0.2px]">Picone</h1>
+                    <p class="text-[calc(13px*var(--font-scale))] text-v2-text-text-muted">Open a workspace to begin.</p>
                   </div>
                   <Button variant="contrast" size="large" onClick={() => setWorkspacePickerOpen(true)}>
                     Open workspace
@@ -64,7 +64,7 @@ export function App() {
             >
               {(path) => (
                 <div class="flex flex-col items-center gap-2">
-                  <div class="flex items-center gap-2 text-[14px] font-[530]">
+                  <div class="flex items-center gap-2 text-[calc(14px*var(--font-scale))] font-[530]">
                     <Spinner size={11} />
                     Reopening workspace…
                   </div>

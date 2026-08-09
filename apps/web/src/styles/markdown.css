@@ -1,5 +1,5 @@
 [data-component="markdown"] {
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   line-height: 1.65;
   color: var(--v2-text-text-base);
 }
@@ -26,13 +26,13 @@
 }
 
 [data-component="markdown"] h1 {
-  font-size: 20px;
+  font-size: calc(20px * var(--font-scale));
 }
 [data-component="markdown"] h2 {
-  font-size: 16px;
+  font-size: calc(16px * var(--font-scale));
 }
 [data-component="markdown"] h3 {
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
 }
 
 [data-component="markdown"] ul,
@@ -54,7 +54,7 @@
 
 [data-component="markdown"] code {
   font-family: var(--v2-font-family-mono);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   padding: 1.5px 4px;
   border-radius: 4px;
   background: var(--v2-background-bg-layer-02);
@@ -74,7 +74,7 @@
   padding: 0;
   background: none;
   color: var(--v2-text-text-base);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   line-height: 1.6;
 }
 
@@ -98,7 +98,7 @@
 [data-component="markdown"] table {
   margin: 0 0 12px;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--font-scale));
 }
 
 [data-component="markdown"] th,

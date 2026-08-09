@@ -2,6 +2,7 @@ import { For, Show, createSignal, onMount } from "solid-js";
 import {
   BUNDLED_MONO,
   BUNDLED_SANS,
+  FONT_SCALES,
   SCALES,
   SYSTEM_MONO,
   SYSTEM_SANS,
@@ -91,9 +92,20 @@ export function AppearancePanel() {
           onChange={(value) => updateAppSettings({ appearance: { scale: Number(value) } })}
         />
       </div>
-      <p data-slot="field-hint">
-        Scales the whole interface, not the text alone — spacing and controls grow with it, so nothing crowds.
-      </p>
+
+      <div data-slot="settings-row">
+        <span>Font size</span>
+        <Select
+          aria-label="Font size"
+          width="180px"
+          value={String(appearance().fontScale)}
+          options={FONT_SCALES.map((s) => ({
+            value: String(s.value),
+            label: `${s.label} · ${Math.round(s.value * 100)}%`,
+          }))}
+          onChange={(value) => updateAppSettings({ appearance: { fontScale: Number(value) } })}
+        />
+      </div>
 
       <div data-slot="settings-row">
         <span>Interface font</span>

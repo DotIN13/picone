@@ -41,7 +41,7 @@ export function ChatTab(props: { sessionId: string }) {
             <div data-slot="chat-empty-mark">
               <Icon name="sparkle" size={18} />
             </div>
-            <p class="text-[14px] font-[530]">Ask anything about this workspace.</p>
+            <p class="text-[calc(14px*var(--font-scale))] font-[530]">Ask anything about this workspace.</p>
             <p class="text-v2-text-text-muted">
               Open a file from the sidebar, select text, and leave a comment — it goes straight to the agent.
             </p>

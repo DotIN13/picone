@@ -6,14 +6,17 @@
   }
 
   :root {
-    /* Interface scale (DESIGN §49). The design system is written in absolute
-       pixels — 13px body text, 28px rows, hairline borders — so text alone
-       cannot grow without bursting its containers. `zoom` on the root scales
-       the layout with it, and unlike a transform it re-lays-out rather than
-       stretching, so hairlines and text stay crisp. It goes on `html` so that
-       portalled overlays, which are children of `body`, scale too. */
+    /* Two scales, because they answer different complaints (DESIGN §49).
+       `--ui-scale` is a zoom on the root: everything grows together, which is
+       what you want when the whole app is too small to work in. It goes on
+       `html` so overlays portalled to `body` scale with it, and unlike a
+       transform it re-lays-out, so hairlines and glyphs stay crisp.
+       `--font-scale` multiplies every `font-size` and nothing else, for when
+       only the text is hard to read; the design system is written in absolute
+       pixels, so it is applied one declaration at a time. */
     zoom: var(--ui-scale, 1);
     --ui-scale: 1;
+    --font-scale: 1;
 
     /* Anything measured against the viewport — `vh`, `env()`, a pixel count
        from JS — is in unzoomed pixels, so inside a zoomed root it renders
@@ -50,7 +53,7 @@
     background: var(--v2-background-bg-base);
     color: var(--v2-text-text-base);
     font-family: var(--v2-font-family-sans);
-    font-size: 13px;
+    font-size: calc(13px * var(--font-scale));
     font-weight: 440;
     line-height: 1.45;
     letter-spacing: -0.04px;

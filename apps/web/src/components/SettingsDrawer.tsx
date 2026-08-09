@@ -41,6 +41,14 @@ interface SectionItem {
  */
 const GROUPS: Array<{ title: string; scope: "workspace" | "app"; items: SectionItem[] }> = [
   {
+    title: "App",
+    scope: "app",
+    items: [
+      { id: "appearance", label: "Appearance", icon: "sun" },
+      { id: "notifications", label: "Notifications", icon: "bell" },
+    ],
+  },
+  {
     title: "Workspace",
     scope: "workspace",
     items: [
@@ -54,17 +62,13 @@ const GROUPS: Array<{ title: string; scope: "workspace" | "app"; items: SectionI
       { id: "model", label: "Model", icon: "terminal" },
     ],
   },
-  {
-    title: "App",
-    scope: "app",
-    items: [
-      { id: "appearance", label: "Appearance", icon: "sun" },
-      { id: "notifications", label: "Notifications", icon: "alert" },
-    ],
-  },
 ];
 
 const APP_SECTIONS = new Set<Section>(GROUPS.find((g) => g.scope === "app")!.items.map((i) => i.id));
+
+const SECTION_LABEL = new Map<Section, string>(
+  GROUPS.flatMap((group) => group.items).map((item) => [item.id, item.label]),
+);
 
 const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map((value) => ({
   value,
@@ -77,7 +81,13 @@ const ALL_THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium",
 
 /** Workspace settings (DESIGN §35) and app settings (§49), in one side drawer. */
 export function SettingsDrawer() {
-  const [section, setSection] = createSignal<Section>("general");
+  const [section, setSection] = createSignal<Section>("appearance");
+  /**
+   * Compact layouts get the phone convention: a list of sections you tap into,
+   * with a back arrow, rather than a rail of tabs that would need scrolling to
+   * even see. On a wide screen the rail is always visible and this is ignored.
+   */
+  const [atIndex, setAtIndex] = createSignal(true);
   const [draft, setDraft] = createSignal<WorkspaceFile | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
@@ -142,11 +152,27 @@ export function SettingsDrawer() {
     !state.workspace && !APP_SECTIONS.has(section()) ? "appearance" : section(),
   );
 
+  /** On a phone the index and the section are separate screens. */
+  const showIndex = () => state.compact && atIndex();
+  const showPanel = () => !showIndex();
+
+  const open = (item: SectionItem) => {
+    setSection(item.id);
+    setAtIndex(false);
+  };
+
   return (
     <Drawer open={state.settingsOpen} onOpenChange={setSettingsOpen} side={state.compact ? "bottom" : "right"}>
       <div data-slot="drawer-header">
-        <Icon name="settings" size={15} class="text-v2-icon-icon-muted" />
-        <span data-slot="drawer-title">Settings</span>
+        <Show
+          when={state.compact && !atIndex()}
+          fallback={<Icon name="settings" size={15} class="text-v2-icon-icon-muted" />}
+        >
+          <IconButton icon="chevron-left" label="Back to settings" variant="ghost-muted" onClick={() => setAtIndex(true)} />
+        </Show>
+        <span data-slot="drawer-title">
+          {state.compact && !atIndex() ? (SECTION_LABEL.get(current()) ?? "Settings") : "Settings"}
+        </span>
         <span class="flex-1" />
         <IconButton icon="close" label="Close settings" variant="ghost-muted" onClick={() => setSettingsOpen(false)} />
       </div>
@@ -161,6 +187,7 @@ export function SettingsDrawer() {
       </Show>
 
       <div data-slot="drawer-body">
+        {/* Wide screens: a permanent rail. */}
         <nav data-slot="settings-nav">
           <For each={GROUPS}>
             {(group) => (
@@ -173,7 +200,7 @@ export function SettingsDrawer() {
                       data-slot="settings-nav-item"
                       data-active={current() === item.id ? "" : undefined}
                       disabled={group.scope === "workspace" && !state.workspace}
-                      onClick={() => setSection(item.id)}
+                      onClick={() => open(item)}
                     >
                       <Icon name={item.icon} size={13} />
                       {item.label}
@@ -185,7 +212,41 @@ export function SettingsDrawer() {
           </For>
         </nav>
 
-        <div data-slot="settings-panel">
+        {/* Phones: the same sections as a list you tap into. */}
+        <Show when={showIndex()}>
+          <div data-slot="settings-index">
+            <For each={GROUPS}>
+              {(group) => (
+                <>
+                  <div data-slot="settings-index-group">{group.title}</div>
+                  <div data-slot="settings-index-card">
+                    <For each={group.items}>
+                      {(item) => (
+                        <button
+                          type="button"
+                          data-slot="settings-index-item"
+                          disabled={group.scope === "workspace" && !state.workspace}
+                          onClick={() => open(item)}
+                        >
+                          <Icon name={item.icon} size={16} class="text-v2-icon-icon-muted" />
+                          <span class="flex-1 text-start">{item.label}</span>
+                          <Icon name="chevron-right" size={15} class="text-v2-text-text-faint" />
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </>
+              )}
+            </For>
+            <Show when={!state.workspace}>
+              <p data-slot="field-hint" class="px-1">
+                Workspace settings need a workspace open.
+              </p>
+            </Show>
+          </div>
+        </Show>
+
+        <div data-slot="settings-panel" data-hidden={showPanel() ? undefined : ""}>
           <Show when={current() === "appearance"}>
             <AppearancePanel />
           </Show>
@@ -377,7 +438,7 @@ export function SettingsDrawer() {
 
       {/* Only the workspace half has anything to save; app settings apply as
           they are changed, so a footer over them would invite a pointless click. */}
-      <Show when={!APP_SECTIONS.has(current())}>
+      <Show when={showPanel() && !APP_SECTIONS.has(current())}>
         <div data-slot="drawer-footer">
           <span class="text-v2-text-text-muted">{dirty() ? "Unsaved changes" : "Saved"}</span>
           <span class="flex-1" />

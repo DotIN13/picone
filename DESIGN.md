@@ -1309,21 +1309,27 @@ different owners:
   lose. They never reach the server: nothing here is the agent's business, and
   syncing a font choice across machines would be a liability, not a feature.
 
-Workspace sections are disabled while no workspace is open; the app ones stay
-reachable, which is the point of separating them.
+The app group comes first: it is the half that works whatever else is going on,
+and the half a new user is most likely to want. Workspace sections are disabled
+while no workspace is open; the app ones stay reachable, which is the point of
+separating them.
 
 **Appearance.** Theme (system, light, dark — `system` re-resolves when the OS
-flips), interface size, and the two font families. A font is stored as a CSS
+flips), two size controls, and the two font families. A font is stored as a CSS
 family list with the bundled stack appended as a fallback, so a name that is not
 installed degrades to Inter rather than to Times New Roman. A live sample sits
 under the controls, because a font choice cannot be judged from its name.
 
-**Interface size is a zoom, not a text size.** The design system (§42) is
-written in absolute pixels — 13px body text, 28px rows, hairline borders — so
-growing the text alone would burst its containers. `zoom` on the root element
-re-lays-out instead of stretching, so hairlines and glyphs stay crisp at any
-scale, and it goes on `html` so overlays portalled to `body` scale with
-everything else.
+**Two sizes, because they answer different complaints.** *Interface size* is a
+`zoom` on the root element: everything grows together, which is what you want
+when the whole app is too small to work in. It re-lays-out rather than
+stretching, so hairlines and glyphs stay crisp at any scale, and it goes on
+`html` so overlays portalled to `body` scale with everything else. *Font size*
+multiplies every `font-size` and nothing else, for when only the text is hard to
+read. The design system (§42) is written in absolute pixels, so that one is
+applied a declaration at a time — every `font-size` in the CSS is
+`calc(Npx * var(--font-scale))` — and its range is deliberately narrower, since
+text grows inside containers that do not.
 
 The one thing zoom does not fix is lengths measured against the viewport, which
 stay in unzoomed pixels and so render `--ui-scale` too large. `--vh` and `--vw`
@@ -1343,3 +1349,11 @@ A notification is always a courtesy. Every one of them is also in the
 transcript, so a blocked permission, an insecure origin, or a browser without
 the API costs nothing but convenience — which is why the panel says plainly when
 the origin rules them out rather than leaving a switch that does nothing.
+
+**On a phone the drawer is two screens, not a tab rail.** Ten sections in a
+horizontal strip is a strip narrower than its own labels, so compact layouts get
+the platform convention instead: a grouped list you tap into, a back arrow, and
+the section name in the header. The panel heading is hidden there, since the
+header already says it. The rail and the list are the same `GROUPS` array —
+there is one definition of what sections exist, and the layout decides how to
+show it.

@@ -44,7 +44,7 @@ function TreeNode(props: { entry: DirEntry; depth: number; missing?: boolean; is
         <div data-slot="tree-row" data-missing="" style={{ "padding-inline-start": indent() }}>
           <Icon name="alert" size={13} class="shrink-0" />
           <span class="truncate">{props.entry.name}</span>
-          <span class="ml-auto text-[10px] uppercase tracking-wide">missing</span>
+          <span class="ml-auto text-[calc(10px*var(--font-scale))] uppercase tracking-wide">missing</span>
         </div>
       }
     >

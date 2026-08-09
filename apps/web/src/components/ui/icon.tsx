@@ -2,7 +2,9 @@ import { Dynamic } from "solid-js/web";
 import { splitProps, type ComponentProps } from "solid-js";
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
+import Bell from "lucide-solid/icons/bell";
 import Check from "lucide-solid/icons/check";
+import CaseSensitive from "lucide-solid/icons/case-sensitive";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
@@ -38,6 +40,8 @@ import X from "lucide-solid/icons/x";
 const ICONS = {
   "arrow-up": ArrowUp,
   alert: TriangleAlert,
+  bell: Bell,
+  "case-sensitive": CaseSensitive,
   check: Check,
   "chevron-down": ChevronDown,
   "chevron-left": ChevronLeft,

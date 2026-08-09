@@ -5,7 +5,7 @@
   border-radius: 6px;
   background: var(--v2-background-bg-inverse);
   color: var(--v2-text-text-inverse);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   font-weight: 440;
   line-height: 16px;
   letter-spacing: -0.04px;
@@ -67,7 +67,7 @@
 }
 
 [data-slot="dialog-title"] {
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
   font-weight: 530;
   line-height: 1.2;
   letter-spacing: -0.04px;
@@ -75,7 +75,7 @@
 }
 
 [data-slot="dialog-description"] {
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   font-weight: 440;
   line-height: 1.4;
   color: var(--v2-text-text-muted);
@@ -122,7 +122,7 @@
   background: var(--v2-background-bg-button-neutral);
   box-shadow: var(--v2-elevation-button-neutral);
   color: var(--v2-text-text-base);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   font-weight: 440;
   letter-spacing: -0.04px;
   cursor: pointer;
@@ -172,7 +172,7 @@
   height: 28px;
   padding: 0 8px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--v2-text-text-base);
   cursor: pointer;
   outline: none;
@@ -197,7 +197,7 @@
 }
 
 [data-slot="switch-label"] {
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--v2-text-text-base);
   user-select: none;
 }
@@ -246,7 +246,7 @@
 }
 
 [data-slot="field-label"] {
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   font-weight: 530;
   color: var(--v2-text-text-muted);
   letter-spacing: -0.04px;
@@ -264,7 +264,7 @@
     var(--v2-background-bg-base);
   color: var(--v2-text-text-base);
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   font-weight: 440;
   letter-spacing: -0.04px;
   outline: none;
@@ -319,7 +319,7 @@
   background: transparent;
   color: var(--v2-text-text-muted);
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   font-weight: 440;
   letter-spacing: -0.04px;
   font-variant-numeric: tabular-nums;
@@ -354,7 +354,7 @@
   height: 18px;
   padding: 0 6px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   font-weight: 530;
   letter-spacing: 0.05px;
   white-space: nowrap;

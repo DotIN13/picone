@@ -13,8 +13,10 @@ export interface AppearanceSettings {
   /** Empty means the bundled family; anything else is a CSS font-family list. */
   interfaceFont: string;
   codeFont: string;
-  /** Whole-interface scale, 1 being the design size. */
+  /** Whole-interface zoom, 1 being the design size. */
   scale: number;
+  /** Text size on top of the interface scale, leaving spacing alone. */
+  fontScale: number;
 }
 
 export interface NotificationSettings {
@@ -44,8 +46,19 @@ export const SCALES = [
   { value: 1.4, label: "Largest" },
 ];
 
+/**
+ * Narrower than the interface scale on purpose: text grows inside containers
+ * that do not, so past about a fifth larger it starts to crowd them.
+ */
+export const FONT_SCALES = [
+  { value: 0.92, label: "Small" },
+  { value: 1, label: "Default" },
+  { value: 1.08, label: "Large" },
+  { value: 1.15, label: "Larger" },
+];
+
 const DEFAULTS: AppSettings = {
-  appearance: { colorScheme: "system", interfaceFont: "", codeFont: "", scale: 1 },
+  appearance: { colorScheme: "system", interfaceFont: "", codeFont: "", scale: 1, fontScale: 1 },
   notifications: {
     enabled: false,
     turnFinished: true,
@@ -119,6 +132,7 @@ export function applyAppearance(appearance: AppearanceSettings): void {
   root.style.setProperty("--v2-font-family-sans", appearance.interfaceFont || BUNDLED_SANS);
   root.style.setProperty("--v2-font-family-mono", appearance.codeFont || BUNDLED_MONO);
   root.style.setProperty("--ui-scale", String(appearance.scale));
+  root.style.setProperty("--font-scale", String(appearance.fontScale));
 }
 
 /**
