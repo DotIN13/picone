@@ -1,7 +1,6 @@
 import { Show, createSignal } from "solid-js";
 import { PathBrowser, type PathState } from "./PathBrowser.tsx";
 import { Button } from "./ui/button.tsx";
-import { Icon } from "./ui/icon.tsx";
 import { Dialog, Switch, TextInput } from "./ui/primitives.tsx";
 
 /**
@@ -65,7 +64,7 @@ export function MemoryDirDialog(props: {
         props.onOpenChange(open);
       }}
       title="Add memory directory"
-      description="Find the folder. Tab completes, and the name defaults to the folder's own."
+      description="Tab completes."
       width="620px"
       footer={
         <>
@@ -109,15 +108,7 @@ export function MemoryDirDialog(props: {
             </div>
           </Show>
           <Show when={props.offerWritable}>
-            <Switch
-              checked={writable()}
-              onChange={setWritable}
-              label="Let the agent write here"
-            />
-            <p data-slot="field-hint">
-              <Icon name="alert" size={12} class="mr-1 inline align-[-1px]" />
-              Off by default, and enforced: the agent is refused, not merely asked.
-            </p>
+            <Switch checked={writable()} onChange={setWritable} label="Let the agent write here" />
           </Show>
         </div>
       </div>

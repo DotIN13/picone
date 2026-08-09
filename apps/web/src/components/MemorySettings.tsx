@@ -2,7 +2,6 @@ import { For, Show, createSignal } from "solid-js";
 import type { MemoryDirs, ResolvedMemoryDir } from "@picone/protocol";
 import { MemoryDirDialog } from "./MemoryDirDialog.tsx";
 import { Button, IconButton } from "./ui/button.tsx";
-import { Icon } from "./ui/icon.tsx";
 import { Switch, Tag, TextInput } from "./ui/primitives.tsx";
 
 /**
@@ -53,11 +52,7 @@ export function GlobalMemoryPanel(props: {
   return (
     <div class="flex flex-col gap-3">
       <div data-slot="section-title">Memory</div>
-      <p data-slot="field-hint">
-        Folders of long-lived notes about you, offered to every workspace. The agent is told what each one contains,
-        using the folder's own <code>AGENTS.md</code> when it has one. A workspace can switch any of them off or add
-        its own.
-      </p>
+      <p data-slot="field-hint">Folders of long-lived notes, offered to every workspace.</p>
 
       <Show
         when={Object.keys(props.dirs).length > 0}
@@ -132,10 +127,7 @@ export function WorkspaceMemoryPanel(props: {
   return (
     <div class="flex flex-col gap-3">
       <div data-slot="section-title">Memory</div>
-      <p data-slot="field-hint">
-        Which memory directories this workspace uses. Add one here and it belongs to this workspace alone; the rest
-        come from your app settings.
-      </p>
+      <p data-slot="field-hint">Directories added here belong to this workspace alone.</p>
 
       <Show
         when={props.resolved.length > 0}
@@ -181,10 +173,7 @@ export function WorkspaceMemoryPanel(props: {
         onAdd={({ name, path }) => props.onChange({ ...props.dirs, [name]: { path } })}
       />
 
-      <p class="text-v2-text-text-muted">
-        <Icon name="alert" size={12} class="mr-1 inline align-[-1px]" />
-        Takes effect in sessions started after saving. The file tree updates at once.
-      </p>
+      <p class="text-v2-text-text-muted">Takes effect in sessions started after saving.</p>
     </div>
   );
 }
