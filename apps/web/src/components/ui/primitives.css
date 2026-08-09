@@ -1,6 +1,6 @@
 /* ── Tooltip ── */
 [data-component="tooltip"] {
-  z-index: 60;
+  z-index: var(--z-tooltip);
   padding: 4px 8px;
   border-radius: 6px;
   background: var(--v2-background-bg-inverse);
@@ -21,7 +21,7 @@
 [data-component="dialog-overlay"] {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: var(--z-dialog);
   background: var(--v2-overlay-simple-overlay-scrim);
   backdrop-filter: blur(3px);
   animation: overlay-in 0.15s ease;
@@ -30,7 +30,7 @@
 [data-slot="dialog-positioner"] {
   position: fixed;
   inset: 0;
-  z-index: 91;
+  z-index: calc(var(--z-dialog) + 1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,7 +153,7 @@
 }
 
 [data-component="select-content"] {
-  z-index: 95;
+  z-index: var(--z-floating);
   min-width: var(--kb-select-trigger-width);
   max-height: 320px;
   overflow: auto;

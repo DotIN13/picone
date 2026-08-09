@@ -26,6 +26,21 @@
     --vh: calc(1dvh / var(--ui-scale));
     --vw: calc(1vw / var(--ui-scale));
 
+    /*
+     * Stacking order, in one place because it is the kind of thing that only
+     * goes wrong across files. The rule: a *surface* is something you open and
+     * work inside; a *floating* layer is a menu or popover anchored to a
+     * control, and it must clear every surface, since a select inside a drawer
+     * has to draw over that drawer to be usable at all.
+     */
+    --z-inline: 30; /* anchored within the page flow, e.g. the slash menu */
+    --z-overlay: 40; /* the phone sidebar, the comment popover */
+    --z-dialog: 90; /* modal dialogs and sheets */
+    --z-drawer: 100; /* the settings drawer */
+    --z-floating: 110; /* selects, menus, popovers — above every surface */
+    --z-tooltip: 115;
+    --z-toast: 120;
+
     /* Published by trackVisualViewport() when the on-screen keyboard opens. */
     --keyboard-inset-raw: 0px;
     --keyboard-inset: calc(var(--keyboard-inset-raw) / var(--ui-scale));

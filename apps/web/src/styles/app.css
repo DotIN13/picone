@@ -994,7 +994,7 @@
 /* ── Comment popover ── */
 [data-component="comment-popover"] {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-overlay);
 }
 
 [data-component="comment-popover"]:not([data-composing]) {
@@ -1300,7 +1300,7 @@
   position: absolute;
   bottom: calc(100% + 6px);
   inset-inline: 0;
-  z-index: 30;
+  z-index: var(--z-inline);
   display: flex;
   flex-direction: column;
   max-height: 300px;
@@ -1395,7 +1395,7 @@
 }
 
 [data-component="model-popover"] {
-  z-index: 80;
+  z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
   width: 340px;
@@ -1911,7 +1911,7 @@
     position: absolute;
     inset-block: 0;
     inset-inline-start: 0;
-    z-index: 40;
+    z-index: var(--z-overlay);
     width: min(calc(84 * var(--vw)), 320px);
     box-shadow: var(--v2-elevation-overlay);
     animation: sidebar-in 0.22s cubic-bezier(0.32, 0.72, 0, 1);
@@ -1920,7 +1920,7 @@
   [data-slot="sidebar-scrim"] {
     position: absolute;
     inset: 0;
-    z-index: 39;
+    z-index: calc(var(--z-overlay) - 1);
     background: var(--v2-overlay-simple-overlay-scrim);
     backdrop-filter: blur(2px);
     animation: overlay-in 0.22s ease;
@@ -2152,7 +2152,7 @@
   position: fixed;
   bottom: 16px;
   inset-inline-end: 16px;
-  z-index: 120;
+  z-index: var(--z-toast);
   display: flex;
   align-items: center;
   gap: 10px;

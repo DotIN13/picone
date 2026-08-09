@@ -1071,6 +1071,16 @@ One typography detail worth remembering: the UI runs at weight 440, and CSS
 font-matching rounds 400–500 *upward*, so monospace text silently picked
 JetBrains Mono Medium until code contexts were pinned back to 400.
 
+**Stacking order is named, in `base.css`, and nowhere else.** The distinction
+that matters is between a *surface* — something you open and work inside, like a
+dialog or the settings drawer — and a *floating* layer anchored to a control,
+like a select's listbox. A floating layer must clear every surface, because a
+select inside a drawer has to draw over that drawer to be usable. Two loose
+numbers in two files got this backwards once: `select-content` sat at 95 under a
+drawer at 101, so every dropdown in settings opened *behind* the panel and the
+click landed on the drawer. Hence `--z-inline`, `--z-overlay`, `--z-dialog`,
+`--z-drawer`, `--z-floating`, `--z-tooltip`, `--z-toast`, all in one block.
+
 ---
 
 ## 43. Slash commands
