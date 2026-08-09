@@ -98,6 +98,8 @@ export class SessionRuntime {
   readonly createdAt = new Date().toISOString();
   updatedAt = this.createdAt;
 
+  /** Replaced when the workspace file is edited, so roots never go stale. */
+  private workspace: Workspace;
   private session!: AgentSession;
   private translator!: EventTranslator;
   private gate!: PermissionGate;
@@ -125,6 +127,7 @@ export class SessionRuntime {
   constructor(private readonly options: SessionRuntimeOptions) {
     this.id = options.id;
     this.title = options.title;
+    this.workspace = options.workspace;
     this.extensionUi = new ExtensionUiBridge({
       prompt: (prompt) => this.options.emit(this.id, { type: "extension.ui.prompt", prompt }),
       closePrompt: (id) => this.options.emit(this.id, { type: "extension.ui.prompt.closed", id }),
@@ -141,7 +144,7 @@ export class SessionRuntime {
   }
 
   private async init(): Promise<void> {
-    const { workspace } = this.options;
+    const workspace = this.workspace;
     const cwd = workspace.roots.find((r) => r.exists)?.path ?? process.cwd();
 
     this.transcript = loadTranscript(this.id);
@@ -152,16 +155,25 @@ export class SessionRuntime {
       commit: (item) => this.commit(item),
     });
 
-    this.gate = new PermissionGate(resolvedPermissions(workspace.file), {
-      ask: (request) =>
-        new Promise<PermissionDecision>((resolve) => {
-          const item: ChatItem = { kind: "permission", id: request.id, request, at: new Date().toISOString() };
-          this.commit(item);
-          this.translator.setState("waiting_permission");
-          this.pending.set(request.id, { resolve, itemId: request.id });
-          this.options.emit(this.id, { type: "permission.requested", request });
-        }),
-    });
+    this.gate = new PermissionGate(
+      resolvedPermissions(workspace.file),
+      {
+        ask: (request) =>
+          new Promise<PermissionDecision>((resolve) => {
+            const item: ChatItem = { kind: "permission", id: request.id, request, at: new Date().toISOString() };
+            this.commit(item);
+            this.translator.setState("waiting_permission");
+            this.pending.set(request.id, { resolve, itemId: request.id });
+            this.options.emit(this.id, { type: "permission.requested", request });
+          }),
+      },
+      {
+        cwd,
+        // Read live rather than captured: adding a directory to the workspace
+        // has to widen this without rebuilding the session.
+        writableRoots: () => this.workspace.roots.map((root) => root.path),
+      },
+    );
 
     const permissionExtension: InlineExtension = {
       name: "picone-permissions",
@@ -391,8 +403,13 @@ export class SessionRuntime {
     else await this.prompt(modelText, "comment", displayText);
   }
 
-  updatePermissions(permissions: Required<WorkspacePermissions>): void {
-    this.gate.updatePermissions(permissions);
+  /**
+   * The workspace file changed. Permissions and the writable roots both come
+   * from it, so they are refreshed together rather than drifting apart.
+   */
+  updateWorkspace(workspace: Workspace): void {
+    this.workspace = workspace;
+    this.gate.updatePermissions(resolvedPermissions(workspace.file));
   }
 
   /**

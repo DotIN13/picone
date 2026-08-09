@@ -368,6 +368,42 @@ processes ungated. This was a real bypass, found during testing.
 A compound command takes the strictest category present: `git push && npm test`
 is a shell request, not a git one.
 
+### Location, before category
+
+A category alone cannot express "may write here but not there", and `files:
+allow` used to mean the agent could write **anywhere on the disk** — which is
+not what anyone setting it assumes. So classification also reports *the paths a
+call would modify*, and the gate checks them first:
+
+```text
+write / edit / multiedit → the paths in the arguments
+read / ls / grep / find  → none
+bash and friends         → none
+```
+
+A write whose target lies outside every writable root is refused before the
+category is consulted, so `allow` cannot grant it. Writable roots are the
+workspace directories plus any memory directory marked writable. The refusal
+names the path and lists where writing *is* allowed, so the agent can correct
+itself rather than retry.
+
+Three deliberate limits:
+
+* **Reads are not location-checked.** Reading widely is useful, the workspace
+  picker roams the disk already, and confining reads would break more than it
+  protects.
+* **Shell is not location-checked.** A `bash` line can write anywhere and
+  finding out would mean parsing shell, which is a losing game. Shell stays
+  governed by its own category, `ask` by default — which is the real reason that
+  default is not `allow`.
+* **One forbidden target refuses the whole call.** A `multiedit` spanning an
+  allowed and a forbidden path is denied entire; half-applying it would be
+  worse than refusing it.
+
+Relative paths resolve against the session's cwd, the same way the tool itself
+would resolve them, so `../../escape.txt` is caught rather than mistaken for a
+path under the server's own working directory.
+
 ---
 
 ## 10. Permission requests

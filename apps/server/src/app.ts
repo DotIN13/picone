@@ -161,8 +161,7 @@ export class App {
     const workspace = writeWorkspaceFile(current.path, next);
     this.workspace = workspace;
 
-    const permissions = resolvedPermissions(workspace.file);
-    for (const session of this.sessions.values()) session.updatePermissions(permissions);
+    for (const session of this.sessions.values()) session.updateWorkspace(workspace);
 
     if (JSON.stringify(before.mcp ?? {}) !== JSON.stringify(workspace.file.mcp ?? {})) {
       await this.startMcp();

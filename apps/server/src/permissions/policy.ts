@@ -1,7 +1,12 @@
 import type { PermissionCategory } from "@picone/protocol";
 
-/** Built-in Pi tools that touch the filesystem. */
-const FILE_TOOLS = new Set(["read", "write", "edit", "ls", "grep", "find", "multiedit"]);
+/**
+ * Filesystem tools, split by what they do to the disk. Reading widely is
+ * useful and is never confined to the workspace; writing is confined, so the
+ * two sets cannot stay one (DESIGN §9).
+ */
+const READ_TOOLS = new Set(["read", "ls", "grep", "find", "glob"]);
+const WRITE_TOOLS = new Set(["write", "edit", "multiedit"]);
 
 /**
  * Tools that execute processes. `bash` is Pi's built-in, but extensions and
@@ -83,6 +88,38 @@ export interface Classification {
   detail: string;
   title: string;
   cwd?: string;
+  /**
+   * Every path this call would modify, as written in the arguments. Empty for
+   * anything that only reads. The gate checks these against the writable roots
+   * before it looks at the category at all.
+   */
+  writes: string[];
+}
+
+/**
+ * Paths a write tool would touch. `multiedit` and friends carry a list of
+ * edits, each naming its own file, so a call can target several at once and
+ * one forbidden entry has to be enough to refuse the whole call.
+ */
+function writeTargets(args: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const push = (value: unknown) => {
+    if (typeof value === "string" && value.trim() !== "") out.push(value);
+  };
+  const fromRecord = (record: Record<string, unknown>) => {
+    push(record.path);
+    push(record.file_path);
+    push(record.filePath);
+  };
+
+  fromRecord(args);
+  for (const value of Object.values(args)) {
+    if (!Array.isArray(value)) continue;
+    for (const item of value) {
+      if (item && typeof item === "object") fromRecord(item as Record<string, unknown>);
+    }
+  }
+  return [...new Set(out)];
 }
 
 export function classifyToolCall(toolName: string, input: unknown): Classification {
@@ -97,6 +134,9 @@ export function classifyToolCall(toolName: string, input: unknown): Classificati
       detail: command || toolName,
       title: "Pi wants to run",
       cwd: typeof args.cwd === "string" ? args.cwd : undefined,
+      // A shell command can write anywhere and finding out would mean parsing
+      // shell, which is a losing game. It is gated by its category alone.
+      writes: [],
     };
   }
 
@@ -106,16 +146,21 @@ export function classifyToolCall(toolName: string, input: unknown): Classificati
     (typeof args.pattern === "string" && args.pattern) ||
     "";
 
+  // An unrecognised tool carrying both a path and replacement content is
+  // writing, whatever it calls itself.
   const looksLikeFileMutation = target !== "" && FILE_MUTATION_FIELDS.some((field) => field in args);
-  if (FILE_TOOLS.has(name) || looksLikeFileMutation) {
+  const writing = WRITE_TOOLS.has(name) || looksLikeFileMutation;
+
+  if (writing || READ_TOOLS.has(name)) {
     return {
       category: "files",
       detail: `${toolName} ${target}`.trim(),
       title: `Pi wants to use the ${toolName} tool on`,
+      writes: writing ? writeTargets(args) : [],
     };
   }
 
-  return { category: null, detail: toolName, title: `Pi wants to use ${toolName}` };
+  return { category: null, detail: toolName, title: `Pi wants to use ${toolName}`, writes: [] };
 }
 
 /**
