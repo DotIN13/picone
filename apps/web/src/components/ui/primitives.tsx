@@ -34,27 +34,23 @@ export interface DialogProps {
   onOpenChange: (open: boolean) => void;
   title: JSX.Element;
   description?: JSX.Element;
-  /** Blocks the close affordance and outside dismissal. */
-  required?: boolean;
   width?: string;
   children: JSX.Element;
   footer?: JSX.Element;
 }
 
+/**
+ * Every dialog closes: Escape, the scrim, or the button in the corner. Even the
+ * workspace picker with no workspace open, which has the splash behind it and
+ * its own way back in — a dialog you cannot leave is a trap, not a safeguard.
+ */
 export function Dialog(props: DialogProps) {
   // On phones a centred dialog fights the keyboard and the safe areas, so the
   // same content docks to the bottom as a sheet instead.
   const sheet = () => state.compact;
 
   return (
-    <KDialog
-      open={props.open}
-      onOpenChange={(open) => {
-        if (props.required && !open) return;
-        props.onOpenChange(open);
-      }}
-      modal
-    >
+    <KDialog open={props.open} onOpenChange={props.onOpenChange} modal>
       <KDialog.Portal>
         <KDialog.Overlay data-component="dialog-overlay" />
         <div data-slot="dialog-positioner" data-sheet={sheet() ? "" : undefined}>
@@ -73,11 +69,9 @@ export function Dialog(props: DialogProps) {
                   <KDialog.Description data-slot="dialog-description">{props.description}</KDialog.Description>
                 </Show>
               </div>
-              <Show when={!props.required}>
-                <KDialog.CloseButton as="div">
-                  <IconButton icon="close" label="Close" variant="ghost-muted" />
-                </KDialog.CloseButton>
-              </Show>
+              <KDialog.CloseButton as="div">
+                <IconButton icon="close" label="Close" variant="ghost-muted" />
+              </KDialog.CloseButton>
             </div>
             <div data-slot="dialog-body">{props.children}</div>
             <Show when={props.footer}>

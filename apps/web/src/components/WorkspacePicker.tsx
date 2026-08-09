@@ -79,9 +79,11 @@ export function WorkspacePicker() {
     input?.focus();
   };
 
+  /** An empty parent is the roots listing, which an empty path is how you ask for. */
   const goUp = () => {
     const parent = info()?.parent;
-    if (parent) setPath(withTrailing(parent));
+    if (parent === null || parent === undefined) return;
+    setPath(parent === "" ? "" : withTrailing(parent));
     input?.focus();
   };
 
@@ -151,7 +153,6 @@ export function WorkspacePicker() {
     <Dialog
       open={state.workspacePickerOpen}
       onOpenChange={setWorkspacePickerOpen}
-      required={!state.workspace}
       title="Open workspace"
       description="Pick a folder to work in, or a workspace file to reopen."
       width="620px"
@@ -209,8 +210,9 @@ export function WorkspacePicker() {
         </div>
 
         <div data-slot="picker-list" ref={list} role="listbox">
-          {/* Only meaningful once we are actually inside a folder. */}
-          <Show when={info()?.type === "directory" && info()?.parent && !filtering()}>
+          {/* Only meaningful once we are actually inside a folder. `parent` is
+              "" at a drive root, which still has the drive list above it. */}
+          <Show when={info()?.type === "directory" && info()?.parent !== null && info()?.parent !== undefined && !filtering()}>
             <button type="button" data-slot="path-item" onClick={goUp}>
               <Icon name="chevron-up" size={13} class="shrink-0 text-v2-icon-icon-muted" />
               <span class="truncate">..</span>
@@ -252,7 +254,8 @@ export function WorkspacePicker() {
                     }}
                   />
                   <span class="truncate">{entry.name}</span>
-                  <Show when={entry.type === "directory"}>
+                  {/* A drive is somewhere you can go, so it says so too. */}
+                  <Show when={entry.type !== "file"}>
                     <Icon name="chevron-right" size={12} class="ml-auto shrink-0 opacity-40" />
                   </Show>
                 </button>

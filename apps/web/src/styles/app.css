@@ -1632,7 +1632,10 @@
   cursor: pointer;
 }
 
-[data-slot="path-item"][data-active]:not([data-inert]) {
+/* `data-active` follows the keyboard; the hover rule is what makes `..` light
+   up too, since it sits outside the list the arrow keys walk. */
+[data-slot="path-item"][data-active]:not([data-inert]),
+[data-slot="path-item"]:hover:not([data-inert]) {
   background: var(--v2-overlay-simple-overlay-hover);
 }
 

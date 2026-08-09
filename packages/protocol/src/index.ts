@@ -144,6 +144,10 @@ export interface PathInspectResponse {
   workspaceFiles: string[];
   suggestedName: string;
   isGitRepo: boolean;
+  /**
+   * Where "up" leads. An empty string means the roots listing — home and the
+   * drives — which is what sits above `C:\`; null means there is no up at all.
+   */
   parent: string | null;
 }
 

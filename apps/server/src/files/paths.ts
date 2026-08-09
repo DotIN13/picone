@@ -12,15 +12,18 @@ import path from "node:path";
 
 const IS_WINDOWS = process.platform === "win32";
 
-/** Directories that are never useful to browse into. */
+/**
+ * Directories that are never useful to browse into. Matched case-insensitively:
+ * the recycle bin is `$RECYCLE.BIN` on disk but `$Recycle.Bin` in a listing.
+ */
 const NOISE = new Set([
   "node_modules",
   ".git",
   ".hg",
   ".svn",
-  "$RECYCLE.BIN",
-  "System Volume Information",
-  ".Trash",
+  "$recycle.bin",
+  "system volume information",
+  ".trash",
 ]);
 
 export interface PathCompletion {
@@ -51,6 +54,10 @@ export interface InspectResult {
   /** A sensible workspace name derived from the directory. */
   suggestedName: string;
   isGitRepo: boolean;
+  /**
+   * Where "up" leads. An empty string means the roots listing — home and the
+   * drives — which is what sits above `C:\`; null means there is no up at all.
+   */
   parent: string | null;
 }
 
@@ -122,7 +129,7 @@ function listDirectory(dir: string, prefix: string, separator: "/" | "\\"): Path
   const out: PathCompletion[] = [];
   for (const entry of entries) {
     const name = entry.name;
-    if (NOISE.has(name)) continue;
+    if (NOISE.has(name.toLowerCase())) continue;
     // Hidden entries appear only once the user types the dot.
     if (name.startsWith(".") && !prefix.startsWith(".")) continue;
 
@@ -214,7 +221,13 @@ export function completePath(input: string): CompleteResult {
 /** Everything the picker needs to decide what to offer for a given path. */
 export function inspectPath(input: string): InspectResult {
   const target = expandInput(input);
-  const parent = path.dirname(target);
+  const dirname = path.dirname(target);
+
+  // `path.dirname` fixpoints at a root: dirname("C:\\") is "C:\\". Above a
+  // Windows drive there is still somewhere to go — the list of drives — so
+  // report that as the empty path rather than as a dead end.
+  const atRoot = dirname === target;
+  const parent = atRoot ? (IS_WINDOWS && /^[A-Za-z]:[/\\]?$/.test(target) ? "" : null) : dirname;
 
   let type: "directory" | "file" | null = null;
   try {
@@ -242,7 +255,7 @@ export function inspectPath(input: string): InspectResult {
     workspaceFiles,
     suggestedName: suggestWorkspaceName(target),
     isGitRepo: type === "directory" && existsSync(path.join(target, ".git")),
-    parent: parent === target ? null : parent,
+    parent,
   };
 }
 
