@@ -116,6 +116,10 @@
   border-radius: 8px;
 }
 
+/* Ambient, and the same in every state: a word and a hairline, no colour and
+   nothing moving. The pill says what is happening, it does not raise an alarm —
+   the permission card and the error toast are where urgency belongs, and a
+   title bar that pulses at you all run is a title bar you stop reading. */
 [data-slot="titlebar-state"] {
   display: inline-flex;
   align-items: center;
@@ -127,24 +131,6 @@
   letter-spacing: 0.05px;
   color: var(--v2-text-text-faint);
   box-shadow: 0 0 0 0.5px var(--v2-border-border-base);
-}
-
-[data-slot="titlebar-state"][data-state="working"] {
-  color: var(--v2-state-fg-info);
-  background: var(--v2-state-bg-info);
-  box-shadow: 0 0 0 0.5px var(--v2-state-border-info);
-}
-
-[data-slot="titlebar-state"][data-state="waiting_permission"] {
-  color: var(--v2-state-fg-warning);
-  background: var(--v2-state-bg-warning);
-  box-shadow: 0 0 0 0.5px var(--v2-state-border-warning);
-}
-
-[data-slot="titlebar-state"][data-state="offline"] {
-  color: var(--v2-state-fg-danger);
-  background: var(--v2-state-bg-danger);
-  box-shadow: 0 0 0 0.5px var(--v2-state-border-danger);
 }
 
 [data-slot="titlebar-meta"] {

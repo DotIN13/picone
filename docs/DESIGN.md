@@ -468,9 +468,13 @@ control row under the input, not in the title bar.
 **One status pill, not a pill and a light.** It reads `Idle`, `Working`,
 `Waiting for you`, or `Offline`, and the connection is part of it rather than a
 coloured dot in the far corner — two status displays in two vocabularies, and
-the one in the corner needed a tooltip to say what it meant. The pill is a word
-and a colour, with no indicator inside it: a dot beside a label that already
-says the same thing is decoration.
+the one in the corner needed a tooltip to say what it meant.
+
+It is **the same muted pill in every state**: one word, a hairline, no colour
+and nothing moving. The pill reports, it does not raise an alarm. Urgency
+belongs to the permission card and the error toast, which appear in the
+transcript where the work is; a title bar that pulses at you all run is a title
+bar you stop reading.
 
 Thinking, writing and running a tool collapse into *working*: they are all the
 agent being busy and the transcript already says which. Waiting on a permission
