@@ -20,6 +20,14 @@ import { Dialog } from "./ui/primitives.tsx";
  * a folder to descend, a workspace file to open it, and Create either makes a
  * workspace in the folder on screen or writes the filename that was typed.
  */
+/**
+ * `..` is part of the same list as everything else, at index -1. One cursor for
+ * the whole listing is what keeps `..` from lighting up alongside a row rather
+ * than instead of it, and lets the arrow keys, Tab and Enter reach it like any
+ * other candidate.
+ */
+const UP = -1;
+
 export function WorkspacePicker() {
   const [path, setPath] = createSignal("");
   const [entries, setEntries] = createSignal<PathCompletion[]>([]);
@@ -56,7 +64,9 @@ export function WorkspacePicker() {
           setBase(completed.value.base);
           setSeparator(completed.value.separator);
           setMissing(completed.value.missing && value.trim() !== "");
-          setIndex(0);
+          // A fresh listing starts on its first entry, not on `..`: going
+          // forward is the common move, and `..` is one arrow key away.
+          setIndex(completed.value.completions.length > 0 ? 0 : UP);
         }
         setInfo(inspected.status === "fulfilled" ? inspected.value : null);
       }, 110);
@@ -122,12 +132,17 @@ export function WorkspacePicker() {
   };
 
   const complete = () => {
+    // Accepting `..` is going up, the same as clicking it.
+    if (!cycle && index() === UP && hasUp()) {
+      goUp();
+      return;
+    }
     if (cycle) {
       cycle.at = (cycle.at + 1) % cycle.items.length;
     } else {
       const items = entries();
       if (items.length === 0) return;
-      cycle = { items, at: Math.min(index(), items.length - 1) };
+      cycle = { items, at: Math.max(0, Math.min(index(), items.length - 1)) };
     }
 
     const entry = cycle.items[cycle.at]!;
@@ -136,6 +151,12 @@ export function WorkspacePicker() {
     if (entry.type !== "file") resetCycle();
     input?.focus();
   };
+
+  const hasUp = () => {
+    const parent = info()?.parent;
+    return info()?.type === "directory" && parent !== null && parent !== undefined && !filtering();
+  };
+  const firstIndex = () => (hasUp() ? UP : 0);
 
   /** An empty parent is the roots listing, which an empty path is how you ask for. */
   const goUp = () => {
@@ -177,14 +198,16 @@ export function WorkspacePicker() {
 
   const onKeyDown = (event: KeyboardEvent) => {
     const items = entries();
+    const last = items.length - 1;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      if (items.length) setIndex((i) => (i + 1) % items.length);
+      setIndex((i) => (i >= last ? firstIndex() : i + 1));
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      if (items.length) setIndex((i) => (i - 1 + items.length) % items.length);
+      setIndex((i) => (i <= firstIndex() ? last : i - 1));
       return;
     }
     if (event.key === "Tab") {
@@ -197,8 +220,13 @@ export function WorkspacePicker() {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      // An existing file opens, a new workspace name is created, and only then
-      // does Enter fall through to completing against the highlighted row.
+      if (index() === UP && hasUp()) {
+        goUp();
+        return;
+      }
+      // Something typed out in full is a decision, and it outranks a highlight
+      // the user never moved — the fallback listing highlights a row that has
+      // nothing to do with the name being invented in the field.
       if (info()?.type === "file") {
         void open(info()!.path);
         return;
@@ -207,8 +235,10 @@ export function WorkspacePicker() {
         void create();
         return;
       }
+      // Otherwise Enter goes wherever the eye already is: into the highlighted
+      // folder, or into the highlighted workspace file.
       const entry = items[index()];
-      if (entry && filtering()) activate(entry);
+      if (entry) activate(entry);
     }
   };
 
@@ -310,8 +340,15 @@ export function WorkspacePicker() {
         <div data-slot="picker-list" ref={list} role="listbox">
           {/* Only meaningful once we are actually inside a folder. `parent` is
               "" at a drive root, which still has the drive list above it. */}
-          <Show when={info()?.type === "directory" && info()?.parent !== null && info()?.parent !== undefined && !filtering()}>
-            <button type="button" data-slot="path-item" onClick={goUp}>
+          <Show when={hasUp()}>
+            <button
+              type="button"
+              data-slot="path-item"
+              data-index={UP}
+              data-active={index() === UP ? "" : undefined}
+              onMouseEnter={() => setIndex(UP)}
+              onClick={goUp}
+            >
               <Icon name="chevron-up" size={13} class="shrink-0 text-v2-icon-icon-muted" />
               <span class="truncate">..</span>
             </button>

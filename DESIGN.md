@@ -125,6 +125,16 @@ name being invented, and blanking the panel at that moment is the least helpful
 thing the UI could do. A folder that does not exist resolves to its nearest
 ancestor, with a line saying so, rather than to an empty box.
 
+**One cursor covers the whole listing, `..` included**, at index -1. Sharing it
+is what keeps `..` from lighting up alongside a row rather than instead of it,
+and lets the arrow keys, Tab and Enter reach it like any other candidate.
+
+**Enter goes where the eye already is** — into the highlighted folder, or into
+the highlighted workspace file. The exception is something typed out in full: an
+existing file opens and a new workspace name is created, both ahead of the
+highlight, because when a name is being invented the fallback listing highlights
+a row that has nothing to do with it.
+
 **Tab completes.** It accepts the highlighted candidate: a folder becomes the
 new location and the listing follows it in, a filename is filled in whole.
 Pressing it again walks the candidates — captured on the first press, because
