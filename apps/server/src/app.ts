@@ -27,7 +27,9 @@ import {
 import { OpenFileWatcher } from "./files/watcher.ts";
 import { Hub } from "./hub.ts";
 import { McpManager } from "./mcp/manager.ts";
+import { memoryRoots, resolveMemoryDirs } from "./memory/registry.ts";
 import { loadGlobalSettings, mergeMcp, saveGlobalSettings } from "./settings.ts";
+import nodePath from "node:path";
 import { expandPath } from "./util/paths.ts";
 import { SessionRuntime } from "./pi/runtime.ts";
 import { createWorkspace, type CreateWorkspaceOptions } from "./workspace/create.ts";
@@ -49,7 +51,7 @@ export class App {
   private workspace: Workspace | null = null;
   private readonly sessions = new Map<string, SessionRuntime>();
   private activeSessionId: string | null = null;
-  private settings: GlobalSettings = { mcp: {}, skills: [] };
+  private settings: GlobalSettings = { mcp: {}, skills: [], memory: {} };
   private settingsErrors: string[] = [];
   private mcpSources: Record<string, "global" | "workspace"> = {};
   /** Path being reopened at startup, while it is still in flight. */
@@ -77,10 +79,36 @@ export class App {
     return this.workspace?.roots.map((r) => r.path) ?? [];
   }
 
+  /**
+   * Fill in what the loader could not see: the global memory list this
+   * workspace's entries merge with, and the roots those directories add.
+   * Every path that produces a `Workspace` goes through here (§50).
+   */
+  private withMemory(workspace: Workspace): Workspace {
+    const diagnostics = [...workspace.diagnostics];
+    const memory = resolveMemoryDirs({
+      global: this.settings.memory,
+      workspace: workspace.file.memory,
+      workspaceDir: nodePath.dirname(workspace.path),
+      diagnostics,
+    });
+
+    for (const dir of memory) {
+      if (dir.enabled && !dir.exists) diagnostics.push(`Memory directory does not exist: ${dir.path}`);
+    }
+
+    return {
+      ...workspace,
+      memory,
+      roots: [...workspace.roots.filter((root) => root.kind === "directory"), ...memoryRoots(memory)],
+      diagnostics,
+    };
+  }
+
   async openWorkspace(path: string): Promise<Workspace> {
     await this.closeWorkspace();
 
-    const workspace = loadWorkspace(path);
+    const workspace = this.withMemory(loadWorkspace(path));
     this.workspace = workspace;
     rememberWorkspace(workspace.path, workspace.file.name);
     setUiState(LAST_WORKSPACE_KEY, workspace.path);
@@ -158,7 +186,7 @@ export class App {
   async updateWorkspaceFile(next: WorkspaceFile): Promise<Workspace> {
     const current = this.requireWorkspace();
     const before = current.file;
-    const workspace = writeWorkspaceFile(current.path, next);
+    const workspace = this.withMemory(writeWorkspaceFile(current.path, next));
     this.workspace = workspace;
 
     for (const session of this.sessions.values()) session.updateWorkspace(workspace);
@@ -218,6 +246,16 @@ export class App {
     this.settingsErrors = saved.errors;
 
     if (this.workspace && JSON.stringify(this.settings.mcp) !== before) await this.startMcp();
+
+    // Memory directories are global too, so the open workspace's roots and
+    // context may have just changed under it.
+    if (this.workspace) {
+      const workspace = this.withMemory(this.workspace);
+      this.workspace = workspace;
+      for (const session of this.sessions.values()) session.updateWorkspace(workspace);
+      this.hub.publish(null, { type: "workspace.updated", workspace });
+    }
+
     this.hub.publish(null, { type: "mcp.state", servers: this.mcpState() });
     return { settings: this.settings, errors: this.settingsErrors };
   }

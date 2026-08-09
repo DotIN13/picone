@@ -150,6 +150,18 @@ Anything not named there is on, so installing a skill makes it available
 everywhere at once. There is no add button: write a skill or prompt template as
 a file, install an extension with `pi install`, and it shows up in the list.
 
+**Memory.** Point Picone at folders of long-lived notes about you — who you
+are, what you are working on, who you know — and the agent reads them as a
+matter of course. Register them once in App settings; each workspace switches
+them on or off and can add its own. They appear in the file tree with a
+`memory` tag and behave like any other directory: open a file, comment on a
+selection, search across them.
+
+What the agent is told about a store is the store's *own* `AGENTS.md`, if it
+has one, rather than a description Picone invented — so a folder that explains
+itself is understood without any configuration. `writable` is off by default
+and enforced by the permission gate, not merely stated.
+
 **MCP.** Pi has no concept of it, so Picone runs its own client and hands the
 remote tools to Pi as ordinary tools. Servers are configured by hand in the
 workspace file, or in `~/.picone/settings.json` to apply to every workspace —

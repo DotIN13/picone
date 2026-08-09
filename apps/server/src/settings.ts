@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { GlobalSettings, WorkspaceMcpConfig, WorkspaceSkill } from "@picone/protocol";
+import type { GlobalSettings, MemoryDirs, WorkspaceMcpConfig, WorkspaceSkill } from "@picone/protocol";
 import { DATA_DIR, ensureDataDir } from "./config.ts";
 
 /**
@@ -14,7 +14,7 @@ import { DATA_DIR, ensureDataDir } from "./config.ts";
  */
 export const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
 
-const EMPTY: GlobalSettings = { mcp: {}, skills: [] };
+const EMPTY: GlobalSettings = { mcp: {}, skills: [], memory: {} };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -65,6 +65,32 @@ function parseSkills(raw: unknown, errors: string[]): WorkspaceSkill[] {
   return out;
 }
 
+/** Global memory directories (§50). A bare string is accepted as the path. */
+function parseMemory(raw: unknown, errors: string[]): MemoryDirs {
+  if (raw === undefined) return {};
+  if (!isRecord(raw)) {
+    errors.push(`"memory" must be an object keyed by name`);
+    return {};
+  }
+  const out: MemoryDirs = {};
+  for (const [name, entry] of Object.entries(raw)) {
+    if (typeof entry === "string") {
+      out[name] = { path: entry };
+      continue;
+    }
+    if (!isRecord(entry) || typeof entry.path !== "string") {
+      errors.push(`"memory.${name}" needs a "path"`);
+      continue;
+    }
+    out[name] = {
+      path: entry.path,
+      enabled: entry.enabled === undefined ? undefined : Boolean(entry.enabled),
+      writable: entry.writable === undefined ? undefined : Boolean(entry.writable),
+    };
+  }
+  return out;
+}
+
 export interface LoadedSettings {
   settings: GlobalSettings;
   errors: string[];
@@ -95,7 +121,7 @@ export function loadGlobalSettings(): LoadedSettings {
   // name and still works, since this file has no UI to migrate it.
   const skills = parseSkills(raw.skillPaths ?? raw.skills, errors);
 
-  return { settings: { mcp, skills }, errors };
+  return { settings: { mcp, skills, memory: parseMemory(raw.memory, errors) }, errors };
 }
 
 export function saveGlobalSettings(settings: GlobalSettings): LoadedSettings {
@@ -103,6 +129,11 @@ export function saveGlobalSettings(settings: GlobalSettings): LoadedSettings {
   const clean: GlobalSettings = {
     mcp: settings.mcp ?? {},
     skills: (settings.skills ?? []).filter((s) => s.path.trim() !== ""),
+    // An entry with no path is a workspace switching one off; globally it is
+    // just an empty row someone stopped typing into.
+    memory: Object.fromEntries(
+      Object.entries(settings.memory ?? {}).filter(([, dir]) => (dir.path ?? "").trim() !== ""),
+    ),
   };
   writeFileSync(SETTINGS_PATH, `${JSON.stringify(clean, null, 2)}\n`, "utf8");
   return loadGlobalSettings();

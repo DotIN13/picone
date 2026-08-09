@@ -69,6 +69,42 @@ export interface WorkspaceResource {
  */
 export type WorkspaceResources = Record<string, WorkspaceResource>;
 
+/**
+ * A folder of long-lived notes about the user, offered to the agent as reading
+ * rather than as project code.
+ *
+ * An entry with no `path` is a workspace switching off one it inherited: the
+ * two are merged field by field, so toggling a global directory never has to
+ * restate where it lives.
+ */
+export interface MemoryDir {
+  /** Absolute, `~`-relative, or relative to the file that declares it. */
+  path?: string;
+  enabled?: boolean;
+  /** Default false, and enforced by the permission gate rather than merely stated. */
+  writable?: boolean;
+}
+
+export type MemoryDirs = Record<string, MemoryDir>;
+
+/** A merged, resolved entry — what the UI and the session runtime both read. */
+export interface ResolvedMemoryDir {
+  name: string;
+  /** Absolute. */
+  path: string;
+  enabled: boolean;
+  writable: boolean;
+  exists: boolean;
+  /** Where the path came from; a workspace entry that only toggles stays "global". */
+  source: "global" | "workspace";
+  /** It carries an `AGENTS.md`, so it can explain itself to the agent. */
+  hasInstructions: boolean;
+  /** It carries an `index.md` worth pointing the agent at. */
+  hasIndex: boolean;
+  /** Top-level entries, for the settings list. */
+  entries: number;
+}
+
 export interface WorkspaceFile {
   version: 1;
   name: string;
@@ -79,6 +115,7 @@ export interface WorkspaceFile {
   skills?: WorkspaceResources;
   prompts?: WorkspaceResources;
   extensions?: WorkspaceResources;
+  memory?: MemoryDirs;
   mcp?: Record<string, WorkspaceMcpConfig>;
   permissions?: WorkspacePermissions;
   model?: WorkspaceModel;
@@ -90,8 +127,16 @@ export interface Workspace {
   /** Absolute path of the workspace JSON file. */
   path: string;
   file: WorkspaceFile;
-  /** Roots resolved to absolute paths, with existence checked. */
+  /**
+   * Roots resolved to absolute paths, with existence checked: the project
+   * directories first, then the enabled memory directories.
+   */
   roots: WorkspaceRoot[];
+  /**
+   * Memory directories after merging the global list with this workspace's.
+   * Empty until the app fills it, since the loader cannot see global settings.
+   */
+  memory: ResolvedMemoryDir[];
   /** Non-fatal problems found while loading. */
   diagnostics: string[];
 }
@@ -102,6 +147,10 @@ export interface WorkspaceRoot {
   /** Absolute, normalized path. */
   path: string;
   exists: boolean;
+  /** Project code, or a memory directory (§50) that is readable alongside it. */
+  kind: "directory" | "memory";
+  /** Whether the agent may write here. Always true for project directories. */
+  writable: boolean;
 }
 
 export interface RecentWorkspace {
@@ -408,6 +457,8 @@ export interface McpServerState {
 export interface GlobalSettings {
   mcp: Record<string, WorkspaceMcpConfig>;
   skills: WorkspaceSkill[];
+  /** Memory directories offered to every workspace (§50). */
+  memory: MemoryDirs;
 }
 
 /**

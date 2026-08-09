@@ -25,6 +25,7 @@ import type {
   WorkspaceResources,
 } from "@picone/protocol";
 import { appendMessage, loadTranscript } from "../db.ts";
+import { memoryContextFiles } from "../memory/context.ts";
 import { PermissionGate } from "../permissions/gate.ts";
 import { resolvedPermissions, resolvedVoice } from "../workspace/schema.ts";
 import { resolveSkillPaths, workspaceContext } from "../workspace/loader.ts";
@@ -145,7 +146,8 @@ export class SessionRuntime {
 
   private async init(): Promise<void> {
     const workspace = this.workspace;
-    const cwd = workspace.roots.find((r) => r.exists)?.path ?? process.cwd();
+    // A memory directory is readable, but it is not where work happens.
+    const cwd = workspace.roots.find((r) => r.exists && r.kind === "directory")?.path ?? process.cwd();
 
     this.transcript = loadTranscript(this.id);
     this.seq = this.transcript.length;
@@ -169,9 +171,10 @@ export class SessionRuntime {
       },
       {
         cwd,
-        // Read live rather than captured: adding a directory to the workspace
-        // has to widen this without rebuilding the session.
-        writableRoots: () => this.workspace.roots.map((root) => root.path),
+        // Read live rather than captured: adding a directory to the workspace,
+        // or making a memory store writable, has to take effect without
+        // rebuilding the session.
+        roots: () => this.workspace.roots,
       },
     );
 
@@ -267,6 +270,9 @@ export class SessionRuntime {
         agentsFiles: [
           ...base.agentsFiles,
           { path: `${workspace.path} (workspace)`, content: workspaceContext(workspace) },
+          // Each memory directory explains itself, so what goes in is its own
+          // AGENTS.md rather than a description we invented (§50).
+          ...memoryContextFiles(workspace.memory),
         ],
       }),
     });

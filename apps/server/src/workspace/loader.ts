@@ -60,7 +60,13 @@ export function loadWorkspace(filePath: string): Workspace {
     }
     if (!exists) diagnostics.push(`Directory does not exist: ${resolved}`);
 
-    roots.push({ name: path.basename(resolved) || resolved, path: resolved, exists });
+    roots.push({
+      name: path.basename(resolved) || resolved,
+      path: resolved,
+      exists,
+      kind: "directory",
+      writable: true,
+    });
   }
 
   for (const skillPath of file.skillPaths ?? []) {
@@ -72,7 +78,9 @@ export function loadWorkspace(filePath: string): Workspace {
     }
   }
 
-  return { path: abs, file, roots, diagnostics };
+  // `memory` is filled by the app, which is the only thing that can see the
+  // global list this workspace's entries merge with (§50).
+  return { path: abs, file, roots, memory: [], diagnostics };
 }
 
 /** Stable id for a workspace — the absolute file path is portable enough. */
@@ -90,7 +98,12 @@ export function workspaceContext(ws: Workspace): string {
   lines.push("");
   lines.push("The workspace contains these directories:");
   lines.push("");
-  for (const root of ws.roots) lines.push(`- ${root.path}${root.exists ? "" : " (missing)"}`);
+  // Memory directories are readable roots too, but they are not project code
+  // and listing them here would send the agent looking for source files in
+  // them. They get their own context file instead (§50).
+  for (const root of ws.roots.filter((root) => root.kind === "directory")) {
+    lines.push(`- ${root.path}${root.exists ? "" : " (missing)"}`);
+  }
 
   if (ws.file.instructions?.length) {
     lines.push("");

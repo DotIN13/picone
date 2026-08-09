@@ -1,4 +1,10 @@
-import type { PermissionSetting, WorkspaceFile, WorkspaceMcpConfig, WorkspaceResources } from "@picone/protocol";
+import type {
+  MemoryDirs,
+  PermissionSetting,
+  WorkspaceFile,
+  WorkspaceMcpConfig,
+  WorkspaceResources,
+} from "@picone/protocol";
 
 /**
  * Hand-written validation. The schema is deliberately small (DESIGN §4) and the
@@ -103,6 +109,37 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
   const prompts = resources(raw.prompts, "prompts");
   const extensions = resources(raw.extensions, "extensions");
 
+  /** Like `resources`, plus the two fields a memory directory adds (§50). */
+  let memory: WorkspaceFile["memory"];
+  if (raw.memory !== undefined) {
+    if (!isRecord(raw.memory)) {
+      errors.push(`"memory" must be an object keyed by name`);
+    } else {
+      const out: MemoryDirs = {};
+      for (const [name, entry] of Object.entries(raw.memory)) {
+        if (typeof entry === "string") {
+          // A bare path is the obvious thing to write by hand; accept it.
+          out[name] = { path: entry };
+          continue;
+        }
+        if (!isRecord(entry)) {
+          errors.push(`"memory.${name}" must be a path, or { "path": …, "enabled": …, "writable": … }`);
+          continue;
+        }
+        if (entry.path !== undefined && typeof entry.path !== "string") {
+          errors.push(`"memory.${name}.path" must be a string`);
+          continue;
+        }
+        out[name] = {
+          path: typeof entry.path === "string" ? entry.path : undefined,
+          enabled: entry.enabled === undefined ? undefined : Boolean(entry.enabled),
+          writable: entry.writable === undefined ? undefined : Boolean(entry.writable),
+        };
+      }
+      if (Object.keys(out).length > 0) memory = out;
+    }
+  }
+
   let mcp: Record<string, WorkspaceMcpConfig> | undefined;
   if (raw.mcp !== undefined) {
     if (!isRecord(raw.mcp)) {
@@ -180,6 +217,7 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
       skills,
       prompts,
       extensions,
+      memory,
       mcp,
       permissions,
       model,

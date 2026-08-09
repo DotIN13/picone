@@ -137,7 +137,7 @@ const [state, setState] = createStore<State>({
   mcp: [],
   models: [],
   voice: { input: true, output: true },
-  settings: { mcp: {}, skills: [] },
+  settings: { mcp: {}, skills: [], memory: {} },
   settingsErrors: [],
   resources: null,
   restoring: null,
@@ -472,6 +472,17 @@ export function setFilter(value: string): void {
 // ---------------------------------------------------------------------------
 // UI toggles
 // ---------------------------------------------------------------------------
+
+/**
+ * Save the settings that apply to every workspace. Unlike the rest of the App
+ * group these live on the server — a path is a fact about the machine, not the
+ * browser — so this round-trips and then re-reads what the server made of it.
+ */
+export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
+  const result = await api.saveSettings(settings);
+  setState({ settings: result.settings, settingsErrors: result.errors });
+  await refreshState();
+}
 
 export function setSidebarMode(mode: "files" | "sessions"): void {
   setState("sidebarMode", mode);

@@ -6,7 +6,6 @@ filename — so finishing one never renumbers the rest.
 | | |
 |---|---|
 | [Rich previews for media in the flow](media-previews.md) | show images, diagrams and files the agent mentions, instead of leaving a bare string |
-| [Memory directories](memory-directories.md) | folders of long-lived notes, registered once and switched on per workspace |
 | [No automated tests](automated-tests.md) | everything so far was verified by hand against a live model |
 | [Web bundle is one 837 kB chunk](bundle-size.md) | CodeMirror and Mermaid load whether or not they are used |
 | [MCP streamable-HTTP is unverified](mcp-http-transport.md) | written from the spec, exercised only over stdio |

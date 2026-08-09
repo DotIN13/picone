@@ -13,15 +13,21 @@ const STATUS_MARK: Record<GitStatus, string> = {
 };
 
 export function FileTree() {
+  // Project directories first, then memory (§50) — the same order the tree is
+  // handed in, but stated here so it does not depend on how roots were built.
+  const roots = () =>
+    [...(state.workspace?.roots ?? [])].sort((a, b) => Number(a.kind === "memory") - Number(b.kind === "memory"));
+
   return (
     <div class="py-0.5">
-      <For each={state.workspace?.roots ?? []}>
+      <For each={roots()}>
         {(root) => (
           <TreeNode
             entry={{ name: root.name, path: root.path, type: "directory" }}
             depth={0}
             missing={!root.exists}
             isRoot
+            memory={root.kind === "memory"}
           />
         )}
       </For>
@@ -29,7 +35,13 @@ export function FileTree() {
   );
 }
 
-function TreeNode(props: { entry: DirEntry; depth: number; missing?: boolean; isRoot?: boolean }) {
+function TreeNode(props: {
+  entry: DirEntry;
+  depth: number;
+  missing?: boolean;
+  isRoot?: boolean;
+  memory?: boolean;
+}) {
   const expanded = () => state.expanded[props.entry.path] ?? false;
   const children = () => state.tree[props.entry.path];
   const loading = () => state.treeLoading[props.entry.path] ?? false;
@@ -66,6 +78,10 @@ function TreeNode(props: { entry: DirEntry; depth: number; missing?: boolean; is
           <Icon name="folder" size={13} class="shrink-0 text-v2-icon-icon-muted" />
         </Show>
         <span class="truncate">{props.entry.name}</span>
+        {/* Says what this root is, since it is not project code (§50). */}
+        <Show when={props.memory}>
+          <span data-slot="tree-tag">memory</span>
+        </Show>
         <Show when={status()}>
           {(mark) => (
             <span data-slot="git-mark" data-status={mark()}>

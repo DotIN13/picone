@@ -9,12 +9,13 @@ import type {
   WorkspaceResources,
 } from "@picone/protocol";
 import { api } from "../lib/api.ts";
-import { openFile, refreshState, setSettingsOpen, state } from "../store.ts";
+import { openFile, refreshState, saveGlobalSettings, setSettingsOpen, state } from "../store.ts";
 import { Drawer } from "./ui/drawer.tsx";
 import { Button, IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Select, Switch, Tag, TextArea, TextInput } from "./ui/primitives.tsx";
 import { AppearancePanel, NotificationsPanel } from "./AppSettings.tsx";
+import { GlobalMemoryPanel, WorkspaceMemoryPanel } from "./MemorySettings.tsx";
 
 type Section =
   | "general"
@@ -25,8 +26,10 @@ type Section =
   | "permissions"
   | "voice"
   | "model"
+  | "memory"
   | "appearance"
-  | "notifications";
+  | "notifications"
+  | "app-memory";
 
 interface SectionItem {
   id: Section;
@@ -46,6 +49,7 @@ const GROUPS: Array<{ title: string; scope: "workspace" | "app"; items: SectionI
     items: [
       { id: "appearance", label: "Appearance", icon: "sun" },
       { id: "notifications", label: "Notifications", icon: "bell" },
+      { id: "app-memory", label: "Memory", icon: "sparkle" },
     ],
   },
   {
@@ -58,6 +62,7 @@ const GROUPS: Array<{ title: string; scope: "workspace" | "app"; items: SectionI
       { id: "prompts", label: "Prompts", icon: "comment" },
       { id: "extensions", label: "Extensions", icon: "plug" },
       { id: "permissions", label: "Permissions", icon: "shield" },
+      { id: "memory", label: "Memory", icon: "sparkle" },
       { id: "voice", label: "Voice", icon: "mic" },
       { id: "model", label: "Model", icon: "terminal" },
     ],
@@ -253,6 +258,13 @@ export function SettingsDrawer() {
           <Show when={current() === "notifications"}>
             <NotificationsPanel />
           </Show>
+          <Show when={current() === "app-memory"}>
+            <GlobalMemoryPanel
+              dirs={state.settings.memory}
+              resolved={state.workspace?.memory ?? []}
+              onChange={(memory) => void saveGlobalSettings({ ...unwrap(state.settings), memory })}
+            />
+          </Show>
 
           <Show when={draft()}>
             {(file) => (
@@ -324,6 +336,14 @@ export function SettingsDrawer() {
                     resources={state.resources?.skills}
                     configured={file().skills}
                     onChange={(skills) => patch({ skills })}
+                  />
+                </Show>
+
+                <Show when={current() === "memory"}>
+                  <WorkspaceMemoryPanel
+                    dirs={file().memory ?? {}}
+                    resolved={state.workspace?.memory ?? []}
+                    onChange={(memory) => patch({ memory })}
                   />
                 </Show>
 

@@ -10,6 +10,12 @@ import { SegmentedControl, Tag } from "./ui/primitives.tsx";
 export function FileTab(props: { path: string }) {
   const file = () => state.files[props.path];
   const comments = createMemo(() => state.comments.filter((c) => c.path === props.path));
+  /** The memory root this file lives under, if it lives under one (§50). */
+  const memoryRoot = createMemo(() =>
+    state.workspace?.roots.find(
+      (root) => root.kind === "memory" && props.path.toLowerCase().startsWith(root.path.toLowerCase()),
+    ),
+  );
   const [selection, setSelection] = createSignal<Selection | null>(null);
 
   const onResolveComment = (id: string) => void setCommentStatus(id, "resolved");
@@ -58,6 +64,11 @@ export function FileTab(props: { path: string }) {
               <span class="flex-1" />
               <Show when={fileContent().truncated}>
                 <Tag tone="warning">truncated</Tag>
+              </Show>
+              {/* Memory files look like any other markdown until you are told
+                  otherwise, and where a note lives changes how you read it. */}
+              <Show when={memoryRoot()}>
+                {(root) => <Tag tone="info">{root().writable ? "memory" : "memory · read-only"}</Tag>}
               </Show>
               <Tag>read-only</Tag>
               <Show when={isMarkdown()}>

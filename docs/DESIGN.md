@@ -5,7 +5,7 @@ A browser-native coding agent powered by Pi.
 This document describes the system as designed **and built**. Section numbers
 `§1`–`§41` are referenced from comments throughout the source, so they are
 stable; where the implementation diverged from the original plan, the section
-says so rather than being renumbered. Sections `§42`–`§49` cover subsystems that
+says so rather than being renumbered. Sections `§42`–`§50` cover subsystems that
 were added during the build.
 
 Known gaps live in [todo/](todo/).
@@ -219,6 +219,11 @@ workspace file still opens on another machine.
 
 No mount aliases, no virtual filesystem. The workspace names directories and Pi
 uses ordinary absolute paths.
+
+Roots come in two kinds. `directory` roots are the project — writable, and the
+first existing one is the process cwd. `memory` roots (§50) are folders of
+long-lived notes: readable everywhere a project file is readable, listed in the
+tree with a tag, never the cwd, and writable only if their entry says so.
 
 The workspace is not tied to a `cwd`. One session works across every configured
 directory. An active working directory exists only as transient shell state.
@@ -1411,10 +1416,14 @@ different owners:
 
 * **Workspace** (§35) — written to `workspace.json`, shared with whoever else
   opens the project, and saved explicitly.
-* **App** — how this browser on this device behaves. Applied the moment they
-  change and kept in `localStorage`, so there is no save button and nothing to
-  lose. They never reach the server: nothing here is the agent's business, and
-  syncing a font choice across machines would be a liability, not a feature.
+* **App** — how the app behaves, rather than how the project does. Appearance
+  and notifications are per *browser*: applied the moment they change, kept in
+  `localStorage`, never sent anywhere, because syncing a font choice across
+  machines would be a liability rather than a feature. Memory directories (§50)
+  are the exception, and per *machine*: a path is a fact about the filesystem,
+  so they live in `~/.picone/settings.json` and save through the server. They
+  still apply on change, so the group behaves consistently even though its
+  halves are stored differently.
 
 The app group comes first: it is the half that works whatever else is going on,
 and the half a new user is most likely to want. Workspace sections are disabled
@@ -1474,3 +1483,107 @@ the section name in the header. The panel heading is hidden there, since the
 header already says it. The rail and the list are the same `GROUPS` array —
 there is one definition of what sections exist, and the layout decides how to
 show it.
+
+---
+
+## 50. Memory directories
+
+A folder of long-lived notes about the user — who they are, what they are
+working on, who they know — that the agent reads as a matter of course. Added
+once for the app, then switched on or off per workspace, with a workspace free
+to add its own.
+
+### A store worth having documents itself
+
+The design turns on one observation. A real memory store already carries its own
+`AGENTS.md`: its layout, its citation conventions, which trees are frozen, how
+to append to its log — and an `index.md` cataloguing every page with a one-line
+hook.
+
+So Picone does not describe a memory directory. **It hands over the directory's
+own description.** That is what makes the feature general rather than shaped
+around one store: any folder that explains itself works, and one that does not
+gets a generated listing instead.
+
+### Configuration
+
+Global, in `~/.picone/settings.json`; per workspace, in its JSON. Both are a
+record keyed by name — the shape `mcp` and the resource switches use:
+
+```json
+"memory": {
+  "molly": { "path": "~/notes/memory", "writable": true }
+}
+```
+
+```json
+"memory": {
+  "molly": { "enabled": false },
+  "notes":  { "path": "./docs/notes" }
+}
+```
+
+**They merge field by field, not entry by entry.** This is the one place the
+memory record differs from `mcp`, where a workspace entry replaces the global
+one wholesale. `{ "enabled": false }` has to mean "not here" without restating
+where the directory lives, so a workspace entry with no `path` is a decision
+about an inherited directory rather than a new one. A name that resolves to no
+path at all — a global entry since renamed — becomes a diagnostic rather than a
+silent nothing.
+
+### In the files view
+
+A memory directory is a first-class root. The tree lists it, files open as tabs,
+selections can be commented, the filename filter finds them, git marks show if
+the store is a repository, and the watcher flags a file that changed on disk.
+Most of that is free: `app.roots` already feeds every file endpoint. What is
+built is the marking — a `memory` tag on the tree root and in the file toolbar,
+and memory roots sorted after the project.
+
+Two consequences worth naming. **The watcher earns its keep here**: project
+files change because the agent changed them, but a memory store changes because
+something else is maintaining it, possibly while you are reading it, so §24's
+stale-file affordance becomes the normal case rather than an edge one. And **a
+comment on a read-only memory file is still worth making** — it reaches the
+session as ordinary input and the agent can read, explain, or act on it
+elsewhere.
+
+It is deliberately *not* a `directories` entry. The cwd stays the first project
+root, and the workspace context (§6) lists only project directories, so the
+agent does not go hunting for source files in someone's diary.
+
+### What the agent is told
+
+Through `agentsFilesOverride`, the same door as the workspace description, so
+Pi owns it from there and it is never re-injected:
+
+1. **A header** naming each directory, its absolute path, whether it is
+   writable, and whether it has a catalog — plus the instruction to read the
+   catalog first, since these stores are far too large to read whole.
+2. **Each directory's own `AGENTS.md`, verbatim**, capped at 32 kB with a
+   truncation note.
+3. **A generated listing** for a directory without one.
+
+`index.md` is pointed at, never injected: it is a catalog, Pi has file tools,
+and its bulk belongs in a read the agent chooses to make. In practice the agent
+does exactly that — asked what it knows about the user, it reads `index.md`,
+then the one page it needs.
+
+### Writable means writable
+
+`writable: false` is enforced by the permission gate's path check (§9), not
+merely stated in the context. Both halves matter and they do different work:
+the statement stops the agent from *offering* an edit it would be denied, and
+the enforcement stops the edit when something offers anyway. A store that took
+months of someone's life to accumulate should not depend on a sentence being
+obeyed.
+
+The refusal distinguishes the two cases, because they read very differently to
+whatever receives them:
+
+```text
+… is in "…/memory", which is read-only. Read it freely, but say what you
+would change rather than changing it.
+
+… is outside this workspace, and writing outside it is never permitted.
+```

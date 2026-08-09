@@ -20,10 +20,12 @@ export interface GatePaths {
   /** Resolves relative tool arguments the way the session's own tools would. */
   cwd: string;
   /**
-   * Where writing is permitted: the workspace roots, plus any memory directory
-   * marked writable. Read live, since a workspace edit can change it.
+   * Every root, not only the writable ones — a refusal reads very differently
+   * when the target is a read-only memory directory the agent is *meant* to be
+   * using than when it is somewhere off the map entirely. Read live, since a
+   * workspace edit can change both the list and the flags.
    */
-  writableRoots(): string[];
+  roots(): Array<{ path: string; writable: boolean; kind: "directory" | "memory" }>;
 }
 
 /**
@@ -47,17 +49,30 @@ export class PermissionGate {
   }
 
   /**
-   * The first path this call would write that lies outside every writable
-   * root, or null when they all lie inside. One forbidden target is enough to
-   * refuse the whole call: a `multiedit` is not half-applied.
+   * The first path this call would write that it may not, with enough context
+   * to explain the refusal. One forbidden target is enough to refuse the whole
+   * call: a `multiedit` is not half-applied.
    */
-  private firstForbiddenWrite(writes: string[]): string | null {
+  private firstForbiddenWrite(writes: string[]): { target: string; reason: string } | null {
     if (writes.length === 0) return null;
-    const roots = this.paths.writableRoots();
+    const roots = this.paths.roots();
+    const writable = roots.filter((root) => root.writable);
 
     for (const target of writes) {
       const abs = path.resolve(this.paths.cwd, target);
-      if (!roots.some((root) => isInside(root, abs))) return abs;
+      if (writable.some((root) => isInside(root.path, abs))) continue;
+
+      const readOnly = roots.find((root) => !root.writable && isInside(root.path, abs));
+      const where = `Writable locations:\n${writable.map((root) => `- ${root.path}`).join("\n")}`;
+
+      return {
+        target: abs,
+        reason: readOnly
+          ? `Blocked: ${abs} is in "${readOnly.path}", which is read-only. ` +
+            `Read it freely, but say what you would change rather than changing it.\n${where}`
+          : `Blocked: ${abs} is outside this workspace, and writing outside it is never permitted.\n` +
+            `${where}\nWork within those, or ask the user to add the directory to the workspace.`,
+      };
     }
     return null;
   }
@@ -74,16 +89,7 @@ export class PermissionGate {
     // workspace", which is what anyone reading that setting assumes it means —
     // it was never meant to hand over the rest of the disk.
     const forbidden = this.firstForbiddenWrite(writes);
-    if (forbidden) {
-      const roots = this.paths.writableRoots();
-      return {
-        allowed: false,
-        reason:
-          `Blocked: ${forbidden} is outside this workspace, and writing outside it is never permitted.\n` +
-          `Writable locations:\n${roots.map((root) => `- ${root}`).join("\n")}\n` +
-          `Work within those, or ask the user to add the directory to the workspace.`,
-      };
-    }
+    if (forbidden) return { allowed: false, reason: forbidden.reason };
 
     if (category === null) return { allowed: true };
 
