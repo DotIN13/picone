@@ -128,11 +128,16 @@ export interface PathCompletion {
 }
 
 export interface PathCompleteResponse {
+  /**
+   * The folder the completions came from. When the typed path names a folder
+   * that does not exist, this is the deepest ancestor that does, so the listing
+   * is never empty and always says where it is.
+   */
   base: string;
   /** Separator to join with — mirrors what the user is typing. */
   separator: "/" | "\\";
   completions: PathCompletion[];
-  /** The base directory does not exist. */
+  /** The typed folder does not exist; `base` is the nearest one that does. */
   missing: boolean;
 }
 
@@ -154,6 +159,11 @@ export interface PathInspectResponse {
 export interface CreateWorkspaceRequest {
   directory: string;
   name?: string;
+  /**
+   * Exact path to write, for when the user typed a filename rather than picking
+   * a folder. Overrides `location`, and its parent becomes the directory.
+   */
+  file?: string;
   /** Where the JSON is written: beside the code, or in Picone's data directory. */
   location?: "inside" | "central";
 }

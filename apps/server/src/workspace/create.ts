@@ -10,6 +10,11 @@ export interface CreateWorkspaceOptions {
   directory: string;
   name?: string;
   /**
+   * Exact path to write, for when the user typed a filename rather than picking
+   * a folder. Overrides `location`, and its parent becomes the directory.
+   */
+  file?: string;
+  /**
    * `inside` writes the JSON into the directory itself, so it travels with the
    * repository. `central` keeps it in the Picone data directory, for when the
    * project should not carry a Picone file.
@@ -35,16 +40,21 @@ function slug(name: string): string {
  * JSON before they can open anything was the original mistake.
  */
 export function createWorkspace(options: CreateWorkspaceOptions): Workspace {
-  const directory = expandInput(options.directory);
+  // A typed filename names its own directory; there is nothing else it could be
+  // relative to, and asking the caller to send both invites them to disagree.
+  const explicit = options.file ? expandInput(options.file) : null;
+  const directory = explicit ? path.dirname(explicit) : expandInput(options.directory);
 
   if (!existsSync(directory)) throw new Error(`Directory does not exist: ${directory}`);
   if (!statSync(directory).isDirectory()) throw new Error(`Not a directory: ${directory}`);
 
-  const name = options.name?.trim() || suggestWorkspaceName(directory);
+  const name = options.name?.trim() || suggestWorkspaceName(explicit ?? directory);
   const fileName = `${slug(name)}.workspace.json`;
 
   let target: string;
-  if (options.location === "central") {
+  if (explicit) {
+    target = explicit;
+  } else if (options.location === "central") {
     const dir = path.join(DATA_DIR, "workspaces");
     mkdirSync(dir, { recursive: true });
     target = path.join(dir, fileName);

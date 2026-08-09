@@ -116,12 +116,36 @@ file before anything could be opened made the product unusable on first run.
 with the checkout — and opens the result. The alternative location, Picone's own
 data directory, exists for projects that should not carry a Picone file.
 
-**The picker is one path field plus a listing.** Typing filters; the listing
-below is the completion surface, always visible. Clicking a folder descends,
-clicking a workspace file opens it, and *Create* makes a workspace for whichever
-folder is on screen. Recent workspaces sit underneath and hide while filtering.
-Non-workspace files are listed for orientation but are not clickable — offering
-`package.json` and then failing validation would be a lie.
+**The picker is one path field plus a listing.** The listing is the completion
+surface and it always shows a *real folder*: the deepest one on the typed path
+that exists, named above the rows so the field and the listing can never quietly
+disagree. Typing after the last separator filters it; a name matching nothing
+falls back to the whole folder, because a name that matches nothing is usually a
+name being invented, and blanking the panel at that moment is the least helpful
+thing the UI could do. A folder that does not exist resolves to its nearest
+ancestor, with a line saying so, rather than to an empty box.
+
+**Tab completes.** It accepts the highlighted candidate: a folder becomes the
+new location and the listing follows it in, a filename is filled in whole.
+Pressing it again walks the candidates — captured on the first press, because
+filling one in narrows the field's own filter down to it. Shift+Tab steps back
+out, so completing forward is never a one-way trip into the first child of every
+folder. Touch devices get a `Tab` button in the field, since the key they are
+missing is the whole accelerator; it is hidden by `(pointer: coarse)` rather
+than by a condition in the component, being the same responsive decision the
+rest of the layout makes in CSS.
+
+**Create takes either.** With a folder on screen it writes
+`<slug>.workspace.json` inside it. Type a workspace filename that does not exist
+yet — `picone1.workspace.json` — and Create writes exactly that, with the name
+derived from the filename and Enter bound to it. Only names Picone would
+recognise count, so a half-typed prefix stays a completion instead of becoming
+an offer to create something.
+
+Clicking a folder descends, clicking a workspace file opens it. Recent
+workspaces sit underneath and hide while filtering. Non-workspace files are
+listed for orientation but are not clickable — offering `package.json` and then
+failing validation would be a lie.
 
 Path handling is cross-platform by construction (`files/paths.ts`): the
 separator the user types is echoed back, `~` expands while preserving a trailing

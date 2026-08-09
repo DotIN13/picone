@@ -176,6 +176,12 @@
     [data-slot="ext-option"] {
       min-height: 44px;
     }
+
+    /* No Tab key here, so the picker offers a button that is one. */
+    [data-slot="path-tab"] {
+      display: inline-flex;
+      align-items: center;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

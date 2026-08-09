@@ -206,16 +206,37 @@ export function completePath(input: string): CompleteResult {
   }
 
   const endsWithSeparator = /[/\\]$/.test(raw);
-  const dir = endsWithSeparator ? raw : path.dirname(raw);
+  const typedDir = endsWithSeparator ? raw : path.dirname(raw);
   const prefix = endsWithSeparator ? "" : path.basename(raw);
 
-  const exists = existsSync(dir);
+  // Never show an empty panel. If the typed folder is not there — a typo, or a
+  // path pasted from another machine — fall back to the deepest ancestor that
+  // is, so the listing still says where you are and offers a way onward.
+  const missing = !existsSync(typedDir);
+  const dir = missing ? nearestExisting(typedDir) : typedDir;
+  if (!dir) return { base: typedDir, separator, completions: [], missing: true };
+
+  // A name that matches nothing is usually a name being invented, not a typo,
+  // so the surroundings stay visible while the user decides what to call it.
+  const matched = missing ? [] : listDirectory(dir, prefix, separator);
   return {
     base: dir,
     separator,
-    completions: exists ? listDirectory(dir, prefix, separator) : [],
-    missing: !exists,
+    completions: matched.length > 0 ? matched : listDirectory(dir, "", separator),
+    missing,
   };
+}
+
+/** The deepest ancestor of `dir` that exists, or null if none does. */
+function nearestExisting(dir: string): string | null {
+  let current = dir;
+  for (let i = 0; i < 64; i++) {
+    if (existsSync(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+  return null;
 }
 
 /** Everything the picker needs to decide what to offer for a given path. */
@@ -259,9 +280,12 @@ export function inspectPath(input: string): InspectResult {
   };
 }
 
-/** "D:\code\acme-web" → "Acme Web". */
-export function suggestWorkspaceName(dir: string): string {
-  const base = path.basename(dir.replace(/[/\\]+$/, ""));
+/** "D:\code\acme-web" → "Acme Web", and "acme.workspace.json" → "Acme". */
+export function suggestWorkspaceName(target: string): string {
+  const base = path
+    .basename(target.replace(/[/\\]+$/, ""))
+    .replace(/\.workspace\.json$/i, "")
+    .replace(/^(workspace|picone)\.json$/i, "");
   if (!base || /^[A-Za-z]:$/.test(base)) return "Workspace";
   return base
     .replace(/[-_.]+/g, " ")

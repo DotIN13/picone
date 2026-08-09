@@ -77,9 +77,11 @@ export function createApiRouter(app: App): Router {
     "/workspace/create",
     asyncRoute(async (req, res) => {
       const directory = String(req.body?.directory ?? "");
-      if (!directory) throw new Error("directory is required");
+      const file = typeof req.body?.file === "string" ? req.body.file : undefined;
+      if (!directory && !file) throw new Error("directory or file is required");
       const workspace = await app.createAndOpenWorkspace({
         directory,
+        file,
         name: typeof req.body?.name === "string" ? req.body.name : undefined,
         location: req.body?.location === "central" ? "central" : "inside",
       });

@@ -1606,6 +1606,43 @@
   color: var(--v2-text-text-base);
 }
 
+/* Stands in for the Tab key where there is none. Styled as the key it replaces
+   so the keyboard shortcut and the button read as the same thing, and shown
+   only on touch, where that key does not exist. */
+[data-slot="path-tab"] {
+  display: none;
+  flex: none;
+  min-height: max(20px, calc(20px * var(--font-scale)));
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: var(--v2-background-bg-layer-02);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-base);
+  color: var(--v2-text-text-muted);
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11px * var(--font-scale));
+  cursor: pointer;
+}
+
+[data-slot="path-tab"]:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Which folder the rows below belong to, which stops matching the field the
+   moment a name is half-typed. */
+[data-slot="picker-base"] {
+  padding: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: start;
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11px * var(--font-scale));
+  color: var(--v2-text-text-faint);
+}
+
 [data-slot="path-spinner"] {
   flex: none;
   width: 10px;
