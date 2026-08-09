@@ -244,15 +244,36 @@ file tree updates at once.
 
 ### The part with teeth: write policy
 
-`writable: false` should mean the agent cannot write there, and today it cannot
-mean that. The permission gate (§9) classifies by *category* — files, shell,
-git — and never by path, so a read-only memory directory is currently a promise
-the UI makes and nothing enforces. Making it real means teaching the gate about
-paths: deny writes outside a permitted set, which is a change to the security
-model and wants its own pass.
+**Decided: `writable` is enforced, not advisory.** The permission gate (§9)
+classifies by *category* today — files, shell, git — and never by path, so a
+read-only marking would otherwise be a promise the UI makes and nothing keeps.
+Memory is the first thing in Picone where the difference matters: a store that
+takes hours of a user's life to accumulate should not be rewritten because a
+sentence in a context file was ignored.
 
-Until then the flag is honest only as a statement in the injected context —
-which the agent will usually respect and cannot be relied on to.
+So the gate learns about paths:
+
+* A write tool call resolves its target path and is denied unless that path is
+  under a workspace root or under a memory directory marked `writable`.
+* Denial is the existing block-with-reason, so the agent is told why and can
+  carry on rather than dying.
+* The path check runs *before* the category check: `files: allow` grants writes
+  inside the workspace, never outside it. This closes a gap that predates
+  memory — today `files: allow` lets Pi write anywhere on the disk.
+* Shell is the hole this cannot plug. A `bash` call can write anywhere, and
+  parsing shell to find out is a losing game; shell stays governed by its own
+  `ask` default.
+
+The write-path work is worth doing on its own merits and is the reason this
+entry is larger than it looks.
+
+### Seed
+
+The store this is for is
+`D:/dotty-projects/molly/hypogum-next/data/memory` — the live one, writable.
+Its sibling `hypogum/data/memory` is the older store whose `traits/`,
+`struggles/` and `weaknesses/` trees the newer `AGENTS.md` calls frozen; not
+registered.
 
 ---
 
