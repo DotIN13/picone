@@ -5,6 +5,7 @@ import type {
   FileComment,
   FileContent,
   GitStatus,
+  GlobalSettings,
   ModelOption,
   PathCompleteResponse,
   PathInspectResponse,
@@ -88,4 +89,11 @@ export const api = {
   sessionCommands: (id: string) => request<{ commands: SlashCommand[] }>(`/sessions/${id}/commands`),
 
   models: () => request<{ models: ModelOption[] }>("/models"),
+
+  settings: () => request<{ settings: GlobalSettings; errors: string[] }>("/settings"),
+  saveSettings: (settings: GlobalSettings) =>
+    request<{ settings: GlobalSettings; errors: string[] }>("/settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    }),
 };

@@ -5,7 +5,7 @@ A browser-native coding agent powered by Pi.
 This document describes the system as designed **and built**. Section numbers
 `§1`–`§41` are referenced from comments throughout the source, so they are
 stable; where the implementation diverged from the original plan, the section
-says so rather than being renumbered. Sections `§42`–`§47` cover subsystems that
+says so rather than being renumbered. Sections `§42`–`§48` cover subsystems that
 were added during the build.
 
 Known gaps live in [TODO.md](TODO.md).
@@ -785,6 +785,11 @@ Skills live in the workspace JSON and are handed to Pi's resource loader as
 additional skill paths. Pi owns how they enter context and execute. There is no
 parallel context-management system around them.
 
+Pi *already* discovers global skills from `~/.pi/agent/skills` and
+`~/.agents/skills`, along with global extensions and prompt templates — nothing
+is needed from Picone for those to work. Global settings (§48) add extra
+directories on top.
+
 ---
 
 ## 34. Workspace updates
@@ -1179,3 +1184,44 @@ from fighting.
 
 **Installability.** A web manifest, maskable icon, `standalone` display, and
 scheme-aware `theme-color` so the status bar matches the app in both themes.
+
+---
+
+## 48. Global settings
+
+Some configuration should not be repeated in every workspace file.
+`~/.picone/settings.json` (under `PICONE_DATA_DIR`) holds it:
+
+```json
+{
+  "mcpServers": {
+    "github": { "command": "github-mcp", "enabled": true }
+  },
+  "skills": ["~/work/skills"],
+  "disabledExtensions": ["rpiv-todo"]
+}
+```
+
+**What needs this, and what does not.** Pi already discovers global skills,
+extensions, and prompt templates from `~/.pi/agent` and `~/.agents`. Those work
+in Picone with no configuration — this file is for the gaps:
+
+* **MCP** — Pi has no MCP of its own (§32), so without a global list every
+  workspace file would repeat the same servers. Global servers merge with the
+  workspace's, and the workspace wins on a name collision, including setting
+  `enabled: false` to switch a global server off for that project. MCP state
+  reports which side a server came from. Changes restart the servers at once.
+* **Extra skill directories** — added to Pi's own discovery, for every
+  workspace.
+* **Disabled extensions** — Picone filters them out of the resource loader by
+  name. It never edits Pi's settings: installing and removing packages belongs
+  to `pi install`, and quietly rewriting the CLI's config would be the wrong
+  kind of helpful. Takes effect in sessions created afterwards.
+
+Both `mcp` and `mcpServers` are accepted as the key, so a config can be pasted
+across from Claude Desktop or Cursor without renaming anything.
+
+The Global section of the settings drawer edits all of this, and lists what Pi
+actually loaded — extensions with their resolved paths, plus skill and prompt
+counts. That listing exists because otherwise there is no way to see, from the
+browser, what the agent has been given.

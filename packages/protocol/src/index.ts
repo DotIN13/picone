@@ -347,6 +347,40 @@ export interface McpServerState {
   status: "connected" | "error" | "disabled";
   toolCount: number;
   error?: string;
+  /** Where the server was configured. Workspace entries override global ones. */
+  source?: "global" | "workspace";
+}
+
+/**
+ * Settings that apply to every workspace. Pi already discovers global skills,
+ * extensions, and prompt templates itself; this covers MCP, which Pi has no
+ * concept of, plus extra skill directories.
+ */
+export interface GlobalSettings {
+  mcp: Record<string, WorkspaceMcpConfig>;
+  skills: WorkspaceSkill[];
+  /**
+   * Pi extensions to leave out, by name. Picone filters them at session load;
+   * it never edits Pi's own settings, where installing and removing packages
+   * belongs to `pi install`.
+   */
+  disabledExtensions: string[];
+}
+
+/** A Pi extension discovered for the active session. */
+export interface ExtensionInfo {
+  name: string;
+  path: string;
+  enabled: boolean;
+  /** Load error, when the extension failed. */
+  error?: string;
+}
+
+/** What Pi discovered and loaded for the active session. */
+export interface ResourceReport {
+  extensions: ExtensionInfo[];
+  skills: Array<{ name: string; description: string; source: string }>;
+  prompts: Array<{ name: string; description?: string; source: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -385,4 +419,8 @@ export interface WorkspaceStateResponse {
   model: { provider: string; model: string; thinking: string } | null;
   mcp: McpServerState[];
   voice: Required<WorkspaceVoice>;
+  settings: GlobalSettings;
+  /** Problems reading the global settings file. */
+  settingsErrors: string[];
+  resources: ResourceReport | null;
 }

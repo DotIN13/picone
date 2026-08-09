@@ -129,6 +129,14 @@ installs as a PWA, so it runs standalone from the home screen.
 **MCP and skills.** Both come from the workspace file and are scoped to the open
 workspace. MCP tools are handed to Pi as ordinary tools.
 
+**Global settings.** Pi's own global skills, extensions, and prompt templates
+(from `~/.pi/agent` and `~/.agents`) work here with no configuration. What Pi
+has no concept of — MCP — can be set once in `~/.picone/settings.json` and
+applies to every workspace; a workspace can override or disable any of it. The
+same file takes extra skill directories, and a list of Pi extensions to hide
+from Picone without uninstalling them. The Global tab in settings edits all of
+it and shows exactly what Pi loaded.
+
 ## Layout
 
 ```

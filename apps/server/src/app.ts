@@ -5,6 +5,8 @@ import type {
   ExtensionUiAnswer,
   FileComment,
   FileCommentInput,
+  GlobalSettings,
+  McpServerState,
   PermissionDecision,
   Workspace,
   WorkspaceFile,
@@ -25,6 +27,8 @@ import {
 import { OpenFileWatcher } from "./files/watcher.ts";
 import { Hub } from "./hub.ts";
 import { McpManager } from "./mcp/manager.ts";
+import { loadGlobalSettings, mergeMcp, saveGlobalSettings } from "./settings.ts";
+import { expandPath } from "./util/paths.ts";
 import { SessionRuntime } from "./pi/runtime.ts";
 import { createWorkspace, type CreateWorkspaceOptions } from "./workspace/create.ts";
 import { loadWorkspace } from "./workspace/loader.ts";
@@ -45,8 +49,12 @@ export class App {
   private workspace: Workspace | null = null;
   private readonly sessions = new Map<string, SessionRuntime>();
   private activeSessionId: string | null = null;
+  private settings: GlobalSettings = { mcp: {}, skills: [], disabledExtensions: [] };
+  private settingsErrors: string[] = [];
+  private mcpSources: Record<string, "global" | "workspace"> = {};
 
   constructor() {
+    this.reloadSettings();
     this.watcher = new OpenFileWatcher((path, mtime) => {
       this.hub.publish(null, { type: "file.changed", path, mtime });
     });
@@ -75,8 +83,7 @@ export class App {
     rememberWorkspace(workspace.path, workspace.file.name);
     setUiState(LAST_WORKSPACE_KEY, workspace.path);
 
-    await this.mcp.start(workspace.file.mcp);
-    this.hub.publish(null, { type: "mcp.state", servers: this.mcp.state() });
+    await this.startMcp();
     this.hub.publish(null, { type: "workspace.updated", workspace });
 
     // Reattach to the most recent session for this workspace, or start one.
@@ -138,8 +145,7 @@ export class App {
     for (const session of this.sessions.values()) session.updatePermissions(permissions);
 
     if (JSON.stringify(before.mcp ?? {}) !== JSON.stringify(workspace.file.mcp ?? {})) {
-      await this.mcp.start(workspace.file.mcp);
-      this.hub.publish(null, { type: "mcp.state", servers: this.mcp.state() });
+      await this.startMcp();
     }
 
     this.hub.publish(null, { type: "workspace.updated", workspace });
@@ -166,9 +172,52 @@ export class App {
             thinking: workspace.file.model.thinking ?? "",
           }
         : null,
-      mcp: this.mcp.state(),
+      mcp: this.mcpState(),
       voice: workspace ? resolvedVoice(workspace.file) : { input: true, output: true },
+      settings: this.settings,
+      settingsErrors: this.settingsErrors,
+      resources: this.activeSession()?.resources(this.settings.disabledExtensions) ?? null,
     };
+  }
+
+  // --- global settings -------------------------------------------------------
+
+  getSettings(): { settings: GlobalSettings; errors: string[] } {
+    return { settings: this.settings, errors: this.settingsErrors };
+  }
+
+  /**
+   * Save global settings and apply what can be applied live. MCP restarts
+   * immediately; skills and extensions are read when a session is built, so
+   * those take effect for sessions created afterwards.
+   */
+  async saveSettings(next: GlobalSettings): Promise<{ settings: GlobalSettings; errors: string[] }> {
+    const before = JSON.stringify(this.settings.mcp);
+    const saved = saveGlobalSettings(next);
+    this.settings = saved.settings;
+    this.settingsErrors = saved.errors;
+
+    if (this.workspace && JSON.stringify(this.settings.mcp) !== before) await this.startMcp();
+    this.hub.publish(null, { type: "mcp.state", servers: this.mcpState() });
+    return { settings: this.settings, errors: this.settingsErrors };
+  }
+
+  private reloadSettings(): void {
+    const loaded = loadGlobalSettings();
+    this.settings = loaded.settings;
+    this.settingsErrors = loaded.errors;
+  }
+
+  /** Global servers plus the workspace's, with the workspace winning by name. */
+  private async startMcp(): Promise<void> {
+    const { merged, sources } = mergeMcp(this.settings.mcp, this.workspace?.file.mcp);
+    this.mcpSources = sources;
+    await this.mcp.start(merged);
+    this.hub.publish(null, { type: "mcp.state", servers: this.mcpState() });
+  }
+
+  private mcpState(): McpServerState[] {
+    return this.mcp.state().map((server) => ({ ...server, source: this.mcpSources[server.name] }));
   }
 
   // --- sessions --------------------------------------------------------------
@@ -278,6 +327,8 @@ export class App {
       sessionFile,
       emit: (sessionId, event) => this.hub.publish(sessionId, event),
       extraTools: () => this.mcp.tools(),
+      globalSkillPaths: this.settings.skills.map((skill) => expandPath(skill.path)),
+      disabledExtensions: this.settings.disabledExtensions,
       toolHooks: {
         markCommentAddressed: (commentId) => {
           const comment = markAddressed(commentId);

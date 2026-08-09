@@ -7,8 +7,9 @@ import { Drawer } from "./ui/drawer.tsx";
 import { Button, IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Select, Switch, Tag, TextArea, TextInput } from "./ui/primitives.tsx";
+import { GlobalSettingsPanel } from "./GlobalSettingsPanel.tsx";
 
-type Section = "general" | "directories" | "skills" | "mcp" | "permissions" | "voice" | "model";
+type Section = "general" | "directories" | "skills" | "mcp" | "permissions" | "voice" | "model" | "global";
 
 const SECTIONS: Array<{ id: Section; label: string; icon: Parameters<typeof Icon>[0]["name"] }> = [
   { id: "general", label: "General", icon: "settings" },
@@ -18,6 +19,7 @@ const SECTIONS: Array<{ id: Section; label: string; icon: Parameters<typeof Icon
   { id: "permissions", label: "Permissions", icon: "shield" },
   { id: "voice", label: "Voice", icon: "mic" },
   { id: "model", label: "Model", icon: "terminal" },
+  { id: "global", label: "Global", icon: "git-branch" },
 ];
 
 const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map((value) => ({
@@ -352,6 +354,10 @@ export function SettingsDrawer() {
                     </div>
                     <p class="text-v2-text-text-muted">Model changes apply to sessions created after saving.</p>
                   </div>
+                </Show>
+
+                <Show when={section() === "global"}>
+                  <GlobalSettingsPanel />
                 </Show>
               </div>
             </div>

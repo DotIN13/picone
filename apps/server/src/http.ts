@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import express, { type Request, type Response, type Router } from "express";
-import type { CommentStatus, WorkspaceFile } from "@picone/protocol";
+import type { CommentStatus, GlobalSettings, WorkspaceFile } from "@picone/protocol";
 import type { App } from "./app.ts";
 import { listRecentWorkspaces, forgetWorkspace } from "./db.ts";
 import { listDirectory, searchFiles } from "./files/browser.ts";
@@ -39,6 +39,19 @@ export function createApiRouter(app: App): Router {
   router.get("/state", (_req, res) => {
     res.json(app.state());
   });
+
+  router.get("/settings", (_req, res) => {
+    res.json(app.getSettings());
+  });
+
+  router.put(
+    "/settings",
+    asyncRoute(async (req, res) => {
+      const settings = req.body?.settings as GlobalSettings | undefined;
+      if (!settings) throw new Error("settings is required");
+      res.json(await app.saveSettings(settings));
+    }),
+  );
 
   router.get("/workspaces/recent", (_req, res) => {
     res.json({ workspaces: listRecentWorkspaces() });

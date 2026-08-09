@@ -13,8 +13,10 @@ import type {
   AgentEvent,
   AgentState,
   ChatItem,
+  ExtensionInfo,
   ExtensionUiAnswer,
   PermissionDecision,
+  ResourceReport,
   SessionModel,
   SessionSummary,
   SlashCommand,
@@ -28,6 +30,32 @@ import { resolveSkillPaths, workspaceContext } from "../workspace/loader.ts";
 import { EventTranslator } from "./events.ts";
 import { ExtensionUiBridge } from "./extension-ui.ts";
 import { createCommentTools, createSpeakTool, type PiconeToolHooks } from "./tools.ts";
+
+/**
+ * Pi identifies extensions by path. The basename is usually what a human
+ * recognises — except for npm packages, which all resolve to `index.ts`, so
+ * those fall back to the directory name.
+ */
+function extensionName(extension: { path: string; resolvedPath?: string }): string {
+  const source = extension.resolvedPath || extension.path;
+  const segments = source.split(/[/\\]/).filter(Boolean);
+  const base = (segments.pop() ?? source).replace(/\.(ts|js|mjs|cjs|tsx)$/, "");
+  if (base !== "index") return base;
+
+  // ".../pi-subagents/index.ts" → "pi-subagents", and ".../pi-x/src/index.ts"
+  // → "pi-x": climb past build directories, and keep an npm scope if present.
+  const BUILD_DIRS = new Set(["src", "dist", "lib", "build", "out"]);
+  let parent = segments.pop() ?? base;
+  while (BUILD_DIRS.has(parent) && segments.length > 0) parent = segments.pop()!;
+
+  const grandparent = segments[segments.length - 1];
+  return grandparent?.startsWith("@") ? `${grandparent}/${parent}` : parent;
+}
+
+/** Our own permission hook is not something the user should switch off. */
+function isInternalExtension(extension: { path: string }): boolean {
+  return extension.path.startsWith("<inline:");
+}
 
 /** Pi reports extension failures as a structured record, not a string. */
 function formatExtensionError(error: unknown): string {
@@ -50,6 +78,10 @@ export interface SessionRuntimeOptions {
   sessionFile?: string;
   emit: (sessionId: string, event: AgentEvent) => void;
   extraTools: () => ToolDefinition[];
+  /** Skill directories from global settings, on top of the workspace's own. */
+  globalSkillPaths: string[];
+  /** Pi extensions the user has switched off in Picone's settings. */
+  disabledExtensions: string[];
   toolHooks: Omit<PiconeToolHooks, "speak">;
   onSessionFile: (sessionId: string, file: string) => void;
 }
@@ -75,6 +107,7 @@ export class SessionRuntime {
   /** Captured from the extension context; the only accessor for slash commands. */
   private getPiCommands: (() => SlashCommand[]) | null = null;
   private editorText = "";
+  private resourceLoader: DefaultResourceLoader | null = null;
   private readonly extensionUi: ExtensionUiBridge;
 
   private transcript: ChatItem[] = [];
@@ -156,11 +189,29 @@ export class SessionRuntime {
     if (voice.output) customTools.push(createSpeakTool(toolHooks));
 
     const agentDir = getAgentDir();
+    const disabled = new Set(this.options.disabledExtensions);
+
     const loader = new DefaultResourceLoader({
       cwd,
       agentDir,
-      additionalSkillPaths: resolveSkillPaths(workspace.file, workspace.path),
+      // Pi finds global skills under ~/.pi/agent and ~/.agents itself; these are
+      // the extra directories configured in the workspace and global settings.
+      additionalSkillPaths: [
+        ...resolveSkillPaths(workspace.file, workspace.path),
+        ...this.options.globalSkillPaths,
+      ],
       extensionFactories: [permissionExtension],
+      // Filter rather than uninstall: Pi's own config is left alone, so the CLI
+      // still sees every package the user installed.
+      extensionsOverride: (base) =>
+        disabled.size === 0
+          ? base
+          : {
+              ...base,
+              extensions: base.extensions.filter(
+                (e) => isInternalExtension(e) || !disabled.has(extensionName(e)),
+              ),
+            },
       // The workspace description is injected once, as a context file. Pi owns
       // it from there — we never re-inject it (DESIGN §6).
       agentsFilesOverride: (base) => ({
@@ -171,6 +222,7 @@ export class SessionRuntime {
       }),
     });
     await loader.reload();
+    this.resourceLoader = loader;
 
     const modelRuntime = await ModelRuntime.create();
     this.modelRuntime = modelRuntime;
@@ -327,6 +379,46 @@ export class SessionRuntime {
   /** Slash commands Pi knows about in this session. */
   commands(): SlashCommand[] {
     return this.getPiCommands?.() ?? [];
+  }
+
+  /** What Pi actually discovered — the only way to see it from the browser. */
+  resources(disabledExtensions: string[]): ResourceReport | null {
+    const loader = this.resourceLoader;
+    if (!loader) return null;
+
+    const disabled = new Set(disabledExtensions);
+    const loaded = loader.getExtensions();
+    const errorsByPath = new Map(loaded.errors.map((e) => [e.path, e.error]));
+
+    const extensions: ExtensionInfo[] = loaded.extensions
+      .filter((extension) => !isInternalExtension(extension))
+      .map((extension) => ({
+        name: extensionName(extension),
+        path: extension.resolvedPath || extension.path,
+        enabled: true,
+        error: errorsByPath.get(extension.path),
+      }));
+
+    // A disabled extension was filtered before loading, so it has to be added
+    // back or it would vanish from the list the user toggles it with.
+    for (const name of disabled) {
+      if (!extensions.some((e) => e.name === name)) extensions.push({ name, path: "", enabled: false });
+    }
+    for (const extension of extensions) extension.enabled = !disabled.has(extension.name);
+
+    return {
+      extensions: extensions.sort((a, b) => a.name.localeCompare(b.name)),
+      skills: loader.getSkills().skills.map((s) => ({
+        name: s.name,
+        description: s.description,
+        source: s.filePath,
+      })),
+      prompts: loader.getPrompts().prompts.map((p) => ({
+        name: p.name,
+        description: p.description,
+        source: p.filePath,
+      })),
+    };
   }
 
   /** Push a short workspace-change note into the conversation (DESIGN §34). */

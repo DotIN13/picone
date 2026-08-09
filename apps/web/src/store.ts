@@ -9,10 +9,12 @@ import type {
   ExtensionUiPrompt,
   FileComment,
   FileContent,
+  GlobalSettings,
   GitStatus,
   McpServerState,
   ModelOption,
   PermissionDecision,
+  ResourceReport,
   ServerFrame,
   SessionSummary,
   SlashCommand,
@@ -65,6 +67,11 @@ interface State {
   mcp: McpServerState[];
   models: ModelOption[];
   voice: { input: boolean; output: boolean };
+  /** Settings shared by every workspace. */
+  settings: GlobalSettings;
+  settingsErrors: string[];
+  /** What Pi discovered for the active session — extensions, skills, prompts. */
+  resources: ResourceReport | null;
 
   /** Blocking extension dialogs, oldest first. */
   extensionPrompts: ExtensionUiPrompt[];
@@ -121,6 +128,9 @@ const [state, setState] = createStore<State>({
   mcp: [],
   models: [],
   voice: { input: true, output: true },
+  settings: { mcp: {}, skills: [], disabledExtensions: [] },
+  settingsErrors: [],
+  resources: null,
 
   extensionPrompts: [],
   extensionStatus: {},
@@ -192,6 +202,9 @@ export async function refreshState(): Promise<void> {
     sessions: next.sessions,
     mcp: next.mcp,
     voice: next.voice,
+    settings: next.settings,
+    settingsErrors: next.settingsErrors,
+    resources: next.resources,
     workspacePickerOpen: next.workspace === null,
   });
 
@@ -416,6 +429,13 @@ export function setFilter(value: string): void {
 // ---------------------------------------------------------------------------
 // UI toggles
 // ---------------------------------------------------------------------------
+
+/** Save settings that apply to every workspace, then re-read derived state. */
+export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
+  const result = await api.saveSettings(settings);
+  setState({ settings: result.settings, settingsErrors: result.errors });
+  await refreshState();
+}
 
 export function setSidebarMode(mode: "files" | "sessions"): void {
   setState("sidebarMode", mode);
