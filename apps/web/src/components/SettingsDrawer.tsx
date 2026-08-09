@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 import { unwrap } from "solid-js/store";
-import type { PermissionSetting, WorkspaceFile } from "@picone/protocol";
+import type { ModelOption, PermissionSetting, WorkspaceFile } from "@picone/protocol";
 import { api } from "../lib/api.ts";
 import { openFile, refreshState, setSettingsOpen, state } from "../store.ts";
 import { Drawer } from "./ui/drawer.tsx";
@@ -27,10 +27,6 @@ const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map
   label: value,
 }));
 
-const THINKING_OPTIONS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"].map((value) => ({
-  value,
-  label: value,
-}));
 
 /** Workspace settings (DESIGN §35), presented as a Corvu side drawer. */
 export function SettingsDrawer() {
@@ -38,7 +34,7 @@ export function SettingsDrawer() {
   const [draft, setDraft] = createSignal<WorkspaceFile | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
-  const [models, setModels] = createSignal<Array<{ provider: string; id: string; name: string }>>([]);
+  const [models, setModels] = createSignal<ModelOption[]>([]);
 
   onMount(() => {
     void api
@@ -79,6 +75,14 @@ export function SettingsDrawer() {
     { value: "", label: "Pi default" },
     ...models().map((m) => ({ value: `${m.provider}/${m.id}`, label: `${m.provider}/${m.id}` })),
   ]);
+
+  /** Thinking levels the currently selected model actually accepts. */
+  const thinkingOptions = createMemo(() => {
+    const model = draft()?.model;
+    if (!model?.provider || !model.model) return [];
+    const option = models().find((m) => m.provider === model.provider && m.id === model.model);
+    return (option?.thinkingLevels ?? []).map((value) => ({ value, label: value }));
+  });
 
   return (
     <Drawer open={state.settingsOpen} onOpenChange={setSettingsOpen} side={state.compact ? "bottom" : "right"}>
@@ -342,16 +346,29 @@ export function SettingsDrawer() {
                         }}
                       />
                     </div>
-                    <div data-slot="settings-row">
-                      <span>Thinking</span>
-                      <Select
-                        aria-label="Thinking level"
-                        width="140px"
-                        value={file().model?.thinking ?? ""}
-                        options={[{ value: "", label: "Pi default" }, ...THINKING_OPTIONS]}
-                        onChange={(thinking) => patch({ model: { ...file().model, thinking: thinking || undefined } })}
-                      />
-                    </div>
+                    {/* Only what the chosen model accepts — the levels differ
+                        per model, so a fixed list would offer invalid ones. */}
+                    <Show
+                      when={thinkingOptions().length > 0}
+                      fallback={
+                        <p class="text-v2-text-text-muted">
+                          {file().model?.model
+                            ? "This model has no thinking control."
+                            : "Choose a model to set a thinking level."}
+                        </p>
+                      }
+                    >
+                      <div data-slot="settings-row">
+                        <span>Thinking</span>
+                        <Select
+                          aria-label="Thinking level"
+                          width="140px"
+                          value={file().model?.thinking ?? ""}
+                          options={[{ value: "", label: "Pi default" }, ...thinkingOptions()]}
+                          onChange={(thinking) => patch({ model: { ...file().model, thinking: thinking || undefined } })}
+                        />
+                      </div>
+                    </Show>
                     <p class="text-v2-text-text-muted">Model changes apply to sessions created after saving.</p>
                   </div>
                 </Show>

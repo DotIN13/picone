@@ -7,6 +7,7 @@ import { listDirectory, searchFiles } from "./files/browser.ts";
 import { gitChanges } from "./files/git.ts";
 import { completePath, inspectPath } from "./files/paths.ts";
 import { readFileForTab } from "./files/reader.ts";
+import { describeModel } from "./pi/models.ts";
 import { expandPath, resolveWithinRoots } from "./util/paths.ts";
 import { loadWorkspace, WorkspaceLoadError } from "./workspace/loader.ts";
 
@@ -287,13 +288,7 @@ export function createApiRouter(app: App): Router {
       const { ModelRuntime } = await import("@earendil-works/pi-coding-agent");
       const runtime = await ModelRuntime.create();
       const available = await runtime.getAvailable();
-      res.json({
-        models: available.map((m: { provider: string; id: string; name?: string }) => ({
-          provider: m.provider,
-          id: m.id,
-          name: m.name ?? m.id,
-        })),
-      });
+      res.json({ models: available.map(describeModel) });
     }),
   );
 

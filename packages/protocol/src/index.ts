@@ -185,10 +185,21 @@ export interface SessionSummary {
   model?: SessionModel;
 }
 
+/** Pi's thinking levels, lowest effort first. */
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface ModelOption {
   provider: string;
   id: string;
   name: string;
+  /** False when the model has no thinking control at all. */
+  reasoning: boolean;
+  /**
+   * The levels this model actually accepts, in canonical order. Models differ
+   * widely — some cannot be turned off, some support only two levels — so the
+   * UI must offer this rather than a fixed list.
+   */
+  thinkingLevels: ThinkingLevel[];
 }
 
 // ---------------------------------------------------------------------------

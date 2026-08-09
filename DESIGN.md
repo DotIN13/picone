@@ -1106,8 +1106,27 @@ Choosing a model does two things:
 2. Writes the choice to `workspace.json`, so new sessions inherit it.
 
 The thinking badge reflects the level Pi is really using, which may be clamped
-up from what was requested — a model with no `off` level reports `minimal`.
-Showing the request rather than the reality would be a lie.
+up from what was requested. Showing the request rather than the reality would be
+a lie.
+
+**Thinking levels are per model, not a fixed list.** Pi's `Model` carries
+`reasoning` and a `thinkingLevelMap` in which an explicit `null` marks a level
+unsupported and a missing key means "provider default", which is supported. The
+spread is wide enough that a single list would be wrong nearly everywhere:
+
+```text
+gpt-4o, gemini-2.0-flash    no thinking at all
+gemini-3.5-flash            everything except off — it cannot be turned off
+gpt-5.4-mini                off, low, medium, high, xhigh
+o3                          low, medium, high
+deepseek-v4-pro             off, high, xhigh, max
+```
+
+`/api/models` reports the supported set per model, and the picker offers only
+those, hiding the control entirely for a model that has none and badging such
+models in the list. Switching models carries the current level across when the
+target supports it, otherwise the nearest one by effort — clamping should
+preserve intent, not reset it.
 
 ---
 

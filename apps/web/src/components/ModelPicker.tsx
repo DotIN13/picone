@@ -1,9 +1,26 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Popover } from "@kobalte/core/popover";
+import type { ModelOption, ThinkingLevel } from "@picone/protocol";
 import { sessionSummary, setSessionModel, state } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
 
-const THINKING = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+/** Pi's thinking levels, lowest effort first. */
+const THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+/**
+ * Keep the user's intent when switching to a model that does not offer the
+ * current level: take the nearest one it does, rather than silently resetting.
+ */
+function nearestLevel(wanted: string | undefined, supported: ThinkingLevel[]): ThinkingLevel | undefined {
+  if (supported.length === 0) return undefined;
+  if (wanted && supported.includes(wanted as ThinkingLevel)) return wanted as ThinkingLevel;
+
+  const target = THINKING_LEVELS.indexOf((wanted as ThinkingLevel) ?? "medium");
+  const from = target === -1 ? THINKING_LEVELS.indexOf("medium") : target;
+  return supported.reduce((best, level) =>
+    Math.abs(THINKING_LEVELS.indexOf(level) - from) < Math.abs(THINKING_LEVELS.indexOf(best) - from) ? level : best,
+  );
+}
 
 /**
  * Model and thinking level for the active session, under the composer.
@@ -15,11 +32,16 @@ export function ModelPicker() {
 
   const current = createMemo(() => (state.activeSessionId ? sessionSummary(state.activeSessionId)?.model : undefined));
 
-  const label = createMemo(() => {
+  /** Capabilities for whatever the session is running right now. */
+  const currentOption = createMemo<ModelOption | undefined>(() => {
     const model = current();
-    if (!model) return "default model";
-    return model.model;
+    if (!model) return undefined;
+    return state.models.find((m) => m.provider === model.provider && m.id === model.model);
   });
+
+  const levels = createMemo<ThinkingLevel[]>(() => currentOption()?.thinkingLevels ?? []);
+
+  const label = createMemo(() => current()?.model ?? "default model");
 
   const filtered = createMemo(() => {
     const needle = filter().toLowerCase().trim();
@@ -27,8 +49,10 @@ export function ModelPicker() {
     return state.models.filter((m) => `${m.provider}/${m.id}`.toLowerCase().includes(needle));
   });
 
-  const pick = (provider: string, model: string) => {
-    void setSessionModel(provider, model, current()?.thinking);
+  const pick = (option: ModelOption) => {
+    // Carry the thinking level across only as far as the new model allows.
+    const level = nearestLevel(current()?.thinking, option.thinkingLevels);
+    void setSessionModel(option.provider, option.id, level);
     setOpen(false);
     setFilter("");
   };
@@ -38,7 +62,7 @@ export function ModelPicker() {
       <Popover.Trigger data-slot="model-trigger" disabled={!state.activeSessionId}>
         <Icon name="sparkle" size={12} />
         <span class="truncate">{label()}</span>
-        <Show when={current()?.thinking && current()!.thinking !== "off"}>
+        <Show when={current()?.thinking && current()!.thinking !== "off" && levels().length > 0}>
           <span data-slot="model-thinking">{current()!.thinking}</span>
         </Show>
         <Icon name="chevron-down" size={11} class="opacity-60" />
@@ -66,12 +90,15 @@ export function ModelPicker() {
                     data-selected={
                       current()?.provider === model.provider && current()?.model === model.id ? "" : undefined
                     }
-                    onClick={() => pick(model.provider, model.id)}
+                    onClick={() => pick(model)}
                   >
                     <span data-slot="model-item-provider">{model.provider}</span>
                     <span class="truncate">{model.id}</span>
+                    <Show when={!model.reasoning}>
+                      <span data-slot="model-item-note">no thinking</span>
+                    </Show>
                     <Show when={current()?.provider === model.provider && current()?.model === model.id}>
-                      <Icon name="check" size={13} class="ml-auto text-v2-icon-icon-accent" />
+                      <Icon name="check" size={13} class="ml-auto shrink-0 text-v2-icon-icon-accent" />
                     </Show>
                   </button>
                 )}
@@ -79,27 +106,41 @@ export function ModelPicker() {
             </Show>
           </div>
 
-          <div data-slot="model-thinking-row">
-            <span class="text-v2-text-text-faint">Thinking</span>
-            <div data-slot="model-thinking-options">
-              <For each={THINKING}>
-                {(level) => (
-                  <button
-                    type="button"
-                    data-slot="model-thinking-option"
-                    data-selected={(current()?.thinking ?? "off") === level ? "" : undefined}
-                    disabled={!current()}
-                    onClick={() => {
-                      const model = current();
-                      if (model) void setSessionModel(model.provider, model.model, level);
-                    }}
-                  >
-                    {level}
-                  </button>
-                )}
-              </For>
+          {/* Only the levels this model accepts. They vary a lot: some models
+              cannot be turned off, others offer just two. */}
+          <Show
+            when={levels().length > 0}
+            fallback={
+              <Show when={current()}>
+                <div data-slot="model-thinking-row">
+                  <span class="text-v2-text-text-faint">
+                    {currentOption() ? "This model has no thinking control." : "Thinking levels load with the model."}
+                  </span>
+                </div>
+              </Show>
+            }
+          >
+            <div data-slot="model-thinking-row">
+              <span class="text-v2-text-text-faint">Thinking</span>
+              <div data-slot="model-thinking-options">
+                <For each={levels()}>
+                  {(level) => (
+                    <button
+                      type="button"
+                      data-slot="model-thinking-option"
+                      data-selected={current()?.thinking === level ? "" : undefined}
+                      onClick={() => {
+                        const model = current();
+                        if (model) void setSessionModel(model.provider, model.model, level);
+                      }}
+                    >
+                      {level}
+                    </button>
+                  )}
+                </For>
+              </div>
             </div>
-          </div>
+          </Show>
         </Popover.Content>
       </Popover.Portal>
     </Popover>
