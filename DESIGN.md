@@ -148,9 +148,11 @@ interface WorkspaceFile {
   directories: string[]
   instructions?: string[]
   /** Extra directories to load skills from, on top of Pi's own discovery. */
-  skills?: { name: string; path: string }[]
-  /** Discovered resources this workspace leaves out, by name (§35). */
-  disabled?: { skills?: string[]; prompts?: string[]; extensions?: string[] }
+  skillPaths?: string[]
+  /** One entry per discovered resource, keyed by name (§35). */
+  skills?: Record<string, { enabled?: boolean }>
+  prompts?: Record<string, { enabled?: boolean }>
+  extensions?: Record<string, { enabled?: boolean }>
   mcp?: Record<string, WorkspaceMcpConfig>
   permissions?: {
     files?: PermissionSetting
@@ -167,6 +169,10 @@ type PermissionSetting = "allow" | "ask" | "deny"
 Validation is hand-written (`workspace/schema.ts`) so error messages read well
 for someone who wrote the JSON by hand. Defaults: `files: allow`, `shell: ask`,
 `git: ask`, voice on.
+
+`skills` used to be the array of extra skill directories. An array there is
+still read — as `skillPaths`, with a deprecation warning in the diagnostics —
+so an older workspace file keeps working.
 
 Paths accept `~` and resolve relative entries against the workspace file's own
 directory, so a workspace can sit inside the repository it describes.
@@ -795,11 +801,11 @@ context-management system around them.
 
 Two things sit on top of that discovery, and only those two:
 
-* **Extra directories** — the workspace JSON's `skills` array and the global
-  `skills` list (§48) are handed to the resource loader as additional skill
+* **Extra directories** — the workspace JSON's `skillPaths` and the global
+  `skillPaths` list (§48) are handed to the resource loader as additional skill
   paths. Both are edited in the JSON, not in the UI.
-* **A denylist** — `disabled.skills` in the workspace file, which is what the
-  Skills section of the settings drawer edits (§35).
+* **A switch per skill** — the `skills` record in the workspace file, which is
+  what the Skills section of the settings drawer edits (§35).
 
 ---
 
@@ -840,15 +846,19 @@ Picone does not create resources: skills and prompt templates are files under
 `~/.pi/agent` or `~/.agents`, extensions are installed with `pi install`, and
 new ones can be written from a session. So there is no add button here. What the
 workspace file records is only which of the discovered resources this workspace
-wants, as a denylist:
+wants — one object per item, keyed by the name Pi knows it under:
 
 ```json
-"disabled": { "skills": ["troubleshooting"], "prompts": ["review-loop"], "extensions": ["rpiv-todo"] }
+"skills":     { "troubleshooting": { "enabled": false } },
+"prompts":    { "review-loop": { "enabled": true } },
+"extensions": { "rpiv-todo": { "enabled": false } }
 ```
 
-A denylist rather than an allowlist, so a skill installed tomorrow is available
-to today's workspace without editing the file first. Empty lists are dropped, so
-a workspace with everything switched on has no `disabled` key at all.
+The same shape as `mcp`, and an object rather than a bare name so an entry has
+somewhere to grow. **A name that is absent is enabled**, so a skill installed
+tomorrow is available to today's workspace without editing the file first — the
+file records decisions, not an inventory of the machine. An entry that only says
+`enabled: true` is kept once written: it is a decision the user made.
 
 The server enforces this through the resource loader's `extensionsOverride`,
 `skillsOverride`, and `promptsOverride` hooks, capturing the full list before
@@ -1254,7 +1264,7 @@ Some configuration should not be repeated in every workspace file.
   "mcpServers": {
     "github": { "command": "github-mcp", "enabled": true }
   },
-  "skills": ["~/work/skills"]
+  "skillPaths": ["~/work/skills"]
 }
 ```
 
@@ -1271,7 +1281,9 @@ in Picone with no configuration — this file is for the gaps:
   workspace.
 
 Both `mcp` and `mcpServers` are accepted as the key, so a config can be pasted
-across from Claude Desktop or Cursor without renaming anything.
+across from Claude Desktop or Cursor without renaming anything. `skillPaths` is
+also accepted as `skills`, its older name, since this file has no UI to migrate
+it and the word should mean the same thing in both files.
 
 **This file has no UI.** It holds the two things that are not per-workspace
 choices, and both are lists of paths and commands rather than switches — the
@@ -1281,5 +1293,5 @@ the file surface in the drawer's General section, since otherwise a typo would
 be silent.
 
 *Switching extensions off used to live here, as `disabledExtensions`. It is now
-per workspace, under `disabled.extensions`; the old key is reported as ignored
+per workspace, in the `extensions` record; the old key is reported as ignored
 rather than quietly honoured.*

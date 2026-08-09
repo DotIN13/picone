@@ -63,12 +63,12 @@ export function loadWorkspace(filePath: string): Workspace {
     roots.push({ name: path.basename(resolved) || resolved, path: resolved, exists });
   }
 
-  for (const skill of file.skills ?? []) {
-    const resolved = expandPath(skill.path, workspaceDir);
+  for (const skillPath of file.skillPaths ?? []) {
+    const resolved = expandPath(skillPath, workspaceDir);
     try {
       statSync(resolved);
     } catch {
-      diagnostics.push(`Skill "${skill.name}" path does not exist: ${resolved}`);
+      diagnostics.push(`Skill directory does not exist: ${resolved}`);
     }
   }
 
@@ -114,5 +114,5 @@ export function workspaceContext(ws: Workspace): string {
 
 export function resolveSkillPaths(ws: WorkspaceFile, workspaceFilePath: string): string[] {
   const base = path.dirname(workspaceFilePath);
-  return (ws.skills ?? []).map((s) => expandPath(s.path, base));
+  return (ws.skillPaths ?? []).map((skillPath) => expandPath(skillPath, base));
 }

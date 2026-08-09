@@ -52,17 +52,22 @@ export interface WorkspaceVoice {
 }
 
 /**
- * Discovered resources this workspace leaves out, by name.
+ * How this workspace configures one discovered skill, prompt template, or
+ * extension. An object rather than a bare name, so the entry has somewhere to
+ * grow — the same shape `mcp` uses.
+ */
+export interface WorkspaceResource {
+  enabled?: boolean;
+}
+
+/**
+ * Resources keyed by the name Pi knows them under.
  *
- * A denylist rather than an allowlist: Pi finds skills, prompts, and extensions
- * on its own, and something installed tomorrow should be available today's
+ * A name that is absent is enabled: Pi finds skills, prompts, and extensions on
+ * its own, and something installed tomorrow should be available to today's
  * workspace without editing this file first.
  */
-export interface WorkspaceDisabled {
-  skills?: string[];
-  prompts?: string[];
-  extensions?: string[];
-}
+export type WorkspaceResources = Record<string, WorkspaceResource>;
 
 export interface WorkspaceFile {
   version: 1;
@@ -70,8 +75,10 @@ export interface WorkspaceFile {
   directories: string[];
   instructions?: string[];
   /** Extra directories to load skills from, on top of what Pi discovers. */
-  skills?: WorkspaceSkill[];
-  disabled?: WorkspaceDisabled;
+  skillPaths?: string[];
+  skills?: WorkspaceResources;
+  prompts?: WorkspaceResources;
+  extensions?: WorkspaceResources;
   mcp?: Record<string, WorkspaceMcpConfig>;
   permissions?: WorkspacePermissions;
   model?: WorkspaceModel;
@@ -390,9 +397,9 @@ export interface GlobalSettings {
 }
 
 /**
- * One thing Pi discovered. Whether it is switched on is not recorded here —
- * the workspace file's `disabled` list is the only answer to that, and it stays
- * correct after a save, which a snapshot of the running session would not.
+ * One thing Pi discovered. Whether it is switched on is not recorded here — the
+ * workspace file is the only answer to that, and it stays correct after a save,
+ * which a snapshot of the running session would not.
  */
 export interface ResourceInfo {
   name: string;

@@ -91,7 +91,11 @@ export function loadGlobalSettings(): LoadedSettings {
     errors.push(`"disabledExtensions" is ignored — extensions are switched off per workspace, under "disabled"`);
   }
 
-  return { settings: { mcp, skills: parseSkills(raw.skills, errors) }, errors };
+  // `skillPaths` is what the workspace file calls it; `skills` is the older
+  // name and still works, since this file has no UI to migrate it.
+  const skills = parseSkills(raw.skillPaths ?? raw.skills, errors);
+
+  return { settings: { mcp, skills }, errors };
 }
 
 export function saveGlobalSettings(settings: GlobalSettings): LoadedSettings {

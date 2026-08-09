@@ -1,4 +1,4 @@
-import type { PermissionSetting, WorkspaceFile, WorkspaceMcpConfig, WorkspaceSkill } from "@picone/protocol";
+import type { PermissionSetting, WorkspaceFile, WorkspaceMcpConfig, WorkspaceResources } from "@picone/protocol";
 
 /**
  * Hand-written validation. The schema is deliberately small (DESIGN §4) and the
@@ -58,38 +58,50 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
 
   const instructions = stringArray(raw.instructions, "instructions", errors);
 
-  let skills: WorkspaceSkill[] | undefined;
-  if (raw.skills !== undefined) {
-    if (!Array.isArray(raw.skills)) {
-      errors.push(`"skills" must be an array`);
-    } else {
-      skills = [];
-      raw.skills.forEach((s, i) => {
-        if (!isRecord(s) || typeof s.name !== "string" || typeof s.path !== "string") {
-          errors.push(`"skills[${i}]" must be { name: string, path: string }`);
-          return;
-        }
-        skills!.push({ name: s.name, path: s.path });
-      });
+  let skillPaths = stringArray(raw.skillPaths, "skillPaths", errors);
+
+  /**
+   * One switch per discovered resource, keyed by the name Pi knows it under.
+   * An entry that only says `enabled: true` is kept: it is a decision the user
+   * made, and the object is where anything else about the resource will go.
+   */
+  const resources = (value: unknown, field: string): WorkspaceResources | undefined => {
+    if (value === undefined) return undefined;
+    if (!isRecord(value)) {
+      errors.push(`"${field}" must be an object keyed by name`);
+      return undefined;
     }
+    const out: WorkspaceResources = {};
+    for (const [name, entry] of Object.entries(value)) {
+      if (!isRecord(entry)) {
+        errors.push(`"${field}.${name}" must be an object, e.g. { "enabled": false }`);
+        continue;
+      }
+      out[name] = { enabled: entry.enabled === undefined ? undefined : Boolean(entry.enabled) };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  };
+
+  // `skills` used to be the list of extra skill directories, before it became
+  // the switches. Keep old files loading, and say where the entries went.
+  let skills: WorkspaceResources | undefined;
+  if (Array.isArray(raw.skills)) {
+    const legacy: string[] = [];
+    raw.skills.forEach((s, i) => {
+      if (typeof s === "string") legacy.push(s);
+      else if (isRecord(s) && typeof s.path === "string") legacy.push(s.path);
+      else errors.push(`"skills[${i}]" must be a path — extra skill directories now live in "skillPaths"`);
+    });
+    if (legacy.length) {
+      warnings.push(`"skills" as a list of directories is deprecated; those paths were read as "skillPaths"`);
+      skillPaths = [...(skillPaths ?? []), ...legacy];
+    }
+  } else {
+    skills = resources(raw.skills, "skills");
   }
 
-  let disabled: WorkspaceFile["disabled"];
-  if (raw.disabled !== undefined) {
-    if (!isRecord(raw.disabled)) {
-      errors.push(`"disabled" must be an object with "skills", "prompts" and "extensions" arrays`);
-    } else {
-      // Empty lists are dropped so turning everything back on leaves the file
-      // as it was before, rather than with `"disabled": {}` sitting in it.
-      const keep = (value: string[] | undefined) => (value && value.length > 0 ? value : undefined);
-      const next = {
-        skills: keep(stringArray(raw.disabled.skills, "disabled.skills", errors)),
-        prompts: keep(stringArray(raw.disabled.prompts, "disabled.prompts", errors)),
-        extensions: keep(stringArray(raw.disabled.extensions, "disabled.extensions", errors)),
-      };
-      if (next.skills || next.prompts || next.extensions) disabled = next;
-    }
-  }
+  const prompts = resources(raw.prompts, "prompts");
+  const extensions = resources(raw.extensions, "extensions");
 
   let mcp: Record<string, WorkspaceMcpConfig> | undefined;
   if (raw.mcp !== undefined) {
@@ -164,8 +176,10 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
       name: String(raw.name),
       directories,
       instructions,
+      skillPaths: skillPaths?.length ? skillPaths : undefined,
       skills,
-      disabled,
+      prompts,
+      extensions,
       mcp,
       permissions,
       model,

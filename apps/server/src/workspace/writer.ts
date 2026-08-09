@@ -69,17 +69,19 @@ export function describeWorkspaceChange(before: WorkspaceFile, after: WorkspaceF
   if (mcpAdded.length) parts.push(`MCP servers enabled: ${mcpAdded.join(", ")}`);
   if (mcpRemoved.length) parts.push(`MCP servers disabled: ${mcpRemoved.join(", ")}`);
 
-  const beforeSkills = (before.skills ?? []).map((s) => s.name).join(",");
-  const afterSkills = (after.skills ?? []).map((s) => s.name).join(",");
-  if (beforeSkills !== afterSkills) parts.push(`Skill directories are now: ${afterSkills || "(none)"}`);
+  const beforePaths = (before.skillPaths ?? []).join(",");
+  const afterPaths = (after.skillPaths ?? []).join(",");
+  if (beforePaths !== afterPaths) parts.push(`Skill directories are now: ${afterPaths || "(none)"}`);
 
   // Resources are loaded when a session is built, so say plainly that this one
   // is not affected — otherwise the agent would look for a skill it still has.
   for (const kind of ["skills", "prompts", "extensions"] as const) {
-    const wasOff = before.disabled?.[kind] ?? [];
-    const isOff = after.disabled?.[kind] ?? [];
-    const turnedOff = isOff.filter((n) => !wasOff.includes(n));
-    const turnedOn = wasOff.filter((n) => !isOff.includes(n));
+    const wasOff = (name: string) => before[kind]?.[name]?.enabled === false;
+    const isOff = (name: string) => after[kind]?.[name]?.enabled === false;
+    const names = new Set([...Object.keys(before[kind] ?? {}), ...Object.keys(after[kind] ?? {})]);
+
+    const turnedOff = [...names].filter((n) => isOff(n) && !wasOff(n));
+    const turnedOn = [...names].filter((n) => wasOff(n) && !isOff(n));
     if (turnedOff.length) parts.push(`${kind} switched off for new sessions: ${turnedOff.join(", ")}`);
     if (turnedOn.length) parts.push(`${kind} switched back on for new sessions: ${turnedOn.join(", ")}`);
   }

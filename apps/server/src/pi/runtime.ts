@@ -22,6 +22,7 @@ import type {
   SlashCommand,
   Workspace,
   WorkspacePermissions,
+  WorkspaceResources,
 } from "@picone/protocol";
 import { appendMessage, loadTranscript } from "../db.ts";
 import { PermissionGate } from "../permissions/gate.ts";
@@ -108,9 +109,9 @@ export class SessionRuntime {
   private resourceLoader: DefaultResourceLoader | null = null;
   private readonly extensionUi: ExtensionUiBridge;
   /**
-   * Everything Pi found, captured before the workspace's `disabled` lists are
-   * applied — the loader only keeps what survived, and the settings panel has
-   * to show what was switched off in order to switch it back on.
+   * Everything Pi found, captured before the workspace's switches are applied —
+   * the loader only keeps what survived, and the settings panel has to show
+   * what was switched off in order to switch it back on.
    */
   private discovered: ResourceReport = { extensions: [], skills: [], prompts: [] };
 
@@ -194,12 +195,17 @@ export class SessionRuntime {
 
     const agentDir = getAgentDir();
     // Filter rather than uninstall: Pi's own config is left alone, so the CLI
-    // still sees every skill, prompt and package the user installed.
-    const off = {
-      extensions: new Set(workspace.file.disabled?.extensions ?? []),
-      skills: new Set(workspace.file.disabled?.skills ?? []),
-      prompts: new Set(workspace.file.disabled?.prompts ?? []),
+    // still sees every skill, prompt and package the user installed. A name the
+    // workspace says nothing about is on — see WorkspaceResources.
+    const off = (resources: WorkspaceResources | undefined) => {
+      const names = Object.entries(resources ?? {})
+        .filter(([, entry]) => entry.enabled === false)
+        .map(([name]) => name);
+      return new Set(names);
     };
+    const offExtensions = off(workspace.file.extensions);
+    const offSkills = off(workspace.file.skills);
+    const offPrompts = off(workspace.file.prompts);
 
     const loader = new DefaultResourceLoader({
       cwd,
@@ -223,7 +229,7 @@ export class SessionRuntime {
         return {
           ...base,
           extensions: base.extensions.filter(
-            (e) => isInternalExtension(e) || !off.extensions.has(extensionName(e)),
+            (e) => isInternalExtension(e) || !offExtensions.has(extensionName(e)),
           ),
         };
       },
@@ -233,7 +239,7 @@ export class SessionRuntime {
           description: skill.description,
           source: skill.filePath,
         }));
-        return { ...base, skills: base.skills.filter((skill) => !off.skills.has(skill.name)) };
+        return { ...base, skills: base.skills.filter((skill) => !offSkills.has(skill.name)) };
       },
       promptsOverride: (base) => {
         this.discovered.prompts = base.prompts.map((prompt) => ({
@@ -241,7 +247,7 @@ export class SessionRuntime {
           description: prompt.description,
           source: prompt.filePath,
         }));
-        return { ...base, prompts: base.prompts.filter((prompt) => !off.prompts.has(prompt.name)) };
+        return { ...base, prompts: base.prompts.filter((prompt) => !offPrompts.has(prompt.name)) };
       },
       // The workspace description is injected once, as a context file. Pi owns
       // it from there — we never re-inject it (DESIGN §6).

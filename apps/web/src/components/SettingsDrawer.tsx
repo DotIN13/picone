@@ -5,8 +5,8 @@ import type {
   PermissionSetting,
   ResourceInfo,
   ThinkingLevel,
-  WorkspaceDisabled,
   WorkspaceFile,
+  WorkspaceResources,
 } from "@picone/protocol";
 import { api } from "../lib/api.ts";
 import { openFile, refreshState, setSettingsOpen, state } from "../store.ts";
@@ -203,8 +203,8 @@ export function SettingsDrawer() {
                     hint="Loaded by Pi from ~/.pi/agent/skills and ~/.agents/skills, plus any directories this workspace adds. Write new ones there or with the CLI; here you choose which this workspace uses."
                     empty="Pi found no skills."
                     resources={state.resources?.skills}
-                    disabled={file().disabled?.skills}
-                    onChange={(skills) => patch({ disabled: nextDisabled(file().disabled, { skills }) })}
+                    configured={file().skills}
+                    onChange={(skills) => patch({ skills })}
                   />
                 </Show>
 
@@ -215,8 +215,8 @@ export function SettingsDrawer() {
                     empty="Pi found no prompt templates."
                     prefix="/"
                     resources={state.resources?.prompts}
-                    disabled={file().disabled?.prompts}
-                    onChange={(prompts) => patch({ disabled: nextDisabled(file().disabled, { prompts }) })}
+                    configured={file().prompts}
+                    onChange={(prompts) => patch({ prompts })}
                   />
                 </Show>
 
@@ -226,8 +226,8 @@ export function SettingsDrawer() {
                     hint="Discovered by Pi from its own settings and extension directories. Switching one off leaves it installed — Picone just stops loading it. Install and remove with pi install."
                     empty="No extensions loaded."
                     resources={state.resources?.extensions}
-                    disabled={file().disabled?.extensions}
-                    onChange={(extensions) => patch({ disabled: nextDisabled(file().disabled, { extensions }) })}
+                    configured={file().extensions}
+                    onChange={(extensions) => patch({ extensions })}
                   />
                 </Show>
 
@@ -368,19 +368,6 @@ function StringListEditor(props: {
 }
 
 /**
- * Drop empty lists so a workspace that has everything switched on keeps a file
- * without a `disabled` key at all.
- */
-function nextDisabled(current: WorkspaceDisabled | undefined, change: Partial<WorkspaceDisabled>): WorkspaceDisabled | undefined {
-  const merged: WorkspaceDisabled = { ...current, ...change };
-  const cleaned: WorkspaceDisabled = {};
-  for (const kind of ["skills", "prompts", "extensions"] as const) {
-    if (merged[kind]?.length) cleaned[kind] = merged[kind];
-  }
-  return cleaned.skills || cleaned.prompts || cleaned.extensions ? cleaned : undefined;
-}
-
-/**
  * What Pi discovered, with a switch each. There is no add button on purpose:
  * skills, prompt templates and extensions are created on disk or with the Pi
  * CLI, and the workspace file only records which of them this workspace wants.
@@ -391,16 +378,15 @@ function ResourceToggles(props: {
   empty: string;
   prefix?: string;
   resources: ResourceInfo[] | undefined;
-  disabled: string[] | undefined;
-  onChange: (disabled: string[]) => void;
+  configured: WorkspaceResources | undefined;
+  onChange: (resources: WorkspaceResources | undefined) => void;
 }) {
-  const off = () => new Set(props.disabled ?? []);
+  /** No entry means enabled — a resource is on until this workspace says otherwise. */
+  const isOn = (name: string) => props.configured?.[name]?.enabled !== false;
 
   const toggle = (name: string, enabled: boolean) => {
-    const next = off();
-    if (enabled) next.delete(name);
-    else next.add(name);
-    props.onChange([...next]);
+    const next: WorkspaceResources = { ...props.configured, [name]: { ...props.configured?.[name], enabled } };
+    props.onChange(Object.keys(next).length > 0 ? next : undefined);
   };
 
   return (
@@ -413,7 +399,7 @@ function ResourceToggles(props: {
           {(resource) => (
             <div data-slot="resource-row">
               <Switch
-                checked={!off().has(resource.name)}
+                checked={isOn(resource.name)}
                 onChange={(enabled) => toggle(resource.name, enabled)}
                 label={`${props.prefix ?? ""}${resource.name}`}
               />

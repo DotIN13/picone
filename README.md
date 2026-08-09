@@ -131,16 +131,22 @@ rides above the on-screen keyboard, and tab reordering works by long-press. It
 installs as a PWA, so it runs standalone from the home screen.
 
 **Skills, prompts and extensions.** Pi's own — from `~/.pi/agent` and
-`~/.agents` — work here with no configuration. Settings shows what it found,
-one switch each, and the workspace file records which of them this workspace
-leaves out. There is no add button: write a skill or prompt template as a file,
-install an extension with `pi install`, and it shows up in the list.
+`~/.agents` — work here with no configuration. Settings shows what it found, one
+switch each, and the workspace file records the decision per item:
+
+```json
+"skills": { "troubleshooting": { "enabled": false } }
+```
+
+Anything not named there is on, so installing a skill makes it available
+everywhere at once. There is no add button: write a skill or prompt template as
+a file, install an extension with `pi install`, and it shows up in the list.
 
 **MCP.** Pi has no concept of it, so Picone runs its own client and hands the
 remote tools to Pi as ordinary tools. Servers are configured by hand in the
 workspace file, or in `~/.picone/settings.json` to apply to every workspace —
 where a workspace entry of the same name wins. That file also takes extra skill
-directories.
+directories, as `skillPaths`.
 
 ## Layout
 
