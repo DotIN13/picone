@@ -41,10 +41,11 @@ export function ChatTab(props: { sessionId: string }) {
             <div data-slot="chat-empty-mark">
               <Icon name="sparkle" size={18} />
             </div>
-            <p class="text-[calc(14px*var(--font-scale))] font-[530]">Ask anything about this workspace.</p>
-            <p class="text-v2-text-text-muted">
-              Open a file from the sidebar, select text, and leave a comment — it goes straight to the agent.
-            </p>
+            {/* A slogan rather than instructions: the three surfaces it names
+                are the three ways in, and naming them as a rhythm invites the
+                first move instead of explaining it. */}
+            <p class="text-[calc(14px*var(--font-scale))] font-[530]">Type it, say it, or point at it.</p>
+            <p class="text-v2-text-text-muted">Everything you send lands in the same conversation.</p>
           </div>
         </Show>
 
