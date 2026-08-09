@@ -1,0 +1,73 @@
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import type { Workspace, WorkspaceFile } from "@picone/protocol";
+import { DATA_DIR } from "../config.ts";
+import { expandInput, suggestWorkspaceName } from "../files/paths.ts";
+import { loadWorkspace } from "./loader.ts";
+
+export interface CreateWorkspaceOptions {
+  /** The directory the workspace is about. */
+  directory: string;
+  name?: string;
+  /**
+   * `inside` writes the JSON into the directory itself, so it travels with the
+   * repository. `central` keeps it in the Picone data directory, for when the
+   * project should not carry a Picone file.
+   */
+  location?: "inside" | "central";
+  /** Overwrite an existing file at the target path. */
+  overwrite?: boolean;
+}
+
+/** Kebab-case, filesystem-safe. */
+function slug(name: string): string {
+  const value = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return value || "workspace";
+}
+
+/**
+ * Create a workspace from a directory (DESIGN §3).
+ *
+ * Starting from a directory is the common case — asking the user to hand-write
+ * JSON before they can open anything was the original mistake.
+ */
+export function createWorkspace(options: CreateWorkspaceOptions): Workspace {
+  const directory = expandInput(options.directory);
+
+  if (!existsSync(directory)) throw new Error(`Directory does not exist: ${directory}`);
+  if (!statSync(directory).isDirectory()) throw new Error(`Not a directory: ${directory}`);
+
+  const name = options.name?.trim() || suggestWorkspaceName(directory);
+  const fileName = `${slug(name)}.workspace.json`;
+
+  let target: string;
+  if (options.location === "central") {
+    const dir = path.join(DATA_DIR, "workspaces");
+    mkdirSync(dir, { recursive: true });
+    target = path.join(dir, fileName);
+  } else {
+    target = path.join(directory, fileName);
+  }
+
+  if (existsSync(target) && !options.overwrite) {
+    throw new Error(`A workspace file already exists at ${target}`);
+  }
+
+  // A workspace stored inside its own directory refers to it as ".", so the
+  // file stays portable when the checkout moves or is cloned elsewhere.
+  const directories = options.location === "central" ? [directory] : ["."];
+
+  const file: WorkspaceFile = {
+    version: 1,
+    name,
+    directories,
+    permissions: { files: "allow", shell: "ask", git: "ask" },
+    voice: { input: true, output: true },
+  };
+
+  writeFileSync(target, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+  return loadWorkspace(target);
+}

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "name": "Picone",
+  "directories": [
+    ".."
+  ],
+  "instructions": [
+    "The server lives in apps/server, the browser UI in apps/web, and shared wire types in packages/protocol.",
+    "packages/protocol is type-only — never add runtime values to it.",
+    "Pi owns conversation context; do not build a parallel context system around it."
+  ],
+  "permissions": {
+    "files": "allow",
+    "shell": "ask",
+    "git": "ask"
+  },
+  "voice": {
+    "input": true,
+    "output": true
+  }
+}

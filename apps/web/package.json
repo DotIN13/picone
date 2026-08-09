@@ -1,0 +1,39 @@
+{
+  "name": "@picone/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-javascript": "^6.2.4",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.6",
+    "@corvu/drawer": "0.2.4",
+    "@kobalte/core": "0.13.11",
+    "@lezer/highlight": "^1.2.1",
+    "@picone/protocol": "*",
+    "dompurify": "^3.2.7",
+    "lucide-solid": "^1.30.0",
+    "marked": "^15.0.12",
+    "solid-js": "^1.9.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.11",
+    "tailwindcss": "4.1.11",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vite-plugin-solid": "2.11.10"
+  }
+}

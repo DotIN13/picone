@@ -1,0 +1,17 @@
+{
+  "name": "@picone/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Type-only wire protocol shared by the Picone server and web app",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ]
+}

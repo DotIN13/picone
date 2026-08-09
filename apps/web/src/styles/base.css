@@ -1,0 +1,154 @@
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+  }
+
+  :root {
+    /* Published by trackVisualViewport() when the on-screen keyboard opens. */
+    --keyboard-inset: 0px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  /* `dvh` follows the browser chrome as it collapses on mobile; the `vh`
+     declaration above it is the fallback for anything that lacks it. */
+  #root {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  body {
+    background: var(--v2-background-bg-base);
+    color: var(--v2-text-text-base);
+    font-family: var(--v2-font-family-sans);
+    font-size: 13px;
+    font-weight: 440;
+    line-height: 1.45;
+    letter-spacing: -0.04px;
+    font-variant-numeric: tabular-nums;
+    font-optical-sizing: auto;
+    overflow: hidden;
+    /* No rubber-banding of the app shell itself. */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /*
+   * The UI runs at weight 440, which CSS font-matching rounds *up* to the 500
+   * face for a family that ships 400/500/700. Monospace text should be Regular,
+   * so pin it back to 400 wherever the mono family is used.
+   */
+  code,
+  pre,
+  kbd,
+  samp,
+  .cm-editor,
+  [data-slot="toolcall-title"],
+  [data-slot="file-path"],
+  [data-slot="picker-path"],
+  [data-slot="settings-path"] {
+    font-weight: 400;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--v2-background-bg-accent) 28%, transparent);
+  }
+
+  /* Thin, unobtrusive scrollbars everywhere — matches opencode's chrome. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--v2-border-border-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-color: var(--v2-border-border-strong);
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Momentum scrolling inside panes, without dragging the page behind them. */
+  [data-slot="chat"],
+  [data-slot="sidebar-scroll"],
+  [data-slot="settings-panel"],
+  [data-slot="picker-list"],
+  [data-slot="model-list"],
+  [data-component="slash-menu"],
+  .cm-scroller {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /*
+   * Touch devices never show hover state, so anything that only appears on
+   * hover is invisible there. Reveal it, and grow the hit areas to something a
+   * thumb can actually land on.
+   */
+  @media (pointer: coarse) {
+    [data-slot="session-actions"] {
+      opacity: 1;
+    }
+
+    [data-slot="tree-row"] {
+      height: 34px;
+    }
+
+    [data-slot="tab-close"] {
+      width: 26px;
+      height: 26px;
+    }
+
+    [data-component="icon-button"][data-size="normal"] {
+      width: 32px;
+      height: 32px;
+    }
+
+    [data-component="icon-button"][data-size="small"] {
+      width: 26px;
+      height: 26px;
+    }
+
+    [data-slot="comment-open"],
+    [data-slot="session-open"],
+    [data-slot="picker-item"],
+    [data-slot="picker-recent"],
+    [data-slot="model-item"],
+    [data-slot="slash-item"] {
+      min-height: 40px;
+    }
+
+    [data-slot="ext-option"] {
+      min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

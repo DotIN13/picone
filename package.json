@@ -1,0 +1,34 @@
+{
+  "name": "picone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Web-native coding agent powered by Pi",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev --workspace @picone/server",
+    "dev:web": "npm run dev --workspace @picone/web",
+    "build": "npm run build --workspace @picone/server && npm run build --workspace @picone/web",
+    "start": "npm run start --workspace @picone/server",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.5": true,
+    "@tailwindcss/oxide@4.1.11": true
+  },
+  "overrides": {
+    "solid-js": "1.9.14"
+  }
+}

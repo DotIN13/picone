@@ -1,0 +1,17 @@
+[data-slot="codeview"] {
+  height: 100%;
+}
+
+/* Inline comment decorations (DESIGN §21) */
+.cm-commented-line {
+  background: color-mix(in srgb, var(--v2-background-bg-accent) 8%, transparent);
+  box-shadow: inset 2px 0 0 var(--v2-background-bg-accent);
+}
+
+.cm-comment-block {
+  padding: 6px 16px 8px 52px;
+}
+
+.cm-comment-block [data-component="line-comment"] {
+  max-width: 460px;
+}

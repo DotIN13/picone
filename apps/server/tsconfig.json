@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "lib": ["ES2023"],
+    // Source imports carry `.ts` so Node can run them directly under tsx;
+    // tsc rewrites them to `.js` on emit.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "noEmitOnError": false
+  },
+  "include": ["src/**/*.ts"]
+}

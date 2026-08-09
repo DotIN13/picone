@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "name": "Acme",
+
+  "directories": [
+    "~/code/acme-web",
+    "~/code/acme-api",
+    "~/code/acme-sdk"
+  ],
+
+  "instructions": [
+    "Frontend and backend often change together.",
+    "SDK changes should remain backwards compatible."
+  ],
+
+  "skills": [
+    {
+      "name": "release",
+      "path": "~/.pi/agent/skills/release"
+    }
+  ],
+
+  "mcp": {
+    "github": {
+      "command": "github-mcp",
+      "enabled": false
+    },
+    "linear": {
+      "url": "http://localhost:8123/mcp",
+      "enabled": false
+    }
+  },
+
+  "permissions": {
+    "files": "allow",
+    "shell": "ask",
+    "git": "ask"
+  },
+
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5"
+  },
+
+  "voice": {
+    "input": true,
+    "output": true
+  }
+}
