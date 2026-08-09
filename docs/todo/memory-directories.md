@@ -93,7 +93,8 @@ export interface ResolvedMemoryDir {
 | `apps/server/src/permissions/gate.ts` | the write-path check |
 | `apps/server/src/http.ts` | `memory` on the settings PUT body |
 | `apps/web/src/components/SettingsDrawer.tsx` | a Memory section in each group |
-| `apps/web/src/components/FileTree.tsx` | mark memory roots |
+| `apps/web/src/components/FileTree.tsx` | `memory` tag on the root row, memory roots sorted last |
+| `apps/web/src/components/FileTab.tsx` | `memory` tag beside `read-only` in the toolbar |
 | `apps/web/src/store.ts` | `memory` in state; save-on-change for the global list |
 | `docs/DESIGN.md` | a new §50, plus edits to §5, §9 and §49 |
 
@@ -122,14 +123,45 @@ entries, file count, and the largest few files by name.
 `index.md` is **pointed at, not injected**. It is a catalog and Pi has file
 tools; its 18 kB belongs in a read the agent chooses to make.
 
-## Where they show up
+## In the files view
 
-A memory directory becomes a readable root — the file tree lists it and
-`resolveWithinRoots` accepts it — but **not** a `directories` entry. It is not
-project code: the cwd stays the first code root, and `workspaceContext`
-describes memory in its own paragraph rather than in the list of directories.
-`WorkspaceRoot` grows `kind: "directory" | "memory"` so the tree can mark it,
-and the tree sorts memory roots last.
+**A memory directory is a first-class root.** Everything a project root gets, it
+gets: the tree lists it, files open as tabs, selections can be commented, the
+filename filter finds them, git marks show if the store is a repository, and the
+watcher flags a file that changed on disk. The only differences are a tag and
+the write policy.
+
+Concretely, this is mostly free — `app.roots` already feeds
+`resolveWithinRoots`, `/api/files/list`, `/api/files/read`, `/api/files/search`
+and `/api/git/changes`, so including memory roots there does all of it at once.
+What has to be built is the marking:
+
+| where | what |
+|---|---|
+| tree root row | a `memory` tag beside the folder name |
+| file toolbar | a `memory` tag next to the existing `read-only` one |
+| tree order | memory roots last, after the project directories |
+
+`WorkspaceRoot` grows `kind: "directory" | "memory"` to carry it, which is the
+one protocol change the files view needs.
+
+**Two consequences worth naming.**
+
+*The watcher earns its keep here.* Project files change because the agent
+changed them; a memory store changes because something else is maintaining it,
+possibly while you are reading it. The stale-file affordance (DESIGN §24) stops
+being an edge case and becomes the normal way memory tabs behave.
+
+*A comment on a read-only memory file is still worth making* — it reaches the
+session as ordinary input and the agent can read, explain or use it. But the
+agent must not promise an edit it will then be denied, which is why the injected
+header states writability per directory rather than leaving it to be discovered
+by a blocked tool call.
+
+**It is still not a `directories` entry.** The cwd stays the first code root,
+and `workspaceContext` describes memory in its own paragraph rather than in the
+list of project directories — the agent should not go looking for source files
+in it.
 
 ## Settings UI
 
@@ -226,6 +258,10 @@ tools only.
   or the context.
 - A memory directory does not become the cwd, and does not appear in the
   workspace's `directories` list after a settings save.
+- A memory file opens as a tab, its selections can be commented, and the comment
+  reaches the session — the same path a project file takes.
+- The filename filter finds memory files; `/api/files/read` accepts their paths.
+- Editing a memory file outside Picone marks the open tab stale.
 
 ## Seed
 
