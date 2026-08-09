@@ -28,18 +28,24 @@
 
     /*
      * Stacking order, in one place because it is the kind of thing that only
-     * goes wrong across files. The rule: a *surface* is something you open and
-     * work inside; a *floating* layer is a menu or popover anchored to a
-     * control, and it must clear every surface, since a select inside a drawer
-     * has to draw over that drawer to be usable at all.
+     * goes wrong across files. Two rules, both learned the hard way:
+     *
+     * A *floating* layer — a menu or popover anchored to a control — must clear
+     * every surface, because a select inside a drawer has to draw over that
+     * drawer to be usable at all.
+     *
+     * A *dialog* sits above the surface that opened it. Drawers are opened from
+     * the title bar and dialogs from inside drawers, never the reverse, so the
+     * order of the two is not arbitrary: the settings drawer's "add a memory
+     * directory" dialog appeared *behind* the drawer until this was fixed.
      */
     --z-inline: 30; /* anchored within the page flow, e.g. the slash menu */
     --z-overlay: 40; /* the phone sidebar, the comment popover */
-    --z-dialog: 90; /* modal dialogs and sheets */
     --z-drawer: 100; /* the settings drawer */
-    --z-floating: 110; /* selects, menus, popovers — above every surface */
-    --z-tooltip: 115;
-    --z-toast: 120;
+    --z-dialog: 110; /* modal dialogs and sheets, opened from anything above */
+    --z-floating: 120; /* selects, menus, popovers — above every surface */
+    --z-tooltip: 125;
+    --z-toast: 130;
 
     /* Published by trackVisualViewport() when the on-screen keyboard opens. */
     --keyboard-inset-raw: 0px;

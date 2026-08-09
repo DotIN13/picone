@@ -116,8 +116,12 @@ file before anything could be opened made the product unusable on first run.
 with the checkout — and opens the result. The alternative location, Picone's own
 data directory, exists for projects that should not carry a Picone file.
 
-**The picker is one path field plus a listing.** The listing is the completion
-surface and it always shows a *real folder*: the deepest one on the typed path
+**The picker is one path field plus a listing**, and the pair is a component
+of its own (`PathBrowser`) because finding a folder is not only how a workspace
+is opened — a memory directory (§50) is chosen the same way, so it is the same
+browser with a different ending.
+
+The listing is the completion surface and it always shows a *real folder*: the deepest one on the typed path
 that exists, named above the rows so the field and the listing can never quietly
 disagree. Typing after the last separator filters it; a name matching nothing
 falls back to the whole folder, because a name that matches nothing is usually a
@@ -1568,6 +1572,20 @@ Pi owns it from there and it is never re-injected:
 and its bulk belongs in a read the agent chooses to make. In practice the agent
 does exactly that — asked what it knows about the user, it reads `index.md`,
 then the one page it needs.
+
+### Adding one
+
+Through a dialog carrying the same `PathBrowser` as the workspace picker (§3),
+with Tab completion, `..`, drive listing and all. Typing a raw path into a
+settings field asked the user to be their own file manager, and a memory store
+is somewhere you go and look at before you commit to it — the listing showing
+an `AGENTS.md` is exactly the reassurance you want first. The name defaults to
+the folder's own, and writability is offered where it is owned, in the global
+panel.
+
+A trailing separator is significant while browsing — it is what asks for a
+listing rather than a prefix match, so `inspectPath` preserves it — and has no
+business in a config file, so it is dropped on the way in.
 
 ### Writable means writable
 

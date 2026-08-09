@@ -1,5 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import type { MemoryDirs, ResolvedMemoryDir } from "@picone/protocol";
+import { MemoryDirDialog } from "./MemoryDirDialog.tsx";
 import { Button, IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Switch, Tag, TextInput } from "./ui/primitives.tsx";
@@ -11,37 +12,6 @@ import { Switch, Tag, TextInput } from "./ui/primitives.tsx";
  * and adds its own. Both edit the same `MemoryDirs` record, which is why they
  * are one file — the difference is what the rows may change, not their shape.
  */
-
-/** A row of controls for adding one, shared by both panels. */
-function AddRow(props: { existing: string[]; placeholder: string; onAdd: (name: string, path: string) => void }) {
-  const [name, setName] = createSignal("");
-  const [dir, setDir] = createSignal("");
-
-  // A name is optional: the last segment of the path is almost always the one
-  // the user would have typed anyway.
-  const suggested = () => dir().replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? "";
-  const finalName = () => (name().trim() || suggested()).trim();
-  const valid = () => dir().trim() !== "" && finalName() !== "" && !props.existing.includes(finalName());
-
-  return (
-    <div data-slot="memory-add">
-      <TextInput value={dir()} placeholder={props.placeholder} onValue={setDir} />
-      <TextInput value={name()} placeholder={suggested() || "name"} onValue={setName} size="small" />
-      <Button
-        variant="neutral"
-        icon="plus"
-        disabled={!valid()}
-        onClick={() => {
-          props.onAdd(finalName(), dir().trim());
-          setName("");
-          setDir("");
-        }}
-      >
-        Add
-      </Button>
-    </div>
-  );
-}
 
 /** What the server worked out about a directory, when it knows anything. */
 function Facts(props: { resolved?: ResolvedMemoryDir }) {
@@ -69,6 +39,7 @@ export function GlobalMemoryPanel(props: {
   resolved: ResolvedMemoryDir[];
   onChange: (dirs: MemoryDirs) => void;
 }) {
+  const [adding, setAdding] = createSignal(false);
   const resolvedFor = (name: string) => props.resolved.find((dir) => dir.name === name);
   const patch = (name: string, change: Partial<MemoryDirs[string]>) =>
     props.onChange({ ...props.dirs, [name]: { ...props.dirs[name], ...change } });
@@ -116,10 +87,20 @@ export function GlobalMemoryPanel(props: {
         </For>
       </Show>
 
-      <AddRow
+      <div>
+        <Button variant="neutral" icon="plus" onClick={() => setAdding(true)}>
+          Add a directory
+        </Button>
+      </div>
+
+      <MemoryDirDialog
+        open={adding()}
+        onOpenChange={setAdding}
         existing={Object.keys(props.dirs)}
-        placeholder="/path/to/notes"
-        onAdd={(name, path) => props.onChange({ ...props.dirs, [name]: { path } })}
+        offerWritable
+        onAdd={({ name, path, writable }) =>
+          props.onChange({ ...props.dirs, [name]: { path, writable: writable || undefined } })
+        }
       />
     </div>
   );
@@ -135,6 +116,8 @@ export function WorkspaceMemoryPanel(props: {
   resolved: ResolvedMemoryDir[];
   onChange: (dirs: MemoryDirs | undefined) => void;
 }) {
+  const [adding, setAdding] = createSignal(false);
+
   const patch = (name: string, change: Partial<MemoryDirs[string]>) => {
     const next: MemoryDirs = { ...props.dirs, [name]: { ...props.dirs[name], ...change } };
     props.onChange(next);
@@ -185,10 +168,17 @@ export function WorkspaceMemoryPanel(props: {
         </For>
       </Show>
 
-      <AddRow
+      <div>
+        <Button variant="neutral" icon="plus" onClick={() => setAdding(true)}>
+          Add a directory
+        </Button>
+      </div>
+
+      <MemoryDirDialog
+        open={adding()}
+        onOpenChange={setAdding}
         existing={props.resolved.map((dir) => dir.name)}
-        placeholder="./notes, or an absolute path"
-        onAdd={(name, path) => props.onChange({ ...props.dirs, [name]: { path } })}
+        onAdd={({ name, path }) => props.onChange({ ...props.dirs, [name]: { path } })}
       />
 
       <p class="text-v2-text-text-muted">

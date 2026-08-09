@@ -1,7 +1,8 @@
-import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
-import type { PathCompletion, PathInspectResponse, RecentWorkspace } from "@picone/protocol";
+import { For, Show, createSignal, onMount } from "solid-js";
+import type { PathCompletion, RecentWorkspace } from "@picone/protocol";
 import { api } from "../lib/api.ts";
 import { createWorkspace, openWorkspace, setWorkspacePickerOpen, state } from "../store.ts";
+import { PathBrowser, type PathState } from "./PathBrowser.tsx";
 import { Button } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Dialog } from "./ui/primitives.tsx";
@@ -9,81 +10,25 @@ import { Dialog } from "./ui/primitives.tsx";
 /**
  * Open or create a workspace (DESIGN §3).
  *
- * One path field drives everything, and the listing below it is the completion
- * surface. It always shows a real folder — the deepest one on the typed path
- * that exists — filtered by whatever is being typed after the last separator,
- * and falling back to the whole folder when that matches nothing, so the panel
- * never goes blank at the moment a name is being invented.
- *
- * Tab accepts the highlighted candidate: into a folder, or a filename filled in
- * whole. Pressing it again walks the list. Shift+Tab is the way back out. Click
- * a folder to descend, a workspace file to open it, and Create either makes a
- * workspace in the folder on screen or writes the filename that was typed.
+ * The browsing is `PathBrowser`; what is left here is what a *workspace* picker
+ * adds to it — recents, workspace files being the only clickable files, and a
+ * Create that either makes a workspace in the folder on screen or writes the
+ * filename that was typed.
  */
-/**
- * `..` is part of the same list as everything else, at index -1. One cursor for
- * the whole listing is what keeps `..` from lighting up alongside a row rather
- * than instead of it, and lets the arrow keys, Tab and Enter reach it like any
- * other candidate.
- */
-const UP = -1;
-
 export function WorkspacePicker() {
   const [path, setPath] = createSignal("");
-  const [entries, setEntries] = createSignal<PathCompletion[]>([]);
-  const [base, setBase] = createSignal("");
-  const [separator, setSeparator] = createSignal<"/" | "\\">("/");
-  const [missing, setMissing] = createSignal(false);
-  const [info, setInfo] = createSignal<PathInspectResponse | null>(null);
+  const [resolved, setResolved] = createSignal<PathState>({ base: "", missing: false, info: null });
   const [recent, setRecent] = createSignal<RecentWorkspace[]>([]);
-  const [index, setIndex] = createSignal(0);
   const [error, setError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
 
-  let input: HTMLInputElement | undefined;
-  let list: HTMLDivElement | undefined;
-  let timer: number | undefined;
-  /** Guards against a slow response overwriting a newer one. */
-  let generation = 0;
-
   onMount(() => void api.recentWorkspaces().then(({ workspaces }) => setRecent(workspaces)));
-  onCleanup(() => {
-    if (timer) window.clearTimeout(timer);
-  });
-
-  createEffect(
-    on(path, (value) => {
-      if (timer) window.clearTimeout(timer);
-      timer = window.setTimeout(async () => {
-        const mine = ++generation;
-        const [completed, inspected] = await Promise.allSettled([api.completePath(value), api.inspectPath(value)]);
-        if (mine !== generation) return;
-
-        if (completed.status === "fulfilled") {
-          setEntries(completed.value.completions);
-          setBase(completed.value.base);
-          setSeparator(completed.value.separator);
-          setMissing(completed.value.missing && value.trim() !== "");
-          // A fresh listing starts on its first entry, not on `..`: going
-          // forward is the common move, and `..` is one arrow key away.
-          setIndex(completed.value.completions.length > 0 ? 0 : UP);
-        }
-        setInfo(inspected.status === "fulfilled" ? inspected.value : null);
-      }, 110);
-    }),
-  );
-
-  createEffect(() => {
-    const i = index();
-    list?.querySelector<HTMLElement>(`[data-index="${i}"]`)?.scrollIntoView({ block: "nearest" });
-  });
 
   /** Where Create will put the workspace: the folder currently being viewed. */
   const targetDirectory = () => {
-    const current = info();
-    if (current?.type === "directory") return current.path;
+    const info = resolved().info;
     // Mid-typing a name inside a folder — the folder is still the target.
-    return null;
+    return info?.type === "directory" ? info.path : null;
   };
 
   /**
@@ -92,80 +37,16 @@ export function WorkspacePicker() {
    * completions rather than turning into an offer to create something.
    */
   const newWorkspaceFile = () => {
-    const current = info();
-    if (!current || current.exists || missing()) return null;
+    const { info, missing } = resolved();
+    if (!info || info.exists || missing) return null;
     const name = path().split(/[/\\]/).pop() ?? "";
     const known = /\.workspace\.json$/i.test(name) || /^(workspace|picone)\.json$/i.test(name);
-    return known ? current.path : null;
+    return known ? info.path : null;
   };
 
-  /** What Create would make, as a path, or null when it can make nothing. */
   const createTarget = () => newWorkspaceFile() ?? targetDirectory();
-
-  const withTrailing = (value: string) => (/[/\\]$/.test(value) ? value : value + separator());
-
-  const activate = (entry: PathCompletion) => {
-    resetCycle();
-    if (entry.type === "file") {
-      if (entry.workspace) void open(entry.path);
-      return;
-    }
-    setPath(withTrailing(entry.path));
-    input?.focus();
-  };
-
-  /**
-   * Tab, and the button that stands in for it where there is no keyboard.
-   *
-   * It accepts whatever is highlighted: a folder becomes the new location and
-   * the listing follows it in, a file is filled in whole. Pressing it again
-   * moves to the next candidate, walking the list the way completion does
-   * everywhere else.
-   *
-   * The candidates are captured on the first press, because filling one in
-   * narrows the field's own filter down to it — cycling has to remember what
-   * was on offer before that happened. Typing anything starts over.
-   */
-  let cycle: { items: PathCompletion[]; at: number } | null = null;
-  const resetCycle = () => {
-    cycle = null;
-  };
-
-  const complete = () => {
-    // Accepting `..` is going up, the same as clicking it.
-    if (!cycle && index() === UP && hasUp()) {
-      goUp();
-      return;
-    }
-    if (cycle) {
-      cycle.at = (cycle.at + 1) % cycle.items.length;
-    } else {
-      const items = entries();
-      if (items.length === 0) return;
-      cycle = { items, at: Math.max(0, Math.min(index(), items.length - 1)) };
-    }
-
-    const entry = cycle.items[cycle.at]!;
-    setPath(entry.type === "file" ? entry.path : withTrailing(entry.path));
-    // Stepping into a folder is a fresh set of candidates, not a continuation.
-    if (entry.type !== "file") resetCycle();
-    input?.focus();
-  };
-
-  const hasUp = () => {
-    const parent = info()?.parent;
-    return info()?.type === "directory" && parent !== null && parent !== undefined && !filtering();
-  };
-  const firstIndex = () => (hasUp() ? UP : 0);
-
-  /** An empty parent is the roots listing, which an empty path is how you ask for. */
-  const goUp = () => {
-    resetCycle();
-    const parent = info()?.parent;
-    if (parent === null || parent === undefined) return;
-    setPath(parent === "" ? "" : withTrailing(parent));
-    input?.focus();
-  };
+  const canCreate = () => createTarget() !== null && !busy();
+  const filtering = () => path().trim() !== "" && !/[/\\]$/.test(path());
 
   const open = async (target: string) => {
     setBusy(true);
@@ -196,54 +77,15 @@ export function WorkspacePicker() {
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    const items = entries();
-    const last = items.length - 1;
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setIndex((i) => (i >= last ? firstIndex() : i + 1));
+  /** Enter: open what was typed, create what was named, else follow the highlight. */
+  const onSubmit = () => {
+    const info = resolved().info;
+    if (info?.type === "file") {
+      void open(info.path);
       return;
     }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setIndex((i) => (i <= firstIndex() ? last : i - 1));
-      return;
-    }
-    if (event.key === "Tab") {
-      event.preventDefault();
-      // Shift+Tab is the way back out, so completing forward is never a
-      // one-way trip into the first child of every folder.
-      if (event.shiftKey) goUp();
-      else complete();
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      if (index() === UP && hasUp()) {
-        goUp();
-        return;
-      }
-      // Something typed out in full is a decision, and it outranks a highlight
-      // the user never moved — the fallback listing highlights a row that has
-      // nothing to do with the name being invented in the field.
-      if (info()?.type === "file") {
-        void open(info()!.path);
-        return;
-      }
-      if (newWorkspaceFile()) {
-        void create();
-        return;
-      }
-      // Otherwise Enter goes wherever the eye already is: into the highlighted
-      // folder, or into the highlighted workspace file.
-      const entry = items[index()];
-      if (entry) activate(entry);
-    }
+    if (newWorkspaceFile()) void create();
   };
-
-  const canCreate = () => createTarget() !== null && !busy();
-  const filtering = () => path().trim() !== "" && !/[/\\]$/.test(path());
 
   return (
     <Dialog
@@ -263,104 +105,37 @@ export function WorkspacePicker() {
           )}
         </Show>
 
-        <div data-slot="picker-bar">
-          <div data-slot="path-field">
-            <Icon name="folder" size={14} class="shrink-0 text-v2-icon-icon-muted" />
-            <input
-              ref={input}
-              type="text"
-              spellcheck={false}
-              autocapitalize="off"
-              autocorrect="off"
-              autocomplete="off"
-              autofocus
-              placeholder="Type a path, or pick below"
-              value={path()}
-              onInput={(event) => {
-                resetCycle();
-                setPath(event.currentTarget.value);
-              }}
-              onKeyDown={onKeyDown}
-            />
-            <Show when={path()}>
-              <button
-                type="button"
-                data-slot="path-clear"
-                aria-label="Clear"
-                onClick={() => {
-                  resetCycle();
-                  setPath("");
-                  input?.focus();
-                }}
-              >
-                <Icon name="close" size={12} />
-              </button>
-            </Show>
-
-            {/* Touch devices have no Tab key, and completion is too useful to
-                leave to the ones that do. Hidden by a media query rather than a
-                condition here: it is the same responsive decision the rest of
-                the layout makes in CSS. */}
-            <button
-              type="button"
-              data-slot="path-tab"
-              aria-label="Complete"
-              disabled={entries().length === 0}
-              onClick={complete}
+        <PathBrowser
+          path={path()}
+          onPathChange={setPath}
+          onState={setResolved}
+          // Other files are listed for orientation only — clicking package.json
+          // and getting a validation error would be a lie.
+          fileActionable={(entry: PathCompletion) => Boolean(entry.workspace)}
+          onActivateFile={(entry) => void open(entry.path)}
+          onSubmit={
+            // Only claim Enter when there is something to claim it for;
+            // otherwise the browser follows its own highlight.
+            resolved().info?.type === "file" || newWorkspaceFile() ? onSubmit : undefined
+          }
+          trailing={
+            <Button
+              variant="contrast"
+              icon="plus"
+              disabled={!canCreate()}
+              title={
+                newWorkspaceFile()
+                  ? `Create ${newWorkspaceFile()}`
+                  : targetDirectory()
+                    ? `Create a workspace in ${targetDirectory()}`
+                    : "Navigate to a folder, or type a workspace filename"
+              }
+              onClick={() => void create()}
             >
-              Tab
-            </button>
-          </div>
-
-          <Button
-            variant="contrast"
-            icon="plus"
-            disabled={!canCreate()}
-            title={
-              newWorkspaceFile()
-                ? `Create ${newWorkspaceFile()}`
-                : targetDirectory()
-                  ? `Create a workspace in ${targetDirectory()}`
-                  : "Navigate to a folder, or type a workspace filename"
-            }
-            onClick={() => void create()}
-          >
-            Create
-          </Button>
-        </div>
-
-        {/* The listing is of a folder, not of the text in the field, and those
-            two part company the moment a name is half-typed. Say which. */}
-        <Show when={base()}>
-          <div data-slot="picker-base" title={base()}>
-            {base()}
-          </div>
-        </Show>
-
-        <div data-slot="picker-list" ref={list} role="listbox">
-          {/* Only meaningful once we are actually inside a folder. `parent` is
-              "" at a drive root, which still has the drive list above it. */}
-          <Show when={hasUp()}>
-            <button
-              type="button"
-              data-slot="path-item"
-              data-index={UP}
-              data-active={index() === UP ? "" : undefined}
-              onMouseEnter={() => setIndex(UP)}
-              onClick={goUp}
-            >
-              <Icon name="chevron-up" size={13} class="shrink-0 text-v2-icon-icon-muted" />
-              <span class="truncate">..</span>
-            </button>
-          </Show>
-
-          <Show when={missing()}>
-            <div data-slot="path-empty">
-              <Icon name="alert" size={13} />
-              No such folder. Showing the nearest one above.
-            </div>
-          </Show>
-
+              Create
+            </Button>
+          }
+        >
           {/* The listing below is the folder this name would go in, so say what
               Create would do rather than leaving the rows to imply it. */}
           <Show when={newWorkspaceFile()}>
@@ -369,48 +144,7 @@ export function WorkspacePicker() {
               Create {path().split(/[/\\]/).pop()} here
             </div>
           </Show>
-
-          <For each={entries()}>
-            {(entry, i) => {
-              // Other files are listed for orientation only — clicking
-              // package.json and getting a validation error would be a lie.
-              const actionable = entry.type !== "file" || Boolean(entry.workspace);
-              return (
-                <button
-                  type="button"
-                  role="option"
-                  data-slot="path-item"
-                  data-index={i()}
-                  data-active={index() === i() ? "" : undefined}
-                  data-inert={actionable ? undefined : ""}
-                  aria-selected={index() === i()}
-                  disabled={!actionable}
-                  onMouseEnter={() => setIndex(i())}
-                  onClick={() => activate(entry)}
-                >
-                  <Icon
-                    name={entry.workspace ? "sparkle" : entry.type === "file" ? "file" : "folder"}
-                    size={13}
-                    classList={{
-                      "shrink-0": true,
-                      "text-v2-icon-icon-accent": Boolean(entry.workspace),
-                      "text-v2-icon-icon-muted": !entry.workspace,
-                    }}
-                  />
-                  <span class="truncate">{entry.name}</span>
-                  {/* A drive is somewhere you can go, so it says so too. */}
-                  <Show when={entry.type !== "file"}>
-                    <Icon name="chevron-right" size={12} class="ml-auto shrink-0 opacity-40" />
-                  </Show>
-                </button>
-              );
-            }}
-          </For>
-
-          <Show when={entries().length === 0 && !missing()}>
-            <div data-slot="path-empty">Nothing here</div>
-          </Show>
-        </div>
+        </PathBrowser>
 
         {/* Recents stay out of the way while browsing, and reappear when idle. */}
         <Show when={recent().length > 0 && !filtering()}>

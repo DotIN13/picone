@@ -2247,33 +2247,27 @@
   font-size: calc(11.5px * var(--font-scale));
 }
 
-/* Path first and wide, name second and narrow: the path is the decision, the
-   name is a label the path usually suggests on its own. */
-[data-slot="memory-add"] {
+/* The form under the browser in the add-memory dialog. */
+[data-slot="memory-dialog-form"] {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 0 var(--v2-border-border-muted);
 }
 
-[data-slot="memory-add"] [data-component="text-field"]:first-child {
-  flex: 1;
+/* The folder about to be added, spelled out in the footer beside the button
+   that adds it — the browser above shows where you are, not what you picked. */
+[data-slot="memory-dialog-target"] {
   min-width: 0;
-}
-
-[data-slot="memory-add"] [data-component="text-field"]:nth-child(2) {
-  flex: 0 1 140px;
-  min-width: 0;
-}
-
-[data-slot="memory-add"] [data-component="button"] {
-  flex: none;
-}
-
-@media (max-width: 767px) {
-  [data-slot="memory-add"] {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: start;
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11px * var(--font-scale));
+  color: var(--v2-text-text-faint);
 }
 
 /* ── Settings: skill / prompt / extension toggle lists ── */
