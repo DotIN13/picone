@@ -11,16 +11,38 @@ import { IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Tooltip } from "./ui/primitives.tsx";
 
-const STATE_LABEL: Record<string, string> = {
+/**
+ * One pill for the whole of "what is going on", connection included — a green
+ * dot in the corner was a second status display in a language of its own.
+ *
+ * Thinking, writing and running a tool are all the agent being busy, and the
+ * transcript already says which; they collapse to *working*. Waiting for a
+ * permission does not: the agent has stopped and it is now the human's move,
+ * which is the one state worth interrupting for.
+ */
+type Status = "offline" | "idle" | "working" | "waiting_permission";
+
+const LABEL: Record<Status, string> = {
+  offline: "Offline",
   idle: "Idle",
-  thinking: "Thinking",
-  streaming: "Writing",
-  tool: "Running tools",
+  working: "Working",
   waiting_permission: "Waiting for you",
 };
 
 export function TitleBar() {
   const connectedMcp = () => state.mcp.filter((m) => m.status === "connected").length;
+
+  const status = (): Status => {
+    // Disconnected outranks everything: whatever the session was doing, what is
+    // on screen is a snapshot from before the socket dropped.
+    if (!state.connected) return "offline";
+    const agent = activeSessionState();
+    if (agent === "idle" || agent === "waiting_permission") return agent;
+    return "working";
+  };
+
+  /** Offline is worth showing with no workspace open; the rest is not. */
+  const showStatus = () => !state.connected || Boolean(state.workspace && state.activeSessionId);
 
   return (
     <header data-slot="titlebar">
@@ -43,13 +65,21 @@ export function TitleBar() {
           <Icon name="chevron-down" size={12} class="opacity-60" />
         </button>
 
-        <Show when={state.workspace && state.activeSessionId}>
-          <span data-slot="titlebar-state" data-state={activeSessionState()}>
-            <Show when={activeSessionState() !== "idle"}>
-              <span data-slot="titlebar-state-dot" />
-            </Show>
-            {STATE_LABEL[activeSessionState()] ?? activeSessionState()}
-          </span>
+        <Show when={showStatus()}>
+          <Tooltip
+            label={
+              status() === "offline"
+                ? "Cannot reach the agent server — retrying"
+                : `The active session is ${LABEL[status()].toLowerCase()}`
+            }
+          >
+            <span data-slot="titlebar-state" data-state={status()}>
+              <Show when={status() !== "idle"}>
+                <span data-slot="titlebar-state-dot" />
+              </Show>
+              {LABEL[status()]}
+            </span>
+          </Tooltip>
         </Show>
       </div>
 
@@ -72,10 +102,6 @@ export function TitleBar() {
             </span>
           </Tooltip>
         </Show>
-
-        <Tooltip label={state.connected ? "Connected to the agent server" : "Disconnected — reconnecting"}>
-          <span data-slot="titlebar-conn" data-connected={state.connected ? "" : undefined} />
-        </Tooltip>
 
         <IconButton
           icon={state.colorScheme === "dark" ? "sun" : "moon"}

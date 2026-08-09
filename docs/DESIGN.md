@@ -442,7 +442,7 @@ and die with the session.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│ ▣ Acme ▾  Thinking          probe status  2 MCP ● ☀ ⚙            │
+│ ▣ Acme ▾  ● Working         probe status  2 MCP  ☀ ⚙             │
 ├─────────────────┬────────────────────────────────────────────────┤
 │ Files │Sessions │ [Auth redesign ×][DESIGN.md ×][auth.ts ×] +     │
 │                 │                                                │
@@ -464,6 +464,17 @@ and die with the session.
 
 Two primitives: **sidebar** and **tabs**. Model selection and dictation sit in a
 control row under the input, not in the title bar.
+
+**One status pill, not a pill and a light.** It reads `Idle`, `Working`,
+`Waiting for you`, or `Offline`, and the connection is part of it rather than a
+coloured dot in the far corner — two status displays in two vocabularies, and
+the one in the corner needed a tooltip to say what it meant.
+
+Thinking, writing and running a tool collapse into *working*: they are all the
+agent being busy and the transcript already says which. Waiting on a permission
+stays its own state, because the agent has stopped and it is the human's move.
+`Offline` outranks everything, since whatever the session was last doing, what
+is on screen is a snapshot from before the socket dropped.
 
 The same two primitives rearrange for small screens rather than being replaced —
 see §47.
