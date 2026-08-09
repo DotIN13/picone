@@ -33,7 +33,7 @@ export function trackVisualViewport(): void {
   const apply = () => {
     // How much of the layout viewport the keyboard (or a pinch) is covering.
     const occluded = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-    document.documentElement.style.setProperty("--keyboard-inset", `${Math.round(occluded)}px`);
+    document.documentElement.style.setProperty("--keyboard-inset-raw", `${Math.round(occluded)}px`);
   };
 
   apply();

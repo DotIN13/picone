@@ -125,6 +125,13 @@ built-in `bash`.
 `speak` tool the agent can choose to use. Both stay on your machine; no audio
 service to run.
 
+**App settings.** Settings has two halves. The workspace half writes to
+`workspace.json`; the app half describes this browser on this device and applies
+as you change it — theme, interface size, interface and code fonts, and desktop
+notifications when a turn finishes, a tool needs permission, or something fails.
+Interface size scales the whole UI rather than the text alone, so spacing and
+controls grow with it.
+
 **Phone and tablet.** One layout that rearranges rather than a separate mobile
 build: the sidebar becomes a drawer, dialogs become bottom sheets, the composer
 rides above the on-screen keyboard, and tab reordering works by long-press. It
@@ -162,6 +169,7 @@ apps/
   web/               SolidJS + Tailwind + Kobalte + Corvu
     src/styles/      design tokens, base, feature CSS
     src/components/  ui/ primitives, then feature components
+    src/lib/         api · socket · paths · app settings
     src/store.ts     one Solid store; the event reducer lives here
 packages/
   protocol/          type-only wire contract shared by both

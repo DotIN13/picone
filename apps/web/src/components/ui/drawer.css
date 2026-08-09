@@ -19,14 +19,14 @@
   inset-block: 6px;
   inset-inline-end: 6px;
   width: 620px;
-  max-width: calc(100vw - 12px);
+  max-width: calc(100 * var(--vw) - 12px);
 }
 
 [data-component="drawer"][data-side="bottom"] {
   inset-inline: 6px;
   bottom: 6px;
-  height: 70vh;
-  max-height: calc(100vh - 12px);
+  height: calc(70 * var(--vh));
+  max-height: calc(100 * var(--vh) - 12px);
 }
 
 [data-component="drawer"][data-transitioning] {

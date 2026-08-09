@@ -5,7 +5,7 @@ A browser-native coding agent powered by Pi.
 This document describes the system as designed **and built**. Section numbers
 `§1`–`§41` are referenced from comments throughout the source, so they are
 stable; where the implementation diverged from the original plan, the section
-says so rather than being renumbered. Sections `§42`–`§48` cover subsystems that
+says so rather than being renumbered. Sections `§42`–`§49` cover subsystems that
 were added during the build.
 
 Known gaps live in [TODO.md](TODO.md).
@@ -67,9 +67,8 @@ write by hand.
     "Frontend and backend often change together."
   ],
 
-  "skills": [
-    { "name": "release", "path": "~/.pi/agent/skills/release" }
-  ],
+  "skillPaths": ["~/work/skills"],
+  "skills": { "troubleshooting": { "enabled": false } },
 
   "mcp": {
     "linear": { "url": "http://localhost:8123/mcp", "enabled": true }
@@ -1295,3 +1294,52 @@ be silent.
 *Switching extensions off used to live here, as `disabledExtensions`. It is now
 per workspace, in the `extensions` record; the old key is reported as ignored
 rather than quietly honoured.*
+
+---
+
+## 49. App settings
+
+The settings drawer holds two groups, because the two halves answer to
+different owners:
+
+* **Workspace** (§35) — written to `workspace.json`, shared with whoever else
+  opens the project, and saved explicitly.
+* **App** — how this browser on this device behaves. Applied the moment they
+  change and kept in `localStorage`, so there is no save button and nothing to
+  lose. They never reach the server: nothing here is the agent's business, and
+  syncing a font choice across machines would be a liability, not a feature.
+
+Workspace sections are disabled while no workspace is open; the app ones stay
+reachable, which is the point of separating them.
+
+**Appearance.** Theme (system, light, dark — `system` re-resolves when the OS
+flips), interface size, and the two font families. A font is stored as a CSS
+family list with the bundled stack appended as a fallback, so a name that is not
+installed degrades to Inter rather than to Times New Roman. A live sample sits
+under the controls, because a font choice cannot be judged from its name.
+
+**Interface size is a zoom, not a text size.** The design system (§42) is
+written in absolute pixels — 13px body text, 28px rows, hairline borders — so
+growing the text alone would burst its containers. `zoom` on the root element
+re-lays-out instead of stretching, so hairlines and glyphs stay crisp at any
+scale, and it goes on `html` so overlays portalled to `body` scale with
+everything else.
+
+The one thing zoom does not fix is lengths measured against the viewport, which
+stay in unzoomed pixels and so render `--ui-scale` too large. `--vh` and `--vw`
+in `base.css` are the corrected units, and the safe-area and keyboard insets are
+divided down the same way. `position: fixed` needs no correction — it is laid
+out against the real viewport already.
+
+**Notifications.** Off until switched on, since asking for the permission
+unprompted is rude and browsers punish it. Turning it on requests the permission
+from inside the click, which is the only place browsers will grant it. Three
+triggers — a turn finishing, a tool needing permission, an error — each with
+their own switch, and by default only while Picone is not the focused window: a
+notification for something you are watching happen is noise. Clicking one
+focuses the window and opens the session it came from.
+
+A notification is always a courtesy. Every one of them is also in the
+transcript, so a blocked permission, an insecure origin, or a browser without
+the API costs nothing but convenience — which is why the panel says plainly when
+the origin rules them out rather than leaving a switch that does nothing.

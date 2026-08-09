@@ -14,19 +14,57 @@ import { Drawer } from "./ui/drawer.tsx";
 import { Button, IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Select, Switch, Tag, TextArea, TextInput } from "./ui/primitives.tsx";
+import { AppearancePanel, NotificationsPanel } from "./AppSettings.tsx";
 
-type Section = "general" | "directories" | "skills" | "prompts" | "extensions" | "permissions" | "voice" | "model";
+type Section =
+  | "general"
+  | "directories"
+  | "skills"
+  | "prompts"
+  | "extensions"
+  | "permissions"
+  | "voice"
+  | "model"
+  | "appearance"
+  | "notifications";
 
-const SECTIONS: Array<{ id: Section; label: string; icon: Parameters<typeof Icon>[0]["name"] }> = [
-  { id: "general", label: "General", icon: "settings" },
-  { id: "directories", label: "Directories", icon: "folder" },
-  { id: "skills", label: "Skills", icon: "sparkle" },
-  { id: "prompts", label: "Prompts", icon: "comment" },
-  { id: "extensions", label: "Extensions", icon: "plug" },
-  { id: "permissions", label: "Permissions", icon: "shield" },
-  { id: "voice", label: "Voice", icon: "mic" },
-  { id: "model", label: "Model", icon: "terminal" },
+interface SectionItem {
+  id: Section;
+  label: string;
+  icon: Parameters<typeof Icon>[0]["name"];
+}
+
+/**
+ * Two groups, because the two halves answer to different owners: the workspace
+ * sections are written to a JSON file that travels with the project, and the
+ * app sections describe this browser on this device (DESIGN §49).
+ */
+const GROUPS: Array<{ title: string; scope: "workspace" | "app"; items: SectionItem[] }> = [
+  {
+    title: "Workspace",
+    scope: "workspace",
+    items: [
+      { id: "general", label: "General", icon: "settings" },
+      { id: "directories", label: "Directories", icon: "folder" },
+      { id: "skills", label: "Skills", icon: "sparkle" },
+      { id: "prompts", label: "Prompts", icon: "comment" },
+      { id: "extensions", label: "Extensions", icon: "plug" },
+      { id: "permissions", label: "Permissions", icon: "shield" },
+      { id: "voice", label: "Voice", icon: "mic" },
+      { id: "model", label: "Model", icon: "terminal" },
+    ],
+  },
+  {
+    title: "App",
+    scope: "app",
+    items: [
+      { id: "appearance", label: "Appearance", icon: "sun" },
+      { id: "notifications", label: "Notifications", icon: "alert" },
+    ],
+  },
 ];
+
+const APP_SECTIONS = new Set<Section>(GROUPS.find((g) => g.scope === "app")!.items.map((i) => i.id));
 
 const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map((value) => ({
   value,
@@ -37,7 +75,7 @@ const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map
 const ALL_THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 
-/** Workspace settings (DESIGN §35), presented as a Corvu side drawer. */
+/** Workspace settings (DESIGN §35) and app settings (§49), in one side drawer. */
 export function SettingsDrawer() {
   const [section, setSection] = createSignal<Section>("general");
   const [draft, setDraft] = createSignal<WorkspaceFile | null>(null);
@@ -99,35 +137,42 @@ export function SettingsDrawer() {
     return levels.map((value) => ({ value, label: value }));
   });
 
+  /** App settings are reachable with no workspace open; workspace ones are not. */
+  const current = createMemo<Section>(() =>
+    !state.workspace && !APP_SECTIONS.has(section()) ? "appearance" : section(),
+  );
+
   return (
     <Drawer open={state.settingsOpen} onOpenChange={setSettingsOpen} side={state.compact ? "bottom" : "right"}>
-      <Show when={draft()}>
-        {(file) => (
-          <>
-            <div data-slot="drawer-header">
-              <Icon name="settings" size={15} class="text-v2-icon-icon-muted" />
-              <span data-slot="drawer-title">Workspace settings</span>
-              <span class="flex-1" />
-              <IconButton icon="close" label="Close settings" variant="ghost-muted" onClick={() => setSettingsOpen(false)} />
-            </div>
+      <div data-slot="drawer-header">
+        <Icon name="settings" size={15} class="text-v2-icon-icon-muted" />
+        <span data-slot="drawer-title">Settings</span>
+        <span class="flex-1" />
+        <IconButton icon="close" label="Close settings" variant="ghost-muted" onClick={() => setSettingsOpen(false)} />
+      </div>
 
-            <Show when={error()}>
-              {(message) => (
-                <div data-slot="dialog-error" class="mx-3.5 mt-3">
-                  <Icon name="alert" size={14} />
-                  <span class="whitespace-pre-wrap">{message()}</span>
-                </div>
-              )}
-            </Show>
+      <Show when={error()}>
+        {(message) => (
+          <div data-slot="dialog-error" class="mx-3.5 mt-3">
+            <Icon name="alert" size={14} />
+            <span class="whitespace-pre-wrap">{message()}</span>
+          </div>
+        )}
+      </Show>
 
-            <div data-slot="drawer-body">
-              <nav data-slot="settings-nav">
-                <For each={SECTIONS}>
+      <div data-slot="drawer-body">
+        <nav data-slot="settings-nav">
+          <For each={GROUPS}>
+            {(group) => (
+              <>
+                <div data-slot="settings-nav-group">{group.title}</div>
+                <For each={group.items}>
                   {(item) => (
                     <button
                       type="button"
                       data-slot="settings-nav-item"
-                      data-active={section() === item.id ? "" : undefined}
+                      data-active={current() === item.id ? "" : undefined}
+                      disabled={group.scope === "workspace" && !state.workspace}
                       onClick={() => setSection(item.id)}
                     >
                       <Icon name={item.icon} size={13} />
@@ -135,10 +180,23 @@ export function SettingsDrawer() {
                     </button>
                   )}
                 </For>
-              </nav>
+              </>
+            )}
+          </For>
+        </nav>
 
-              <div data-slot="settings-panel">
-                <Show when={section() === "general"}>
+        <div data-slot="settings-panel">
+          <Show when={current() === "appearance"}>
+            <AppearancePanel />
+          </Show>
+          <Show when={current() === "notifications"}>
+            <NotificationsPanel />
+          </Show>
+
+          <Show when={draft()}>
+            {(file) => (
+              <>
+                <Show when={current() === "general"}>
                   <TextInput label="Name" value={file().name} onValue={(name) => patch({ name })} />
                   <TextArea
                     label="Instructions (one per line)"
@@ -188,7 +246,7 @@ export function SettingsDrawer() {
                   </Show>
                 </Show>
 
-                <Show when={section() === "directories"}>
+                <Show when={current() === "directories"}>
                   <StringListEditor
                     label="Directories"
                     placeholder="/path/to/repo"
@@ -197,7 +255,7 @@ export function SettingsDrawer() {
                   />
                 </Show>
 
-                <Show when={section() === "skills"}>
+                <Show when={current() === "skills"}>
                   <ResourceToggles
                     title="Skills"
                     hint="Loaded by Pi from ~/.pi/agent/skills and ~/.agents/skills, plus any directories this workspace adds. Write new ones there or with the CLI; here you choose which this workspace uses."
@@ -208,7 +266,7 @@ export function SettingsDrawer() {
                   />
                 </Show>
 
-                <Show when={section() === "prompts"}>
+                <Show when={current() === "prompts"}>
                   <ResourceToggles
                     title="Prompt templates"
                     hint="Each one is a slash command in the composer. Switching a template off removes its command from new sessions."
@@ -220,7 +278,7 @@ export function SettingsDrawer() {
                   />
                 </Show>
 
-                <Show when={section() === "extensions"}>
+                <Show when={current() === "extensions"}>
                   <ResourceToggles
                     title="Pi extensions"
                     hint="Discovered by Pi from its own settings and extension directories. Switching one off leaves it installed — Picone just stops loading it. Install and remove with pi install."
@@ -231,7 +289,7 @@ export function SettingsDrawer() {
                   />
                 </Show>
 
-                <Show when={section() === "permissions"}>
+                <Show when={current() === "permissions"}>
                   <div class="flex flex-col gap-3">
                     <For each={["files", "shell", "git"] as const}>
                       {(category) => (
@@ -256,7 +314,7 @@ export function SettingsDrawer() {
                   </div>
                 </Show>
 
-                <Show when={section() === "voice"}>
+                <Show when={current() === "voice"}>
                   <div class="flex flex-col gap-3">
                     <Switch
                       checked={file().voice?.input ?? true}
@@ -271,7 +329,7 @@ export function SettingsDrawer() {
                   </div>
                 </Show>
 
-                <Show when={section() === "model"}>
+                <Show when={current() === "model"}>
                   <div class="flex flex-col gap-3">
                     <div data-slot="settings-row">
                       <span>Model</span>
@@ -311,21 +369,25 @@ export function SettingsDrawer() {
                     <p class="text-v2-text-text-muted">Model changes apply to sessions created after saving.</p>
                   </div>
                 </Show>
-              </div>
-            </div>
+              </>
+            )}
+          </Show>
+        </div>
+      </div>
 
-            <div data-slot="drawer-footer">
-              <span class="text-v2-text-text-muted">{dirty() ? "Unsaved changes" : "Saved"}</span>
-              <span class="flex-1" />
-              <Button variant="ghost" disabled={!dirty()} onClick={() => setDraft(snapshot())}>
-                Revert
-              </Button>
-              <Button variant="contrast" disabled={!dirty() || saving()} onClick={() => void save()}>
-                {saving() ? "Saving…" : "Save to workspace.json"}
-              </Button>
-            </div>
-          </>
-        )}
+      {/* Only the workspace half has anything to save; app settings apply as
+          they are changed, so a footer over them would invite a pointless click. */}
+      <Show when={!APP_SECTIONS.has(current())}>
+        <div data-slot="drawer-footer">
+          <span class="text-v2-text-text-muted">{dirty() ? "Unsaved changes" : "Saved"}</span>
+          <span class="flex-1" />
+          <Button variant="ghost" disabled={!dirty()} onClick={() => setDraft(snapshot())}>
+            Revert
+          </Button>
+          <Button variant="contrast" disabled={!dirty() || saving()} onClick={() => void save()}>
+            {saving() ? "Saving…" : "Save to workspace.json"}
+          </Button>
+        </div>
       </Show>
     </Drawer>
   );

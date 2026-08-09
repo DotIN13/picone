@@ -1755,6 +1755,19 @@
   box-shadow: inset -1px 0 0 0 var(--v2-border-border-muted);
 }
 
+[data-slot="settings-nav-group"] {
+  padding: 10px 9px 4px;
+  color: var(--v2-text-text-faint);
+  font-size: 11px;
+  font-weight: 530;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+[data-slot="settings-nav-group"]:first-child {
+  padding-top: 2px;
+}
+
 [data-slot="settings-nav-item"] {
   display: flex;
   align-items: center;
@@ -1780,6 +1793,45 @@
   background: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-base);
   font-weight: 530;
+}
+
+[data-slot="settings-nav-item"]:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="settings-fieldset"] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* `fieldset[disabled]` disables the inputs, but Kobalte's switch is driven by a
+   click handler on its own control, which does not consult it — so block the
+   pointer as well, or the control would move while the value did not. */
+[data-slot="settings-fieldset"]:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* A sample of the chosen fonts, so the choice can be judged before closing. */
+[data-slot="appearance-preview"] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+[data-slot="appearance-preview"] code {
+  color: var(--v2-text-text-muted);
 }
 
 [data-slot="settings-panel"] {
@@ -1846,7 +1898,7 @@
     inset-block: 0;
     inset-inline-start: 0;
     z-index: 40;
-    width: min(84vw, 320px);
+    width: min(calc(84 * var(--vw)), 320px);
     box-shadow: var(--v2-elevation-overlay);
     animation: sidebar-in 0.22s cubic-bezier(0.32, 0.72, 0, 1);
   }
@@ -1932,7 +1984,7 @@
   [data-component="dialog"][data-sheet] {
     width: 100%;
     max-width: 100%;
-    max-height: 88dvh;
+    max-height: calc(88 * var(--vh));
     border-radius: 14px 14px 0 0;
     padding-bottom: var(--safe-bottom);
     animation: sheet-in 0.24s cubic-bezier(0.32, 0.72, 0, 1);
@@ -1946,7 +1998,7 @@
 
   /* The settings drawer is a bottom sheet, and its nav scrolls horizontally. */
   [data-component="drawer"][data-side="bottom"] {
-    height: 88dvh;
+    height: calc(88 * var(--vh));
     border-radius: 14px 14px 0 0;
     padding-bottom: var(--safe-bottom);
   }
@@ -1974,6 +2026,18 @@
     height: 32px;
   }
 
+  /* The nav is one horizontal strip here, so a group heading becomes a divider
+     label in front of its items rather than a heading above them. */
+  [data-slot="settings-nav-group"] {
+    flex: none;
+    align-self: center;
+    padding: 0 2px 0 8px;
+  }
+
+  [data-slot="settings-nav-group"]:first-child {
+    padding-inline-start: 0;
+  }
+
   [data-slot="settings-row"] {
     flex-direction: column;
     align-items: stretch;
@@ -1997,11 +2061,11 @@
   }
 
   [data-component="slash-menu"] {
-    max-height: 46dvh;
+    max-height: calc(46 * var(--vh));
   }
 
   [data-component="model-popover"] {
-    width: min(92vw, 340px);
+    width: min(calc(92 * var(--vw)), 340px);
   }
 
   [data-component="toast"] {
@@ -2029,7 +2093,7 @@
   }
 
   [data-component="drawer"][data-side="right"] {
-    width: min(520px, calc(100vw - 12px));
+    width: min(520px, calc(100 * var(--vw) - 12px));
   }
 }
 

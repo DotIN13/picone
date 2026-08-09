@@ -22,6 +22,16 @@ import type {
   WorkspaceStateResponse,
 } from "@picone/protocol";
 import { api } from "./lib/api.ts";
+import {
+  applyAppearance,
+  defaultAppSettings,
+  loadAppSettings,
+  notify,
+  resolveColorScheme,
+  saveAppSettings,
+  watchSystemColorScheme,
+  type AppSettings,
+} from "./lib/app-settings.ts";
 import { socket } from "./lib/socket.ts";
 import { speak } from "./voice/speech.ts";
 
@@ -52,6 +62,8 @@ export interface OpenFileState {
 }
 
 export type ColorScheme = "light" | "dark";
+
+export type { AppSettings } from "./lib/app-settings.ts";
 
 interface State {
   connected: boolean;
@@ -106,16 +118,11 @@ interface State {
   coarse: boolean;
   settingsOpen: boolean;
   workspacePickerOpen: boolean;
+  /** This device's own preferences, not the workspace's (DESIGN §49). */
+  app: AppSettings;
+  /** What the theme preference resolves to right now — `system` included. */
   colorScheme: ColorScheme;
   toast: { text: string; level: "info" | "warn" | "error" } | null;
-}
-
-const SCHEME_KEY = "picone:color-scheme";
-
-function initialScheme(): ColorScheme {
-  const stored = localStorage.getItem(SCHEME_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 const [state, setState] = createStore<State>({
@@ -158,7 +165,8 @@ const [state, setState] = createStore<State>({
   coarse: false,
   settingsOpen: false,
   workspacePickerOpen: false,
-  colorScheme: initialScheme(),
+  app: loadAppSettings(),
+  colorScheme: "dark",
   toast: null,
 });
 
@@ -178,6 +186,11 @@ export function sessionSummary(sessionId: string): SessionSummary | undefined {
   return state.sessions.find((s) => s.id === sessionId);
 }
 
+/** Title for a notification, which has no session tab to give it context. */
+function sessionName(sessionId: string): string {
+  return sessionSummary(sessionId)?.title ?? "Picone";
+}
+
 export function hasSessionTab(): boolean {
   return state.tabs.some((tab) => tab.kind === "session");
 }
@@ -187,7 +200,8 @@ export function hasSessionTab(): boolean {
 // ---------------------------------------------------------------------------
 
 export async function init(): Promise<void> {
-  applyColorScheme(state.colorScheme);
+  applyAppearanceNow();
+  watchSystemColorScheme(applyAppearanceNow);
   socket.onStatus((connected) => setState("connected", connected));
   socket.onFrame(applyFrame);
   socket.connect();
@@ -235,18 +249,42 @@ export async function refreshState(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Theme
+// App settings (DESIGN §49)
 // ---------------------------------------------------------------------------
 
-function applyColorScheme(scheme: ColorScheme): void {
-  document.documentElement.dataset.colorScheme = scheme;
+/** Applied and persisted as soon as they change — there is nothing to save. */
+export function updateAppSettings(changes: {
+  appearance?: Partial<AppSettings["appearance"]>;
+  notifications?: Partial<AppSettings["notifications"]>;
+}): void {
+  const next: AppSettings = {
+    appearance: { ...state.app.appearance, ...changes.appearance },
+    notifications: { ...state.app.notifications, ...changes.notifications },
+  };
+  setState("app", next);
+  saveAppSettings(next);
+  if (changes.appearance) applyAppearanceNow();
 }
 
+/** Push appearance into the DOM, and mirror what `system` resolved to. */
+function applyAppearanceNow(): void {
+  applyAppearance(state.app.appearance);
+  setState("colorScheme", resolveColorScheme(state.app.appearance.colorScheme));
+}
+
+export function resetAppSettings(): void {
+  const next = defaultAppSettings();
+  setState("app", next);
+  saveAppSettings(next);
+  applyAppearanceNow();
+}
+
+/**
+ * The title bar's one-tap toggle: pick the opposite of what is on screen, which
+ * turns a `system` preference into the explicit choice the tap implies.
+ */
 export function toggleColorScheme(): void {
-  const next: ColorScheme = state.colorScheme === "dark" ? "light" : "dark";
-  setState("colorScheme", next);
-  localStorage.setItem(SCHEME_KEY, next);
-  applyColorScheme(next);
+  updateAppSettings({ appearance: { colorScheme: state.colorScheme === "dark" ? "light" : "dark" } });
 }
 
 // ---------------------------------------------------------------------------
@@ -696,6 +734,14 @@ function applyFrame(frame: ServerFrame): void {
       if (sid) {
         upsert(sid, { kind: "permission", id: event.request.id, request: event.request, at: event.request.createdAt });
         setState("agentStates", sid, "waiting_permission");
+        if (state.app.notifications.permissionNeeded) {
+          notify(state.app.notifications, {
+            title: `${sessionName(sid)} needs permission`,
+            body: `${event.request.title} ${event.request.detail}`.trim(),
+            tag: `permission:${sid}`,
+            onClick: () => void openSession(sid),
+          });
+        }
       }
       break;
 
@@ -713,7 +759,20 @@ function applyFrame(frame: ServerFrame): void {
       break;
 
     case "agent.state":
-      if (sid) setState("agentStates", sid, event.state);
+      if (sid) {
+        // "Finished" is the edge into idle, not idleness itself — the same
+        // state arrives repeatedly while nothing is happening.
+        const wasWorking = (state.agentStates[sid] ?? "idle") !== "idle";
+        setState("agentStates", sid, event.state);
+        if (wasWorking && event.state === "idle" && state.app.notifications.turnFinished) {
+          notify(state.app.notifications, {
+            title: sessionName(sid),
+            body: "Finished working.",
+            tag: `turn:${sid}`,
+            onClick: () => void openSession(sid),
+          });
+        }
+      }
       break;
 
     case "notice":
@@ -726,7 +785,16 @@ function applyFrame(frame: ServerFrame): void {
           at: new Date().toISOString(),
         });
       }
-      if (event.level === "error") setState("toast", { text: event.text, level: event.level });
+      if (event.level === "error") {
+        setState("toast", { text: event.text, level: event.level });
+        if (state.app.notifications.errors) {
+          notify(state.app.notifications, {
+            title: sid ? `${sessionName(sid)} — error` : "Picone — error",
+            body: event.text,
+            onClick: sid ? () => void openSession(sid) : undefined,
+          });
+        }
+      }
       break;
 
     case "file.changed": {
