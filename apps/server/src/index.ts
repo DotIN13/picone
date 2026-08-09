@@ -34,16 +34,35 @@ async function main(): Promise<void> {
   const http = createServer(server);
   attachWebSocket(http, app);
 
-  await app.restoreLastWorkspace().catch((err: Error) => {
-    console.warn(`[picone] could not restore last workspace: ${err.message}`);
+  http.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(
+        `[picone] port ${PORT} is already in use — stop the other instance, or set PICONE_PORT to a free port.`,
+      );
+      process.exit(1);
+    }
+    console.error("[picone] server error:", err);
+    process.exit(1);
   });
 
   http.listen(PORT, HOST, () => {
     console.log(`[picone] server listening on http://${HOST}:${PORT}`);
-    const workspace = app.getWorkspace();
-    if (workspace) console.log(`[picone] workspace "${workspace.file.name}" (${workspace.path})`);
     if (!existsSync(webDist)) console.log(`[picone] web UI not built — run the dev server or 'npm run build'`);
   });
+
+  // Restore *after* listening. Reopening a workspace builds a Pi session —
+  // model runtime, extensions, MCP servers — which can take seconds or stall on
+  // an unreachable server. Blocking the port on that made the whole app look
+  // dead, so the UI now connects immediately and watches the restore happen.
+  void app
+    .restoreLastWorkspace()
+    .then(() => {
+      const workspace = app.getWorkspace();
+      if (workspace) console.log(`[picone] workspace "${workspace.file.name}" (${workspace.path})`);
+    })
+    .catch((err: Error) => {
+      console.warn(`[picone] could not restore last workspace: ${err.message}`);
+    });
 
   const shutdown = async (): Promise<void> => {
     await app.closeWorkspace().catch(() => {});

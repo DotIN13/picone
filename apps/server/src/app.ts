@@ -52,6 +52,8 @@ export class App {
   private settings: GlobalSettings = { mcp: {}, skills: [], disabledExtensions: [] };
   private settingsErrors: string[] = [];
   private mcpSources: Record<string, "global" | "workspace"> = {};
+  /** Path being reopened at startup, while it is still in flight. */
+  private restoring: string | null = null;
 
   constructor() {
     this.reloadSettings();
@@ -120,14 +122,32 @@ export class App {
     this.workspace = null;
   }
 
-  /** Restore the workspace that was open when the server last ran. */
+  /**
+   * Restore the workspace that was open when the server last ran.
+   *
+   * Runs after the port is open, so `restoring` exists to tell a client that
+   * connects mid-restore to wait rather than offer the picker.
+   */
   async restoreLastWorkspace(): Promise<void> {
     const last = getUiState<string>(LAST_WORKSPACE_KEY);
     if (!last) return;
+
+    this.restoring = last;
+    this.hub.publish(null, { type: "workspace.restoring", path: last });
     try {
       await this.openWorkspace(last);
-    } catch {
+    } catch (err) {
+      // A workspace that no longer loads must not wedge every future start.
       setUiState(LAST_WORKSPACE_KEY, null);
+      this.hub.publish(null, {
+        type: "notice",
+        text: `Could not reopen ${last}: ${(err as Error).message}`,
+        level: "warn",
+      });
+      throw err;
+    } finally {
+      this.restoring = null;
+      this.hub.publish(null, { type: "workspace.restoring", path: null });
     }
   }
 
@@ -176,6 +196,7 @@ export class App {
       voice: workspace ? resolvedVoice(workspace.file) : { input: true, output: true },
       settings: this.settings,
       settingsErrors: this.settingsErrors,
+      restoring: this.restoring,
       resources: this.activeSession()?.resources(this.settings.disabledExtensions) ?? null,
     };
   }

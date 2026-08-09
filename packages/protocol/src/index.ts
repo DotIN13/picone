@@ -328,6 +328,8 @@ export type AgentEvent =
   | { type: "agent.state"; state: AgentState }
   | { type: "notice"; text: string; level: "info" | "warn" | "error" }
   | { type: "workspace.updated"; workspace: Workspace }
+  /** A startup restore is in flight (path) or finished (null). */
+  | { type: "workspace.restoring"; path: string | null }
   | { type: "session.list"; sessions: SessionSummary[]; activeSessionId: string | null }
   | { type: "session.commands"; sessionId: string; commands: SlashCommand[] }
   | { type: "extension.ui.prompt"; prompt: ExtensionUiPrompt }
@@ -423,4 +425,6 @@ export interface WorkspaceStateResponse {
   /** Problems reading the global settings file. */
   settingsErrors: string[];
   resources: ResourceReport | null;
+  /** Non-null while a workspace is being reopened at startup. */
+  restoring: string | null;
 }

@@ -12,6 +12,14 @@ import { resolveWithinRoots } from "./util/paths.ts";
 export function attachWebSocket(server: Server, app: App): WebSocketServer {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
+  // `ws` re-emits the HTTP server's errors here, so a listen failure surfaces on
+  // the WebSocketServer rather than on the server itself. Without this listener
+  // it becomes an unhandled 'error' event and the stack buries the real cause.
+  wss.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") return; // reported by the http handler
+    console.error("[picone] websocket error:", err);
+  });
+
   wss.on("connection", (socket: WebSocket) => {
     app.hub.add(socket);
     const watched = new Set<string>();

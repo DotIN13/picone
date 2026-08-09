@@ -72,6 +72,8 @@ interface State {
   settingsErrors: string[];
   /** What Pi discovered for the active session — extensions, skills, prompts. */
   resources: ResourceReport | null;
+  /** Path being reopened at startup; the picker waits rather than butting in. */
+  restoring: string | null;
 
   /** Blocking extension dialogs, oldest first. */
   extensionPrompts: ExtensionUiPrompt[];
@@ -131,6 +133,7 @@ const [state, setState] = createStore<State>({
   settings: { mcp: {}, skills: [], disabledExtensions: [] },
   settingsErrors: [],
   resources: null,
+  restoring: null,
 
   extensionPrompts: [],
   extensionStatus: {},
@@ -205,7 +208,9 @@ export async function refreshState(): Promise<void> {
     settings: next.settings,
     settingsErrors: next.settingsErrors,
     resources: next.resources,
-    workspacePickerOpen: next.workspace === null,
+    restoring: next.restoring,
+    // Do not offer the picker while a workspace is still being reopened.
+    workspacePickerOpen: next.workspace === null && next.restoring === null,
   });
 
   if (!next.workspace) return;
@@ -752,7 +757,15 @@ function applyFrame(frame: ServerFrame): void {
       break;
 
     case "workspace.updated":
-      setState("workspace", event.workspace);
+      // A restore finishing must dismiss the picker if it opened meanwhile.
+      setState({ workspace: event.workspace, workspacePickerOpen: false });
+      void refreshState();
+      break;
+
+    case "workspace.restoring":
+      setState("restoring", event.path);
+      if (event.path) setState("workspacePickerOpen", false);
+      else if (!state.workspace) setState("workspacePickerOpen", true);
       break;
 
     case "session.list":

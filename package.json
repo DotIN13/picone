@@ -9,7 +9,7 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev": "concurrently --raw --kill-others-on-fail \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "npm run dev --workspace @picone/server",
     "dev:web": "npm run dev --workspace @picone/web",
     "build": "npm run build --workspace @picone/server && npm run build --workspace @picone/web",

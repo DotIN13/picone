@@ -20,6 +20,7 @@ import { SettingsDrawer } from "./components/SettingsDrawer.tsx";
 import { ExtensionDialog } from "./components/ExtensionDialog.tsx";
 import { Button, IconButton } from "./components/ui/button.tsx";
 import { Icon } from "./components/ui/icon.tsx";
+import { Spinner } from "./components/ui/primitives.tsx";
 
 export function App() {
   const compact = mediaQuery(COMPACT_QUERY);
@@ -45,13 +46,37 @@ export function App() {
             <div data-slot="splash-mark">
               <Icon name="sparkle" size={22} />
             </div>
-            <div class="flex flex-col items-center gap-1">
-              <h1 class="text-[18px] font-[530] tracking-[-0.2px]">Picone</h1>
-              <p class="text-[13px] text-v2-text-text-muted">Open a workspace file to begin.</p>
-            </div>
-            <Button variant="contrast" size="large" onClick={() => setWorkspacePickerOpen(true)}>
-              Open Workspace
-            </Button>
+            {/* Reopening a workspace builds a Pi session, which takes a moment.
+                Say so instead of showing the picker over it. */}
+            <Show
+              when={state.restoring}
+              fallback={
+                <>
+                  <div class="flex flex-col items-center gap-1">
+                    <h1 class="text-[18px] font-[530] tracking-[-0.2px]">Picone</h1>
+                    <p class="text-[13px] text-v2-text-text-muted">Open a workspace to begin.</p>
+                  </div>
+                  <Button variant="contrast" size="large" onClick={() => setWorkspacePickerOpen(true)}>
+                    Open workspace
+                  </Button>
+                </>
+              }
+            >
+              {(path) => (
+                <div class="flex flex-col items-center gap-2">
+                  <div class="flex items-center gap-2 text-[14px] font-[530]">
+                    <Spinner size={11} />
+                    Reopening workspace…
+                  </div>
+                  <code data-slot="settings-path" class="max-w-[420px]">
+                    {path()}
+                  </code>
+                  <Button variant="ghost" onClick={() => setWorkspacePickerOpen(true)}>
+                    Open a different one
+                  </Button>
+                </div>
+              )}
+            </Show>
           </div>
         }
       >
