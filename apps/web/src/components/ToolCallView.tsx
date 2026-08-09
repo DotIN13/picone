@@ -6,6 +6,15 @@ import { Spinner } from "./ui/primitives.tsx";
 
 const FILE_TOOLS = new Set(["read", "write", "edit", "ls"]);
 
+/**
+ * One tool call, as a line rather than a card.
+ *
+ * A turn can make a dozen of these, and boxing each one turns the transcript
+ * into a wall of containers with the conversation lost between them. So they
+ * read as a log: a status glyph, the tool, its subject, and nothing else until
+ * asked. Success is deliberately the quietest state — what wants finding in a
+ * long run is the one call that failed.
+ */
 export function ToolCallView(props: { toolCall: ToolCall }) {
   const [open, setOpen] = createSignal(false);
 
@@ -15,27 +24,28 @@ export function ToolCallView(props: { toolCall: ToolCall }) {
   return (
     <div data-component="toolcall" data-status={props.toolCall.status}>
       <div data-slot="toolcall-head">
-        <span data-slot="toolcall-name">{props.toolCall.name}</span>
         <button
           type="button"
-          data-slot="toolcall-title"
+          data-slot="toolcall-row"
           disabled={!hasDetail()}
           onClick={() => setOpen((v) => !v)}
-          title={hasDetail() ? "Show output" : undefined}
+          title={hasDetail() ? (open() ? "Hide output" : "Show output") : undefined}
         >
-          {props.toolCall.title}
+          <span data-slot="toolcall-status">
+            <Switch status={props.toolCall.status} />
+          </span>
+          <span data-slot="toolcall-name">{props.toolCall.name}</span>
+          <span data-slot="toolcall-title">{props.toolCall.title}</span>
+          <Show when={hasDetail()}>
+            <Icon name={open() ? "chevron-up" : "chevron-down"} size={12} class="shrink-0 opacity-50" />
+          </Show>
         </button>
-        <Show when={props.toolCall.status === "running"}>
-          <Spinner />
-        </Show>
-        <Show when={hasDetail()}>
-          <Icon name={open() ? "chevron-up" : "chevron-down"} size={12} class="text-v2-icon-icon-muted" />
-        </Show>
+
         <Show when={path()}>
           {(filePath) => (
             // The agent's work stays put; opening a file is the user's choice (DESIGN §14).
             <button type="button" data-slot="toolcall-open" onClick={() => void openFile(filePath())}>
-              Open file
+              Open
             </button>
           )}
         </Show>
@@ -65,6 +75,17 @@ export function ToolCallView(props: { toolCall: ToolCall }) {
         </Show>
       </Show>
     </div>
+  );
+}
+
+/** One glyph, same width in every state, so the names below it stay in a column. */
+function Switch(props: { status: ToolCall["status"] }) {
+  return (
+    <Show when={props.status !== "running"} fallback={<Spinner size={9} />}>
+      <Show when={props.status !== "ok"} fallback={<span data-slot="toolcall-dot" />}>
+        <Icon name={props.status === "blocked" ? "minus" : "alert"} size={11} />
+      </Show>
+    </Show>
   );
 }
 

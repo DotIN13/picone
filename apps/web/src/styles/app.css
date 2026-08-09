@@ -797,47 +797,81 @@
 }
 
 /* ── Tool calls ── */
+/* ── Tool calls (DESIGN §14) ──
+   A line, not a card. A turn can make a dozen of these and boxing each one
+   turns the transcript into a wall of containers with the conversation lost
+   between them. Status is a glyph rather than a border, and success is the
+   quietest state — what wants finding in a long run is the call that failed. */
 [data-component="toolcall"] {
-  border-radius: 6px;
-  background: var(--v2-background-bg-layer-01);
-  box-shadow:
-    0 0 0 0.5px var(--v2-border-border-muted),
-    inset 2px 0 0 0 var(--v2-text-text-faint);
   font-size: calc(12.5px * var(--font-scale));
-  overflow: hidden;
-}
-
-[data-component="toolcall"][data-status="ok"] {
-  box-shadow:
-    0 0 0 0.5px var(--v2-border-border-muted),
-    inset 2px 0 0 0 var(--v2-state-fg-success);
-}
-[data-component="toolcall"][data-status="error"] {
-  box-shadow:
-    0 0 0 0.5px var(--v2-border-border-muted),
-    inset 2px 0 0 0 var(--v2-state-fg-danger);
-}
-[data-component="toolcall"][data-status="running"] {
-  box-shadow:
-    0 0 0 0.5px var(--v2-border-border-muted),
-    inset 2px 0 0 0 var(--v2-icon-icon-accent);
 }
 
 [data-slot="toolcall-head"] {
   display: flex;
   align-items: center;
+  gap: 6px;
+  min-height: max(24px, calc(24px * var(--font-scale)));
+  padding-inline: 6px;
+  border-radius: 5px;
+}
+
+[data-slot="toolcall-head"]:hover {
+  background: var(--v2-overlay-simple-overlay-hover);
+}
+
+[data-slot="toolcall-row"] {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 7px 10px 7px 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+[data-slot="toolcall-row"]:disabled {
+  cursor: default;
+}
+
+/* Fixed width in every state, so the tool names stay in a column. */
+[data-slot="toolcall-status"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 12px;
+  color: var(--v2-icon-icon-muted);
+}
+
+[data-slot="toolcall-dot"] {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--v2-border-border-strong);
+}
+
+[data-component="toolcall"][data-status="error"] [data-slot="toolcall-status"] {
+  color: var(--v2-state-fg-danger);
+}
+
+[data-component="toolcall"][data-status="blocked"] [data-slot="toolcall-status"] {
+  color: var(--v2-state-fg-warning);
 }
 
 [data-slot="toolcall-name"] {
+  flex: none;
   font-family: var(--v2-font-family-mono);
   font-size: calc(10.5px * var(--font-scale));
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--v2-text-text-faint);
-  flex: none;
 }
 
 [data-slot="toolcall-title"] {
@@ -846,46 +880,58 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border: none;
-  background: transparent;
-  color: var(--v2-text-text-base);
   font-family: var(--v2-font-family-mono);
   font-size: calc(12px * var(--font-scale));
-  text-align: start;
-  cursor: pointer;
+  color: var(--v2-text-text-muted);
 }
 
-[data-slot="toolcall-title"]:disabled {
-  cursor: default;
+[data-component="toolcall"][data-status="error"] [data-slot="toolcall-title"] {
+  color: var(--v2-state-fg-danger);
 }
 
+/* Quiet until wanted: the row is the agent's business, the file is yours. */
 [data-slot="toolcall-open"] {
   flex: none;
+  padding: 0 4px;
   border: none;
   background: transparent;
-  color: var(--v2-text-text-accent);
+  color: var(--v2-text-text-faint);
   font-family: inherit;
-  font-size: calc(12px * var(--font-scale));
+  font-size: calc(11.5px * var(--font-scale));
   cursor: pointer;
+  opacity: 0;
+}
+
+[data-slot="toolcall-head"]:hover [data-slot="toolcall-open"],
+[data-slot="toolcall-open"]:focus-visible {
+  opacity: 1;
 }
 
 [data-slot="toolcall-open"]:hover {
-  color: var(--v2-text-text-accent-hover);
+  color: var(--v2-text-text-accent);
   text-decoration: underline;
 }
 
+@media (pointer: coarse) {
+  /* Nothing reveals on hover here; a thumb never gets the chance. */
+  [data-slot="toolcall-open"] {
+    opacity: 1;
+  }
+}
+
+/* Output hangs off the line above it, ruled rather than boxed. */
 [data-slot="toolcall-output"],
 [data-slot="toolcall-patch"] {
-  margin: 0;
-  padding: 10px 12px;
+  margin: 2px 0 4px 17px;
+  padding: 2px 0 2px 12px;
   max-height: 340px;
   overflow: auto;
-  background: var(--v2-background-bg-deep);
+  box-shadow: inset 1px 0 0 0 var(--v2-border-border-muted);
   font-family: var(--v2-font-family-mono);
   font-size: calc(11.5px * var(--font-scale));
   line-height: 1.55;
+  color: var(--v2-text-text-muted);
   white-space: pre-wrap;
-  box-shadow: inset 0 1px 0 0 var(--v2-border-border-muted);
 }
 
 [data-slot="patch-line"][data-kind="add"] {

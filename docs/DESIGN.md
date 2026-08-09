@@ -517,10 +517,17 @@ file mutation, which keeps the collaboration model simple.
 A session tab shows user messages, assistant messages, thinking (collapsed),
 tool calls, permission requests, extension output, and notices.
 
-Tool calls render as one compact row — tool name, a one-line summary of the
-arguments, status — expanding to output, or to a coloured unified diff when the
-tool returned a patch. File-shaped tool calls offer **Open file**, which opens a
-tab without navigating away from the conversation.
+**Tool calls are lines, not cards.** A turn can make a dozen of them, and boxing
+each one turns the transcript into a wall of containers with the conversation
+lost between them. So each is a single row — a status glyph, the tool, a
+one-line summary of its arguments — expanding to output, or to a coloured
+unified diff when the tool returned a patch. The output hangs off the row under
+a left rule rather than in a panel of its own.
+
+Success is deliberately the quietest state, a grey dot: what wants finding in a
+long run is the one call that failed, so only failures take a colour. File-shaped
+calls offer **Open**, which appears on hover and opens a tab without navigating
+away from the conversation.
 
 ---
 
