@@ -160,7 +160,103 @@ text, a Mermaid block is unhighlighted code, a URL is a link.
 
 ---
 
-## 3. No automated tests
+## 3. Memory directories
+
+**Goal.** Point Picone at one or more folders of long-lived notes about the
+user — who they are, what they are working on, who they know — and have the
+agent read them as a matter of course. Added once for the app, then switched on
+or off per workspace, with a workspace free to add its own.
+
+### The insight that shapes the design
+
+A memory store worth having already documents itself. The one this is for,
+`D:/dotty-projects/molly/hypogum-next/data/memory`, carries a 16 kB `AGENTS.md`
+describing its own layout, its citation conventions, which trees are frozen, and
+how to append to its log — plus an `index.md` cataloguing every page with a
+wikilink and a one-line hook.
+
+So Picone should not invent a description of a memory directory. **It should
+hand over the directory's own.** That also makes the feature general: any folder
+that explains itself works, and one that does not gets a generated fallback.
+
+### Schema
+
+Global, in `~/.picone/settings.json` — a record keyed by name, the shape `mcp`
+and the resource switches already use:
+
+```json
+"memory": {
+  "molly": { "path": "D:/dotty-projects/molly/hypogum-next/data/memory", "writable": true }
+}
+```
+
+Per workspace, in `*.workspace.json` — the same record, where an entry without a
+path is switching a global one off, and an entry with a path is a memory
+directory of this workspace's own:
+
+```json
+"memory": {
+  "molly": { "enabled": false },
+  "notes": { "path": "./docs/notes" }
+}
+```
+
+Merged global-first, workspace winning by name. `mergeMcp` in `settings.ts`
+already does exactly this; generalise it rather than writing a second copy.
+
+### What Pi is told
+
+At session build, through `agentsFilesOverride` — the same door the workspace
+description goes through (§6), so Pi owns it from there and it is never
+re-injected:
+
+1. **A header naming the directories**: absolute path, whether writable, and a
+   pointer to `index.md` when one exists. Short.
+2. **Each directory's own `AGENTS.md`, verbatim**, headed with its path. Capped
+   (32 kB) with a truncation note, since context is not free.
+3. **A generated fallback** for a directory without one: the top-level entries
+   and file count, so Pi at least knows the shape.
+
+`index.md` is *pointed at*, not injected. It is a catalog and Pi has file tools;
+the 18 kB belongs in a read the agent chooses to make.
+
+### Where they show up
+
+A memory directory becomes a readable root — the file tree lists it, and
+`resolveWithinRoots` accepts it — but **not** a `directories` entry. It is not
+project code: the cwd stays the first code root, and `workspaceContext`
+describes memory in its own paragraph. `WorkspaceRoot` grows a
+`kind: "directory" | "memory"` so the tree can mark it.
+
+### Settings UI
+
+* **App › Memory** — the global list: path, a writable switch, remove, and an
+  add row. This is the first App section backed by the server rather than
+  `localStorage`, because a path is a fact about the machine, not the browser.
+  §49 needs a sentence saying so.
+* **Workspace › Memory** — switches for the merged list, plus an add row for
+  directories of this workspace's own. Unlike skills and prompts (§35) this one
+  *does* get an add button: a memory directory is a path the user chooses, not
+  something Pi discovers.
+
+Both take effect in sessions started afterwards, like every other resource; the
+file tree updates at once.
+
+### The part with teeth: write policy
+
+`writable: false` should mean the agent cannot write there, and today it cannot
+mean that. The permission gate (§9) classifies by *category* — files, shell,
+git — and never by path, so a read-only memory directory is currently a promise
+the UI makes and nothing enforces. Making it real means teaching the gate about
+paths: deny writes outside a permitted set, which is a change to the security
+model and wants its own pass.
+
+Until then the flag is honest only as a statement in the injected context —
+which the agent will usually respect and cannot be relied on to.
+
+---
+
+## 4. No automated tests
 
 Everything so far was verified by driving the running app — an end-to-end script
 plus browser interaction — and nothing is committed. The highest-value first
@@ -177,14 +273,14 @@ walks prompt → tool call → permission → comment, with a stub model.
 
 ---
 
-## 4. Web bundle is one 837 kB chunk
+## 5. Web bundle is one 837 kB chunk
 
 CodeMirror and its grammars dominate. Lazy-load the editor until a file tab is
 opened, and split the language modes, before worrying about anything else.
 
 ---
 
-## 5. MCP streamable-HTTP transport is unverified
+## 6. MCP streamable-HTTP transport is unverified
 
 `mcp/manager.ts` supports stdio and streamable HTTP. Only stdio has been
 exercised end to end. The HTTP path needs a real server behind it, plus a
@@ -193,14 +289,14 @@ file.
 
 ---
 
-## 6. Server logs go nowhere
+## 7. Server logs go nowhere
 
 `[picone] …` is stdout only — no file, no rotation, no request log. Fine for
 `npm start > picone.log`, thin for anything else.
 
 ---
 
-## 7. Smaller things
+## 8. Smaller things
 
 - **Session eviction vs. tabs.** The server keeps the four most recent idle
   sessions loaded (`App.evictIdleSessions`). With more session tabs open than
