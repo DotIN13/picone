@@ -109,6 +109,20 @@
   }
 }
 
+/*
+ * A menu belongs to the control it came from, so it unfolds from that edge
+ * rather than rising off the page like a dialog. Pure scale, no translate: the
+ * edge at the transform origin stays pinned to the trigger, and because the
+ * origin is the one the positioner computed, a menu that has to flip above its
+ * trigger unfolds upward without needing a rule of its own.
+ */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 /* ── Select ── */
 [data-component="select"] {
   display: inline-flex;
@@ -161,7 +175,10 @@
   border-radius: 6px;
   background: var(--v2-background-bg-layer-01);
   box-shadow: var(--v2-elevation-floating);
-  animation: dialog-in 0.12s ease;
+  /* The positioner works out which edge the menu hangs from and publishes it;
+     honouring it is what makes the menu unfold from its trigger. */
+  transform-origin: var(--kb-select-content-transform-origin, top center);
+  animation: menu-in 0.12s ease;
 }
 
 [data-slot="select-item"] {
