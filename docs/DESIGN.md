@@ -442,7 +442,7 @@ and die with the session.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│ ▣ Acme ▾  ● Working         probe status  2 MCP  ☀ ⚙             │
+│ ▣ Acme ▾  Working           probe status  2 MCP  ☀ ⚙             │
 ├─────────────────┬────────────────────────────────────────────────┤
 │ Files │Sessions │ [Auth redesign ×][DESIGN.md ×][auth.ts ×] +     │
 │                 │                                                │
@@ -468,7 +468,9 @@ control row under the input, not in the title bar.
 **One status pill, not a pill and a light.** It reads `Idle`, `Working`,
 `Waiting for you`, or `Offline`, and the connection is part of it rather than a
 coloured dot in the far corner — two status displays in two vocabularies, and
-the one in the corner needed a tooltip to say what it meant.
+the one in the corner needed a tooltip to say what it meant. The pill is a word
+and a colour, with no indicator inside it: a dot beside a label that already
+says the same thing is decoration.
 
 Thinking, writing and running a tool collapse into *working*: they are all the
 agent being busy and the transcript already says which. Waiting on a permission

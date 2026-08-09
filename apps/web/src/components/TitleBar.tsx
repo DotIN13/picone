@@ -73,12 +73,7 @@ export function TitleBar() {
                 : `The active session is ${LABEL[status()].toLowerCase()}`
             }
           >
-            <span data-slot="titlebar-state" data-state={status()}>
-              <Show when={status() !== "idle"}>
-                <span data-slot="titlebar-state-dot" />
-              </Show>
-              {LABEL[status()]}
-            </span>
+            <span data-slot="titlebar-state" data-state={status()}>{LABEL[status()]}</span>
           </Tooltip>
         </Show>
       </div>
