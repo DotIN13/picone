@@ -2104,14 +2104,3 @@
   user-select: none;
 }
 
-[data-slot="model-item-note"] {
-  flex: none;
-  margin-inline-start: auto;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: var(--v2-background-bg-layer-02);
-  color: var(--v2-text-text-faint);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}

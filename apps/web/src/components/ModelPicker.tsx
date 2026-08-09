@@ -94,9 +94,6 @@ export function ModelPicker() {
                   >
                     <span data-slot="model-item-provider">{model.provider}</span>
                     <span class="truncate">{model.id}</span>
-                    <Show when={!model.reasoning}>
-                      <span data-slot="model-item-note">no thinking</span>
-                    </Show>
                     <Show when={current()?.provider === model.provider && current()?.model === model.id}>
                       <Icon name="check" size={13} class="ml-auto shrink-0 text-v2-icon-icon-accent" />
                     </Show>
@@ -106,20 +103,9 @@ export function ModelPicker() {
             </Show>
           </div>
 
-          {/* Only the levels this model accepts. They vary a lot: some models
-              cannot be turned off, others offer just two. */}
-          <Show
-            when={levels().length > 0}
-            fallback={
-              <Show when={current()}>
-                <div data-slot="model-thinking-row">
-                  <span class="text-v2-text-text-faint">
-                    {currentOption() ? "This model has no thinking control." : "Thinking levels load with the model."}
-                  </span>
-                </div>
-              </Show>
-            }
-          >
+          {/* Only the levels this model accepts, and nothing at all when it has
+              none — an empty row explaining its own absence is just noise. */}
+          <Show when={levels().length > 0}>
             <div data-slot="model-thinking-row">
               <span class="text-v2-text-text-faint">Thinking</span>
               <div data-slot="model-thinking-options">

@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 import { unwrap } from "solid-js/store";
-import type { ModelOption, PermissionSetting, WorkspaceFile } from "@picone/protocol";
+import type { ModelOption, PermissionSetting, ThinkingLevel, WorkspaceFile } from "@picone/protocol";
 import { api } from "../lib/api.ts";
 import { openFile, refreshState, setSettingsOpen, state } from "../store.ts";
 import { Drawer } from "./ui/drawer.tsx";
@@ -26,6 +26,9 @@ const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map
   value,
   label: value,
 }));
+
+/** Used only when no concrete model is chosen and capabilities are unknown. */
+const ALL_THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 
 /** Workspace settings (DESIGN §35), presented as a Corvu side drawer. */
@@ -76,12 +79,18 @@ export function SettingsDrawer() {
     ...models().map((m) => ({ value: `${m.provider}/${m.id}`, label: `${m.provider}/${m.id}` })),
   ]);
 
-  /** Thinking levels the currently selected model actually accepts. */
+  /**
+   * Thinking levels the selected model accepts. With "Pi default" there is no
+   * model to ask, so offer all of them and let Pi clamp — hiding the control
+   * there would remove the setting rather than tailor it.
+   */
   const thinkingOptions = createMemo(() => {
     const model = draft()?.model;
-    if (!model?.provider || !model.model) return [];
-    const option = models().find((m) => m.provider === model.provider && m.id === model.model);
-    return (option?.thinkingLevels ?? []).map((value) => ({ value, label: value }));
+    const levels =
+      model?.provider && model.model
+        ? (models().find((m) => m.provider === model.provider && m.id === model.model)?.thinkingLevels ?? [])
+        : ALL_THINKING_LEVELS;
+    return levels.map((value) => ({ value, label: value }));
   });
 
   return (
@@ -347,17 +356,8 @@ export function SettingsDrawer() {
                       />
                     </div>
                     {/* Only what the chosen model accepts — the levels differ
-                        per model, so a fixed list would offer invalid ones. */}
-                    <Show
-                      when={thinkingOptions().length > 0}
-                      fallback={
-                        <p class="text-v2-text-text-muted">
-                          {file().model?.model
-                            ? "This model has no thinking control."
-                            : "Choose a model to set a thinking level."}
-                        </p>
-                      }
-                    >
+                        per model, and a model without thinking gets no row. */}
+                    <Show when={thinkingOptions().length > 0}>
                       <div data-slot="settings-row">
                         <span>Thinking</span>
                         <Select
