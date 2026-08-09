@@ -7,7 +7,8 @@
   "instructions": [
     "The server lives in apps/server, the browser UI in apps/web, and shared wire types in packages/protocol.",
     "packages/protocol is type-only — never add runtime values to it.",
-    "Pi owns conversation context; do not build a parallel context system around it."
+    "Pi owns conversation context; do not build a parallel context system around it.",
+    "docs/DESIGN.md describes what is built; docs/todo holds one file per known gap. When a gap is closed, move its design into DESIGN.md and delete the file — never leave it struck through."
   ],
   "permissions": {
     "files": "allow",

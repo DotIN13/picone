@@ -4,8 +4,8 @@ A browser-native coding agent powered by [Pi](https://github.com/earendil-works/
 
 Picone is the environment around the agent — workspace, files, tabs, comments,
 permissions, voice — while Pi keeps owning reasoning, conversation, context,
-history, compaction, and tool use. See [DESIGN.md](DESIGN.md) for the full design
-and [TODO.md](TODO.md) for known gaps.
+history, compaction, and tool use. See [docs/DESIGN.md](docs/DESIGN.md) for the
+full design and [docs/todo/](docs/todo/) for known gaps.
 
 ```
 workspace.json → Workspace → Files · Chat · Comments · Voice → Pi session
@@ -60,7 +60,8 @@ A workspace is a plain JSON file, so you can also write one by hand.
   "name": "Acme",
   "directories": ["~/code/acme-web", "~/code/acme-api"],
   "instructions": ["Frontend and backend often change together."],
-  "skills": [{ "name": "release", "path": "~/.pi/agent/skills/release" }],
+  "skillPaths": ["~/work/skills"],
+  "skills": { "troubleshooting": { "enabled": false } },
   "mcp": { "linear": { "url": "http://localhost:8123/mcp", "enabled": true } },
   "permissions": { "files": "allow", "shell": "ask", "git": "ask" },
   "model": { "provider": "anthropic", "model": "claude-opus-4-5" },
@@ -96,7 +97,7 @@ Extension commands get a real UI: `select`, `confirm`, `input`, and `editor`
 open dialogs, `notify` writes to the transcript, `setStatus` shows a pill in the
 title bar, `setWidget` renders a block by the composer, and anything an
 extension reports with `pi.sendMessage` gets its own transcript row. Output that
-is a TUI component rather than text still cannot cross — see [TODO.md](TODO.md).
+is a TUI component rather than text still cannot cross — see [docs/todo/](docs/todo/).
 
 **Model.** A picker under the composer switches the model on the live session —
 it applies to the next turn, mid-conversation — and becomes the workspace
@@ -173,6 +174,9 @@ apps/
     src/store.ts     one Solid store; the event reducer lives here
 packages/
   protocol/          type-only wire contract shared by both
+docs/
+  DESIGN.md          the system as designed and built
+  todo/              one file per known gap; done work moves into DESIGN.md
 ```
 
 `packages/protocol` contains no runtime values, so both sides import it directly

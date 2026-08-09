@@ -8,7 +8,7 @@ stable; where the implementation diverged from the original plan, the section
 says so rather than being renumbered. Sections `§42`–`§49` cover subsystems that
 were added during the build.
 
-Known gaps live in [TODO.md](TODO.md).
+Known gaps live in [todo/](todo/).
 
 ---
 
@@ -987,7 +987,7 @@ Extension UI             §44
 Model selection          §45
 ```
 
-Remaining work is in [TODO.md](TODO.md): no committed tests, a single large web
+Remaining work is in [todo/](todo/): no committed tests, a single large web
 bundle, an unexercised MCP HTTP transport, and stdout-only logging.
 
 ---
@@ -1182,6 +1182,33 @@ Two hard-won details:
 Not supported, as in RPC mode: component-factory widgets, custom message
 renderers, overlays, and keybindings. They are TUI-component-shaped and have no
 text representation to cross the wire.
+
+### The surface, in full
+
+The mapping is not obvious from Pi's types alone, so it is written out. Four
+methods block until the human answers:
+
+| method | request fields | response |
+|---|---|---|
+| `select` | `title`, `options[]`, `timeout?` | `{ value }` or `{ cancelled }` |
+| `confirm` | `title`, `message`, `timeout?` | `{ confirmed }` |
+| `input` | `title`, `placeholder?`, `timeout?` | `{ value }` or `{ cancelled }` |
+| `editor` | `title`, `prefill?` | `{ value }` or `{ cancelled }` |
+
+Five are fire-and-forget:
+
+| method | web mapping |
+|---|---|
+| `notify` | chat notice, at info / warn / error |
+| `setStatus` | pill in the title bar; `undefined` clears it |
+| `setWidget` | monospace block above or below the composer |
+| `setTitle` | session tab label |
+| `setEditorText` / `pasteToEditor` | composer contents |
+
+Pi's reference implementation is `dist/modes/rpc/rpc-mode.js`; the TUI client
+equivalent is `examples/rpc-extension-ui.ts`. To exercise all of it, drop an
+extension in `.pi/extensions/` registering one command per method — that is how
+this was verified.
 
 ---
 
