@@ -274,15 +274,17 @@
   color: var(--v2-icon-icon-muted);
 }
 
-/* Says what a root is when it is not project code, e.g. a memory store (§50). */
+/* Says what a root is when it is not project code, e.g. a memory store (§50).
+   Purple because it is the agent's own, not the project's — the one place in
+   the tree that is not your code. */
 [data-slot="tree-tag"] {
   flex: none;
   margin-inline-start: auto;
   padding: 0 5px;
   border-radius: 4px;
-  background: var(--v2-background-bg-layer-02);
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
-  color: var(--v2-text-text-faint);
+  background: var(--v2-state-bg-magic);
+  box-shadow: 0 0 0 0.5px var(--v2-state-border-magic);
+  color: var(--v2-state-fg-magic);
   font-family: var(--v2-font-family-sans);
   font-size: calc(10px * var(--font-scale));
   letter-spacing: 0.04em;

@@ -68,7 +68,7 @@ export function FileTab(props: { path: string }) {
               {/* Memory files look like any other markdown until you are told
                   otherwise, and where a note lives changes how you read it. */}
               <Show when={memoryRoot()}>
-                {(root) => <Tag tone="info">{root().writable ? "memory" : "memory · read-only"}</Tag>}
+                {(root) => <Tag tone="magic">{root().writable ? "memory" : "memory · read-only"}</Tag>}
               </Show>
               <Tag>read-only</Tag>
               <Show when={isMarkdown()}>

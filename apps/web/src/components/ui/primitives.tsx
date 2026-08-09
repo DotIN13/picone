@@ -229,7 +229,8 @@ export function SegmentedControl<T extends string>(props: {
 // Tag
 // ---------------------------------------------------------------------------
 
-export function Tag(props: ParentProps<{ tone?: "neutral" | "success" | "warning" | "danger" | "info" }>) {
+/** `magic` marks what belongs to the agent rather than to the project (§50). */
+export function Tag(props: ParentProps<{ tone?: "neutral" | "success" | "warning" | "danger" | "info" | "magic" }>) {
   return (
     <span data-component="tag" data-tone={props.tone ?? "neutral"}>
       {props.children}

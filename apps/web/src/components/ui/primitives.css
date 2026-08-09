@@ -402,6 +402,11 @@
   color: var(--v2-state-fg-info);
   box-shadow: 0 0 0 0.5px var(--v2-state-border-info);
 }
+[data-component="tag"][data-tone="magic"] {
+  background: var(--v2-state-bg-magic);
+  color: var(--v2-state-fg-magic);
+  box-shadow: 0 0 0 0.5px var(--v2-state-border-magic);
+}
 
 /* ── Spinner ── */
 [data-component="spinner"] {
