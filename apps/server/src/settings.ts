@@ -7,13 +7,14 @@ import { DATA_DIR, ensureDataDir } from "./config.ts";
  * Settings that apply to every workspace.
  *
  * Pi already discovers global skills, extensions, and prompt templates from
- * `~/.pi/agent` and `~/.agents`, so those need nothing from us. MCP is the gap:
- * Pi has no MCP of its own, so without this a server had to be repeated in
- * every workspace file.
+ * `~/.pi/agent` and `~/.agents`, so those need nothing from us; which of them a
+ * workspace uses is recorded in its own file, under `disabled`. This file is
+ * for what has nowhere else to live: extra skill directories, and MCP servers,
+ * which Pi has no concept of. It has no UI — edit it by hand.
  */
 export const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
 
-const EMPTY: GlobalSettings = { mcp: {}, skills: [], disabledExtensions: [] };
+const EMPTY: GlobalSettings = { mcp: {}, skills: [] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -86,11 +87,11 @@ export function loadGlobalSettings(): LoadedSettings {
   // config can be pasted across without renaming the key.
   const mcp = { ...parseMcp(raw.mcpServers, errors), ...parseMcp(raw.mcp, errors) };
 
-  const disabledExtensions = Array.isArray(raw.disabledExtensions)
-    ? raw.disabledExtensions.filter((n): n is string => typeof n === "string")
-    : [];
+  if (raw.disabledExtensions !== undefined) {
+    errors.push(`"disabledExtensions" is ignored — extensions are switched off per workspace, under "disabled"`);
+  }
 
-  return { settings: { mcp, skills: parseSkills(raw.skills, errors), disabledExtensions }, errors };
+  return { settings: { mcp, skills: parseSkills(raw.skills, errors) }, errors };
 }
 
 export function saveGlobalSettings(settings: GlobalSettings): LoadedSettings {
@@ -98,7 +99,6 @@ export function saveGlobalSettings(settings: GlobalSettings): LoadedSettings {
   const clean: GlobalSettings = {
     mcp: settings.mcp ?? {},
     skills: (settings.skills ?? []).filter((s) => s.path.trim() !== ""),
-    disabledExtensions: settings.disabledExtensions ?? [],
   };
   writeFileSync(SETTINGS_PATH, `${JSON.stringify(clean, null, 2)}\n`, "utf8");
   return loadGlobalSettings();

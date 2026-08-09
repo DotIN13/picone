@@ -130,16 +130,17 @@ build: the sidebar becomes a drawer, dialogs become bottom sheets, the composer
 rides above the on-screen keyboard, and tab reordering works by long-press. It
 installs as a PWA, so it runs standalone from the home screen.
 
-**MCP and skills.** Both come from the workspace file and are scoped to the open
-workspace. MCP tools are handed to Pi as ordinary tools.
+**Skills, prompts and extensions.** Pi's own — from `~/.pi/agent` and
+`~/.agents` — work here with no configuration. Settings shows what it found,
+one switch each, and the workspace file records which of them this workspace
+leaves out. There is no add button: write a skill or prompt template as a file,
+install an extension with `pi install`, and it shows up in the list.
 
-**Global settings.** Pi's own global skills, extensions, and prompt templates
-(from `~/.pi/agent` and `~/.agents`) work here with no configuration. What Pi
-has no concept of — MCP — can be set once in `~/.picone/settings.json` and
-applies to every workspace; a workspace can override or disable any of it. The
-same file takes extra skill directories, and a list of Pi extensions to hide
-from Picone without uninstalling them. The Global tab in settings edits all of
-it and shows exactly what Pi loaded.
+**MCP.** Pi has no concept of it, so Picone runs its own client and hands the
+remote tools to Pi as ordinary tools. Servers are configured by hand in the
+workspace file, or in `~/.picone/settings.json` to apply to every workspace —
+where a workspace entry of the same name wins. That file also takes extra skill
+directories.
 
 ## Layout
 

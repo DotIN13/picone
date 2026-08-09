@@ -13,9 +13,9 @@ import type {
   AgentEvent,
   AgentState,
   ChatItem,
-  ExtensionInfo,
   ExtensionUiAnswer,
   PermissionDecision,
+  ResourceInfo,
   ResourceReport,
   SessionModel,
   SessionSummary,
@@ -80,8 +80,6 @@ export interface SessionRuntimeOptions {
   extraTools: () => ToolDefinition[];
   /** Skill directories from global settings, on top of the workspace's own. */
   globalSkillPaths: string[];
-  /** Pi extensions the user has switched off in Picone's settings. */
-  disabledExtensions: string[];
   toolHooks: Omit<PiconeToolHooks, "speak">;
   onSessionFile: (sessionId: string, file: string) => void;
 }
@@ -109,6 +107,12 @@ export class SessionRuntime {
   private editorText = "";
   private resourceLoader: DefaultResourceLoader | null = null;
   private readonly extensionUi: ExtensionUiBridge;
+  /**
+   * Everything Pi found, captured before the workspace's `disabled` lists are
+   * applied — the loader only keeps what survived, and the settings panel has
+   * to show what was switched off in order to switch it back on.
+   */
+  private discovered: ResourceReport = { extensions: [], skills: [], prompts: [] };
 
   private transcript: ChatItem[] = [];
   private seq = 0;
@@ -189,7 +193,13 @@ export class SessionRuntime {
     if (voice.output) customTools.push(createSpeakTool(toolHooks));
 
     const agentDir = getAgentDir();
-    const disabled = new Set(this.options.disabledExtensions);
+    // Filter rather than uninstall: Pi's own config is left alone, so the CLI
+    // still sees every skill, prompt and package the user installed.
+    const off = {
+      extensions: new Set(workspace.file.disabled?.extensions ?? []),
+      skills: new Set(workspace.file.disabled?.skills ?? []),
+      prompts: new Set(workspace.file.disabled?.prompts ?? []),
+    };
 
     const loader = new DefaultResourceLoader({
       cwd,
@@ -201,17 +211,38 @@ export class SessionRuntime {
         ...this.options.globalSkillPaths,
       ],
       extensionFactories: [permissionExtension],
-      // Filter rather than uninstall: Pi's own config is left alone, so the CLI
-      // still sees every package the user installed.
-      extensionsOverride: (base) =>
-        disabled.size === 0
-          ? base
-          : {
-              ...base,
-              extensions: base.extensions.filter(
-                (e) => isInternalExtension(e) || !disabled.has(extensionName(e)),
-              ),
-            },
+      extensionsOverride: (base) => {
+        const errorsByPath = new Map(base.errors.map((e) => [e.path, e.error]));
+        this.discovered.extensions = base.extensions
+          .filter((e) => !isInternalExtension(e))
+          .map((e) => ({
+            name: extensionName(e),
+            source: e.resolvedPath || e.path,
+            error: errorsByPath.get(e.path),
+          }));
+        return {
+          ...base,
+          extensions: base.extensions.filter(
+            (e) => isInternalExtension(e) || !off.extensions.has(extensionName(e)),
+          ),
+        };
+      },
+      skillsOverride: (base) => {
+        this.discovered.skills = base.skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          source: skill.filePath,
+        }));
+        return { ...base, skills: base.skills.filter((skill) => !off.skills.has(skill.name)) };
+      },
+      promptsOverride: (base) => {
+        this.discovered.prompts = base.prompts.map((prompt) => ({
+          name: prompt.name,
+          description: prompt.description,
+          source: prompt.filePath,
+        }));
+        return { ...base, prompts: base.prompts.filter((prompt) => !off.prompts.has(prompt.name)) };
+      },
       // The workspace description is injected once, as a context file. Pi owns
       // it from there — we never re-inject it (DESIGN §6).
       agentsFilesOverride: (base) => ({
@@ -381,43 +412,14 @@ export class SessionRuntime {
     return this.getPiCommands?.() ?? [];
   }
 
-  /** What Pi actually discovered — the only way to see it from the browser. */
-  resources(disabledExtensions: string[]): ResourceReport | null {
-    const loader = this.resourceLoader;
-    if (!loader) return null;
-
-    const disabled = new Set(disabledExtensions);
-    const loaded = loader.getExtensions();
-    const errorsByPath = new Map(loaded.errors.map((e) => [e.path, e.error]));
-
-    const extensions: ExtensionInfo[] = loaded.extensions
-      .filter((extension) => !isInternalExtension(extension))
-      .map((extension) => ({
-        name: extensionName(extension),
-        path: extension.resolvedPath || extension.path,
-        enabled: true,
-        error: errorsByPath.get(extension.path),
-      }));
-
-    // A disabled extension was filtered before loading, so it has to be added
-    // back or it would vanish from the list the user toggles it with.
-    for (const name of disabled) {
-      if (!extensions.some((e) => e.name === name)) extensions.push({ name, path: "", enabled: false });
-    }
-    for (const extension of extensions) extension.enabled = !disabled.has(extension.name);
-
+  /** What Pi discovered for this session — the only way to see it from the browser. */
+  resources(): ResourceReport | null {
+    if (!this.resourceLoader) return null;
+    const byName = (a: ResourceInfo, b: ResourceInfo) => a.name.localeCompare(b.name);
     return {
-      extensions: extensions.sort((a, b) => a.name.localeCompare(b.name)),
-      skills: loader.getSkills().skills.map((s) => ({
-        name: s.name,
-        description: s.description,
-        source: s.filePath,
-      })),
-      prompts: loader.getPrompts().prompts.map((p) => ({
-        name: p.name,
-        description: p.description,
-        source: p.filePath,
-      })),
+      extensions: [...this.discovered.extensions].sort(byName),
+      skills: [...this.discovered.skills].sort(byName),
+      prompts: [...this.discovered.prompts].sort(byName),
     };
   }
 

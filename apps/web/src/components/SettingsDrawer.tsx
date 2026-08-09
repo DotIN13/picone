@@ -1,25 +1,31 @@
 import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 import { unwrap } from "solid-js/store";
-import type { ModelOption, PermissionSetting, ThinkingLevel, WorkspaceFile } from "@picone/protocol";
+import type {
+  ModelOption,
+  PermissionSetting,
+  ResourceInfo,
+  ThinkingLevel,
+  WorkspaceDisabled,
+  WorkspaceFile,
+} from "@picone/protocol";
 import { api } from "../lib/api.ts";
 import { openFile, refreshState, setSettingsOpen, state } from "../store.ts";
 import { Drawer } from "./ui/drawer.tsx";
 import { Button, IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Select, Switch, Tag, TextArea, TextInput } from "./ui/primitives.tsx";
-import { GlobalSettingsPanel } from "./GlobalSettingsPanel.tsx";
 
-type Section = "general" | "directories" | "skills" | "mcp" | "permissions" | "voice" | "model" | "global";
+type Section = "general" | "directories" | "skills" | "prompts" | "extensions" | "permissions" | "voice" | "model";
 
 const SECTIONS: Array<{ id: Section; label: string; icon: Parameters<typeof Icon>[0]["name"] }> = [
   { id: "general", label: "General", icon: "settings" },
   { id: "directories", label: "Directories", icon: "folder" },
   { id: "skills", label: "Skills", icon: "sparkle" },
-  { id: "mcp", label: "MCP", icon: "plug" },
+  { id: "prompts", label: "Prompts", icon: "comment" },
+  { id: "extensions", label: "Extensions", icon: "plug" },
   { id: "permissions", label: "Permissions", icon: "shield" },
   { id: "voice", label: "Voice", icon: "mic" },
   { id: "model", label: "Model", icon: "terminal" },
-  { id: "global", label: "Global", icon: "git-branch" },
 ];
 
 const PERMISSION_OPTIONS = (["allow", "ask", "deny"] as PermissionSetting[]).map((value) => ({
@@ -169,6 +175,17 @@ export function SettingsDrawer() {
                       </ul>
                     </div>
                   </Show>
+
+                  {/* `~/.picone/settings.json` has no UI, so its problems have
+                      to surface somewhere the user will actually look. */}
+                  <Show when={state.settingsErrors.length > 0}>
+                    <div data-slot="settings-diagnostics">
+                      <div data-slot="section-title">settings.json</div>
+                      <ul class="flex list-disc flex-col gap-1 pl-4">
+                        <For each={state.settingsErrors}>{(message) => <li>{message}</li>}</For>
+                      </ul>
+                    </div>
+                  </Show>
                 </Show>
 
                 <Show when={section() === "directories"}>
@@ -181,115 +198,37 @@ export function SettingsDrawer() {
                 </Show>
 
                 <Show when={section() === "skills"}>
-                  <div class="flex flex-col gap-2">
-                    <div data-slot="section-title">Skills</div>
-                    <For each={file().skills ?? []}>
-                      {(skill, index) => (
-                        <div class="flex items-end gap-2">
-                          <TextInput
-                            value={skill.name}
-                            placeholder="name"
-                            onValue={(name) => {
-                              const skills = [...(file().skills ?? [])];
-                              skills[index()] = { ...skill, name };
-                              patch({ skills });
-                            }}
-                          />
-                          <TextInput
-                            value={skill.path}
-                            placeholder="~/.pi/agent/skills/release"
-                            onValue={(path) => {
-                              const skills = [...(file().skills ?? [])];
-                              skills[index()] = { ...skill, path };
-                              patch({ skills });
-                            }}
-                          />
-                          <IconButton
-                            icon="close"
-                            label="Remove skill"
-                            onClick={() => patch({ skills: (file().skills ?? []).filter((_, i) => i !== index()) })}
-                          />
-                        </div>
-                      )}
-                    </For>
-                    <Button
-                      variant="neutral"
-                      icon="plus"
-                      class="self-start"
-                      onClick={() => patch({ skills: [...(file().skills ?? []), { name: "", path: "" }] })}
-                    >
-                      Add skill
-                    </Button>
-                  </div>
+                  <ResourceToggles
+                    title="Skills"
+                    hint="Loaded by Pi from ~/.pi/agent/skills and ~/.agents/skills, plus any directories this workspace adds. Write new ones there or with the CLI; here you choose which this workspace uses."
+                    empty="Pi found no skills."
+                    resources={state.resources?.skills}
+                    disabled={file().disabled?.skills}
+                    onChange={(skills) => patch({ disabled: nextDisabled(file().disabled, { skills }) })}
+                  />
                 </Show>
 
-                <Show when={section() === "mcp"}>
-                  <div class="flex flex-col gap-2">
-                    <div data-slot="section-title">MCP servers</div>
-                    <For each={Object.entries(file().mcp ?? {})}>
-                      {([name, config]) => {
-                        const status = () => state.mcp.find((m) => m.name === name);
-                        return (
-                          <div data-slot="mcp-card">
-                            <div class="flex items-center gap-2">
-                              <Switch
-                                checked={config.enabled !== false}
-                                onChange={(enabled) =>
-                                  patch({ mcp: { ...file().mcp, [name]: { ...config, enabled } } })
-                                }
-                                label={<strong>{name}</strong>}
-                              />
-                              <span class="flex-1" />
-                              <Show when={status()}>
-                                {(s) => (
-                                  <Tag
-                                    tone={
-                                      s().status === "connected" ? "success" : s().status === "error" ? "danger" : "neutral"
-                                    }
-                                  >
-                                    {s().status}
-                                    <Show when={s().status === "connected"}> · {s().toolCount} tools</Show>
-                                  </Tag>
-                                )}
-                              </Show>
-                              <IconButton
-                                icon="close"
-                                label={`Remove ${name}`}
-                                onClick={() => {
-                                  const next = { ...file().mcp };
-                                  delete next[name];
-                                  patch({ mcp: next });
-                                }}
-                              />
-                            </div>
-                            <div class="flex gap-2">
-                              <TextInput
-                                value={config.command ?? ""}
-                                placeholder="command (stdio)"
-                                onValue={(command) =>
-                                  patch({ mcp: { ...file().mcp, [name]: { ...config, command: command || undefined } } })
-                                }
-                              />
-                              <TextInput
-                                value={config.url ?? ""}
-                                placeholder="url (http)"
-                                onValue={(url) =>
-                                  patch({ mcp: { ...file().mcp, [name]: { ...config, url: url || undefined } } })
-                                }
-                              />
-                            </div>
-                            <Show when={status()?.error}>
-                              {(message) => <div class="text-[11.5px] text-v2-state-fg-danger">{message()}</div>}
-                            </Show>
-                          </div>
-                        );
-                      }}
-                    </For>
-                    <AddMcpServer
-                      existing={Object.keys(file().mcp ?? {})}
-                      onAdd={(name) => patch({ mcp: { ...(file().mcp ?? {}), [name]: { enabled: true } } })}
-                    />
-                  </div>
+                <Show when={section() === "prompts"}>
+                  <ResourceToggles
+                    title="Prompt templates"
+                    hint="Each one is a slash command in the composer. Switching a template off removes its command from new sessions."
+                    empty="Pi found no prompt templates."
+                    prefix="/"
+                    resources={state.resources?.prompts}
+                    disabled={file().disabled?.prompts}
+                    onChange={(prompts) => patch({ disabled: nextDisabled(file().disabled, { prompts }) })}
+                  />
+                </Show>
+
+                <Show when={section() === "extensions"}>
+                  <ResourceToggles
+                    title="Pi extensions"
+                    hint="Discovered by Pi from its own settings and extension directories. Switching one off leaves it installed — Picone just stops loading it. Install and remove with pi install."
+                    empty="No extensions loaded."
+                    resources={state.resources?.extensions}
+                    disabled={file().disabled?.extensions}
+                    onChange={(extensions) => patch({ disabled: nextDisabled(file().disabled, { extensions }) })}
+                  />
                 </Show>
 
                 <Show when={section() === "permissions"}>
@@ -372,10 +311,6 @@ export function SettingsDrawer() {
                     <p class="text-v2-text-text-muted">Model changes apply to sessions created after saving.</p>
                   </div>
                 </Show>
-
-                <Show when={section() === "global"}>
-                  <GlobalSettingsPanel />
-                </Show>
               </div>
             </div>
 
@@ -432,23 +367,73 @@ function StringListEditor(props: {
   );
 }
 
-function AddMcpServer(props: { onAdd: (name: string) => void; existing: string[] }) {
-  const [name, setName] = createSignal("");
-  const valid = () => name().trim().length > 0 && !props.existing.includes(name().trim());
+/**
+ * Drop empty lists so a workspace that has everything switched on keeps a file
+ * without a `disabled` key at all.
+ */
+function nextDisabled(current: WorkspaceDisabled | undefined, change: Partial<WorkspaceDisabled>): WorkspaceDisabled | undefined {
+  const merged: WorkspaceDisabled = { ...current, ...change };
+  const cleaned: WorkspaceDisabled = {};
+  for (const kind of ["skills", "prompts", "extensions"] as const) {
+    if (merged[kind]?.length) cleaned[kind] = merged[kind];
+  }
+  return cleaned.skills || cleaned.prompts || cleaned.extensions ? cleaned : undefined;
+}
+
+/**
+ * What Pi discovered, with a switch each. There is no add button on purpose:
+ * skills, prompt templates and extensions are created on disk or with the Pi
+ * CLI, and the workspace file only records which of them this workspace wants.
+ */
+function ResourceToggles(props: {
+  title: string;
+  hint: string;
+  empty: string;
+  prefix?: string;
+  resources: ResourceInfo[] | undefined;
+  disabled: string[] | undefined;
+  onChange: (disabled: string[]) => void;
+}) {
+  const off = () => new Set(props.disabled ?? []);
+
+  const toggle = (name: string, enabled: boolean) => {
+    const next = off();
+    if (enabled) next.delete(name);
+    else next.add(name);
+    props.onChange([...next]);
+  };
+
   return (
-    <div class="flex items-end gap-2">
-      <TextInput value={name()} placeholder="server name" onValue={setName} />
-      <Button
-        variant="neutral"
-        icon="plus"
-        disabled={!valid()}
-        onClick={() => {
-          props.onAdd(name().trim());
-          setName("");
-        }}
-      >
-        Add server
-      </Button>
+    <div class="flex flex-col gap-2">
+      <div data-slot="section-title">{props.title}</div>
+      <p data-slot="field-hint">{props.hint}</p>
+
+      <Show when={(props.resources?.length ?? 0) > 0} fallback={<div data-slot="field-hint">{props.empty}</div>}>
+        <For each={props.resources}>
+          {(resource) => (
+            <div data-slot="resource-row">
+              <Switch
+                checked={!off().has(resource.name)}
+                onChange={(enabled) => toggle(resource.name, enabled)}
+                label={`${props.prefix ?? ""}${resource.name}`}
+              />
+              <span data-slot="resource-description" title={resource.description}>
+                {resource.description}
+              </span>
+              <Show when={resource.error}>
+                <Tag tone="danger">failed</Tag>
+              </Show>
+              <Show when={resource.source}>
+                <span data-slot="resource-path" title={resource.source}>
+                  {resource.source}
+                </span>
+              </Show>
+            </div>
+          )}
+        </For>
+      </Show>
+
+      <p class="text-v2-text-text-muted">Takes effect in sessions started after saving.</p>
     </div>
   );
 }

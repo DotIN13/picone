@@ -51,12 +51,27 @@ export interface WorkspaceVoice {
   output?: boolean;
 }
 
+/**
+ * Discovered resources this workspace leaves out, by name.
+ *
+ * A denylist rather than an allowlist: Pi finds skills, prompts, and extensions
+ * on its own, and something installed tomorrow should be available today's
+ * workspace without editing this file first.
+ */
+export interface WorkspaceDisabled {
+  skills?: string[];
+  prompts?: string[];
+  extensions?: string[];
+}
+
 export interface WorkspaceFile {
   version: 1;
   name: string;
   directories: string[];
   instructions?: string[];
+  /** Extra directories to load skills from, on top of what Pi discovers. */
   skills?: WorkspaceSkill[];
+  disabled?: WorkspaceDisabled;
   mcp?: Record<string, WorkspaceMcpConfig>;
   permissions?: WorkspacePermissions;
   model?: WorkspaceModel;
@@ -365,35 +380,34 @@ export interface McpServerState {
 }
 
 /**
- * Settings that apply to every workspace. Pi already discovers global skills,
- * extensions, and prompt templates itself; this covers MCP, which Pi has no
- * concept of, plus extra skill directories.
+ * Settings that apply to every workspace, read from `~/.picone/settings.json`.
+ * Pi already discovers skills, extensions, and prompt templates itself; this
+ * covers MCP, which Pi has no concept of, plus extra skill directories.
  */
 export interface GlobalSettings {
   mcp: Record<string, WorkspaceMcpConfig>;
   skills: WorkspaceSkill[];
-  /**
-   * Pi extensions to leave out, by name. Picone filters them at session load;
-   * it never edits Pi's own settings, where installing and removing packages
-   * belongs to `pi install`.
-   */
-  disabledExtensions: string[];
 }
 
-/** A Pi extension discovered for the active session. */
-export interface ExtensionInfo {
+/**
+ * One thing Pi discovered. Whether it is switched on is not recorded here —
+ * the workspace file's `disabled` list is the only answer to that, and it stays
+ * correct after a save, which a snapshot of the running session would not.
+ */
+export interface ResourceInfo {
   name: string;
-  path: string;
-  enabled: boolean;
-  /** Load error, when the extension failed. */
+  description?: string;
+  /** File it was loaded from; empty when only the name is known. */
+  source: string;
+  /** Load error, when it failed. */
   error?: string;
 }
 
-/** What Pi discovered and loaded for the active session. */
+/** What Pi discovered for the active session, disabled entries included. */
 export interface ResourceReport {
-  extensions: ExtensionInfo[];
-  skills: Array<{ name: string; description: string; source: string }>;
-  prompts: Array<{ name: string; description?: string; source: string }>;
+  extensions: ResourceInfo[];
+  skills: ResourceInfo[];
+  prompts: ResourceInfo[];
 }
 
 // ---------------------------------------------------------------------------

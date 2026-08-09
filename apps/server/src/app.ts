@@ -49,7 +49,7 @@ export class App {
   private workspace: Workspace | null = null;
   private readonly sessions = new Map<string, SessionRuntime>();
   private activeSessionId: string | null = null;
-  private settings: GlobalSettings = { mcp: {}, skills: [], disabledExtensions: [] };
+  private settings: GlobalSettings = { mcp: {}, skills: [] };
   private settingsErrors: string[] = [];
   private mcpSources: Record<string, "global" | "workspace"> = {};
   /** Path being reopened at startup, while it is still in flight. */
@@ -197,7 +197,7 @@ export class App {
       settings: this.settings,
       settingsErrors: this.settingsErrors,
       restoring: this.restoring,
-      resources: this.activeSession()?.resources(this.settings.disabledExtensions) ?? null,
+      resources: this.activeSession()?.resources() ?? null,
     };
   }
 
@@ -349,7 +349,6 @@ export class App {
       emit: (sessionId, event) => this.hub.publish(sessionId, event),
       extraTools: () => this.mcp.tools(),
       globalSkillPaths: this.settings.skills.map((skill) => expandPath(skill.path)),
-      disabledExtensions: this.settings.disabledExtensions,
       toolHooks: {
         markCommentAddressed: (commentId) => {
           const comment = markAddressed(commentId);

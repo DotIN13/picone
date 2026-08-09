@@ -74,6 +74,23 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
     }
   }
 
+  let disabled: WorkspaceFile["disabled"];
+  if (raw.disabled !== undefined) {
+    if (!isRecord(raw.disabled)) {
+      errors.push(`"disabled" must be an object with "skills", "prompts" and "extensions" arrays`);
+    } else {
+      // Empty lists are dropped so turning everything back on leaves the file
+      // as it was before, rather than with `"disabled": {}` sitting in it.
+      const keep = (value: string[] | undefined) => (value && value.length > 0 ? value : undefined);
+      const next = {
+        skills: keep(stringArray(raw.disabled.skills, "disabled.skills", errors)),
+        prompts: keep(stringArray(raw.disabled.prompts, "disabled.prompts", errors)),
+        extensions: keep(stringArray(raw.disabled.extensions, "disabled.extensions", errors)),
+      };
+      if (next.skills || next.prompts || next.extensions) disabled = next;
+    }
+  }
+
   let mcp: Record<string, WorkspaceMcpConfig> | undefined;
   if (raw.mcp !== undefined) {
     if (!isRecord(raw.mcp)) {
@@ -148,6 +165,7 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
       directories,
       instructions,
       skills,
+      disabled,
       mcp,
       permissions,
       model,

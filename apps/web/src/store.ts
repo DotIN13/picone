@@ -130,7 +130,7 @@ const [state, setState] = createStore<State>({
   mcp: [],
   models: [],
   voice: { input: true, output: true },
-  settings: { mcp: {}, skills: [], disabledExtensions: [] },
+  settings: { mcp: {}, skills: [] },
   settingsErrors: [],
   resources: null,
   restoring: null,
@@ -434,13 +434,6 @@ export function setFilter(value: string): void {
 // ---------------------------------------------------------------------------
 // UI toggles
 // ---------------------------------------------------------------------------
-
-/** Save settings that apply to every workspace, then re-read derived state. */
-export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
-  const result = await api.saveSettings(settings);
-  setState({ settings: result.settings, settingsErrors: result.errors });
-  await refreshState();
-}
 
 export function setSidebarMode(mode: "files" | "sessions"): void {
   setState("sidebarMode", mode);

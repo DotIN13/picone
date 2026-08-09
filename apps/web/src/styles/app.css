@@ -1819,16 +1819,6 @@
   font-size: 12px;
 }
 
-[data-slot="mcp-card"] {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 6px;
-  background: var(--v2-background-bg-layer-01);
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
-}
-
 /* ── Sheets ── */
 [data-slot="sheet-grip"] {
   width: 36px;
@@ -1844,6 +1834,12 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 @media (max-width: 767px) {
+  /* No room for a path beside the name and description; the switch and what it
+     switches are what matter, and the full path is still in the tooltip. */
+  [data-slot="resource-path"] {
+    display: none;
+  }
+
   /* The sidebar becomes an overlay drawer over the content. */
   [data-slot="sidebar"] {
     position: absolute;
@@ -2066,7 +2062,7 @@
   }
 }
 
-/* ── Global settings: resource lists ── */
+/* ── Settings: skill / prompt / extension toggle lists ── */
 [data-slot="resource-row"] {
   display: flex;
   align-items: center;
@@ -2081,9 +2077,35 @@
   background: var(--v2-overlay-simple-overlay-hover);
 }
 
+/* Control first, then the name: the switches line up down the left edge, and a
+   long name pushes the description aside rather than wrapping under itself. */
+[data-slot="resource-row"] [data-component="switch"] {
+  flex: none;
+  flex-direction: row-reverse;
+  gap: 8px;
+}
+
+[data-slot="resource-row"] [data-slot="switch-label"] {
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+[data-slot="resource-description"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--v2-text-text-muted);
+}
+
 [data-slot="resource-path"] {
   margin-inline-start: auto;
-  max-width: 55%;
+  /* A tail of "…ILL.md" tells you nothing; keep enough to identify the
+     directory a resource came from, and let the description give way first. */
+  flex: 0 1 auto;
+  min-width: 130px;
+  max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2092,15 +2114,5 @@
   font-family: var(--v2-font-family-mono);
   font-size: 11px;
   color: var(--v2-text-text-faint);
-}
-
-[data-slot="resource-details"] summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--v2-text-text-muted);
-  user-select: none;
 }
 

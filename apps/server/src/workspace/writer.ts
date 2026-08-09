@@ -71,7 +71,18 @@ export function describeWorkspaceChange(before: WorkspaceFile, after: WorkspaceF
 
   const beforeSkills = (before.skills ?? []).map((s) => s.name).join(",");
   const afterSkills = (after.skills ?? []).map((s) => s.name).join(",");
-  if (beforeSkills !== afterSkills) parts.push(`Skills are now: ${afterSkills || "(none)"}`);
+  if (beforeSkills !== afterSkills) parts.push(`Skill directories are now: ${afterSkills || "(none)"}`);
+
+  // Resources are loaded when a session is built, so say plainly that this one
+  // is not affected — otherwise the agent would look for a skill it still has.
+  for (const kind of ["skills", "prompts", "extensions"] as const) {
+    const wasOff = before.disabled?.[kind] ?? [];
+    const isOff = after.disabled?.[kind] ?? [];
+    const turnedOff = isOff.filter((n) => !wasOff.includes(n));
+    const turnedOn = wasOff.filter((n) => !isOff.includes(n));
+    if (turnedOff.length) parts.push(`${kind} switched off for new sessions: ${turnedOff.join(", ")}`);
+    if (turnedOn.length) parts.push(`${kind} switched back on for new sessions: ${turnedOn.join(", ")}`);
+  }
 
   if (!parts.length) return null;
   return `Workspace update:\n\n${parts.join("\n\n")}`;
