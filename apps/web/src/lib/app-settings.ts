@@ -15,8 +15,8 @@ export interface AppearanceSettings {
   codeFont: string;
   /** Whole-interface zoom, 1 being the design size. */
   scale: number;
-  /** Text size on top of the interface scale, leaving spacing alone. */
-  fontScale: number;
+  /** Base text size in px, on top of the interface scale. */
+  fontSize: number;
 }
 
 export interface NotificationSettings {
@@ -47,18 +47,16 @@ export const SCALES = [
 ];
 
 /**
- * Narrower than the interface scale on purpose: text grows inside containers
- * that do not, so past about a fifth larger it starts to crowd them.
+ * The design's body size. Every other size in the CSS is a multiple of it, so
+ * the chosen px value drives them all through `--font-scale`.
  */
-export const FONT_SCALES = [
-  { value: 0.92, label: "Small" },
-  { value: 1, label: "Default" },
-  { value: 1.08, label: "Large" },
-  { value: 1.15, label: "Larger" },
-];
+export const BASE_FONT_SIZE = 13;
+
+/** Narrower than the interface scale: text grows inside containers that do not. */
+export const FONT_SIZES = [11, 12, 13, 14, 15, 16];
 
 const DEFAULTS: AppSettings = {
-  appearance: { colorScheme: "system", interfaceFont: "", codeFont: "", scale: 1, fontScale: 1 },
+  appearance: { colorScheme: "system", interfaceFont: "", codeFont: "", scale: 1, fontSize: BASE_FONT_SIZE },
   notifications: {
     enabled: false,
     turnFinished: true,
@@ -94,6 +92,12 @@ export function loadAppSettings(): AppSettings {
   if (!isRecord(stored.appearance)) {
     const legacy = localStorage.getItem(LEGACY_SCHEME_KEY);
     if (legacy === "light" || legacy === "dark") settings.appearance.colorScheme = legacy;
+  }
+
+  // Text size was briefly a multiplier before it was a px value.
+  const previous = isRecord(stored.appearance) ? stored.appearance : {};
+  if (typeof previous.fontScale === "number" && previous.fontSize === undefined) {
+    settings.appearance.fontSize = Math.round(BASE_FONT_SIZE * previous.fontScale);
   }
 
   return settings;
@@ -132,7 +136,7 @@ export function applyAppearance(appearance: AppearanceSettings): void {
   root.style.setProperty("--v2-font-family-sans", appearance.interfaceFont || BUNDLED_SANS);
   root.style.setProperty("--v2-font-family-mono", appearance.codeFont || BUNDLED_MONO);
   root.style.setProperty("--ui-scale", String(appearance.scale));
-  root.style.setProperty("--font-scale", String(appearance.fontScale));
+  root.style.setProperty("--font-scale", String(appearance.fontSize / BASE_FONT_SIZE));
 }
 
 /**

@@ -169,7 +169,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 28px;
+  min-height: max(28px, calc(28px * var(--font-scale)));
   padding: 0 8px;
   border-radius: 4px;
   font-size: calc(13px * var(--font-scale));
@@ -271,10 +271,10 @@
 }
 
 [data-slot="text-input"][data-size="normal"] {
-  height: 28px;
+  min-height: max(28px, calc(28px * var(--font-scale)));
 }
 [data-slot="text-input"][data-size="small"] {
-  height: 24px;
+  min-height: max(24px, calc(24px * var(--font-scale)));
   border-radius: 4px;
 }
 
@@ -351,7 +351,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 18px;
+  min-height: max(18px, calc(18px * var(--font-scale)));
   padding: 0 6px;
   border-radius: 4px;
   font-size: calc(11px * var(--font-scale));

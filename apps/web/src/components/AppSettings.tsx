@@ -2,7 +2,8 @@ import { For, Show, createSignal, onMount } from "solid-js";
 import {
   BUNDLED_MONO,
   BUNDLED_SANS,
-  FONT_SCALES,
+  BASE_FONT_SIZE,
+  FONT_SIZES,
   SCALES,
   SYSTEM_MONO,
   SYSTEM_SANS,
@@ -98,12 +99,12 @@ export function AppearancePanel() {
         <Select
           aria-label="Font size"
           width="180px"
-          value={String(appearance().fontScale)}
-          options={FONT_SCALES.map((s) => ({
-            value: String(s.value),
-            label: `${s.label} · ${Math.round(s.value * 100)}%`,
+          value={String(appearance().fontSize)}
+          options={FONT_SIZES.map((size) => ({
+            value: String(size),
+            label: size === BASE_FONT_SIZE ? `${size}px · default` : `${size}px`,
           }))}
-          onChange={(value) => updateAppSettings({ appearance: { fontScale: Number(value) } })}
+          onChange={(value) => updateAppSettings({ appearance: { fontSize: Number(value) } })}
         />
       </div>
 

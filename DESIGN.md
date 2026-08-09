@@ -1324,12 +1324,22 @@ under the controls, because a font choice cannot be judged from its name.
 `zoom` on the root element: everything grows together, which is what you want
 when the whole app is too small to work in. It re-lays-out rather than
 stretching, so hairlines and glyphs stay crisp at any scale, and it goes on
-`html` so overlays portalled to `body` scale with everything else. *Font size*
-multiplies every `font-size` and nothing else, for when only the text is hard to
-read. The design system (§42) is written in absolute pixels, so that one is
-applied a declaration at a time — every `font-size` in the CSS is
-`calc(Npx * var(--font-scale))` — and its range is deliberately narrower, since
-text grows inside containers that do not.
+`html` so overlays portalled to `body` scale with everything else.
+
+*Font size* is the body text in **pixels** — 13px is the design, 11 to 16 the
+range — because that is the number a person actually has an opinion about. It is
+stored as px and divided by the design size into `--font-scale`, which every
+`font-size` in the CSS multiplies: the system (§42) is written in absolute
+pixels, so this is applied a declaration at a time rather than through a single
+root rule.
+
+Text that grows inside a box that does not is how a design gets cramped and then
+clipped, so the boxes grow too. Every single-line row — tree rows, tabs, the
+title bar and its chips, buttons, inputs, icon buttons — is
+`min-height: max(Npx, calc(Npx * var(--font-scale)))`: the design's height is a
+floor, never a ceiling. At 13px every one of them measures exactly what it did
+before this existed; at 16px they grow with the text and keep their proportions.
+Icon glyphs keep their own size — a pictogram need not grow for its hit area to.
 
 The one thing zoom does not fix is lengths measured against the viewport, which
 stay in unzoomed pixels and so render `--ui-scale` too large. `--vh` and `--vw`
