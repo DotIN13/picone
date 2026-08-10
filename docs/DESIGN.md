@@ -873,7 +873,13 @@ moment asks once.
 
 In development Vite also waits for the API before it starts
 (`scripts/wait-for-api.mjs`), so the first page served has a server behind it
-rather than a screenful of proxy errors.
+rather than a screenful of proxy errors. What remains is filtered by a custom
+logger in `vite.config.ts`: a proxied websocket losing its far end — a tab
+closing, a reload, the API restarting, and the client's own retries while it is
+down — is normal and reported as a stack trace, which at a glance is
+indistinguishable from a real fault. Only the websocket path is filtered, and
+only for a hangup; an `/api` request failing is not retried in a loop, so it
+still comes through with its URL.
 
 > **Diverged from plan.** The plan proposed `WS /sessions/:id/events`. A single
 > socket with session-tagged frames turned out simpler once several sessions can
