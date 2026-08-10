@@ -1698,13 +1698,20 @@ chrome moving; and `--text-boost` is 1 everywhere but the phone. Rules never
 read the three — they write `calc(Npx * var(--font-scale))` and let the chain
 resolve. The full statement lives at `:root` in `base.css`.
 
-**A phone starts one notch larger, and its text larger still.** The design is
-drawn for a pointer at desk distance; the same numbers on a handset held closer,
-and tapped rather than clicked, come out small. Two levers move, because they
-answer different halves of that. `scale` defaults to 1.15 on a compact viewport,
-which grows the geometry — and is only a default, overridden per browser the
-moment the setting is touched. `--text-boost` then puts the 13px body text on
-16px, and *only* the text: a handset needs larger type than a monitor but not
+**The baseline is 125% of the design, everywhere.** The design turned out to be
+drawn a notch small — on a monitor as much as on a handset — and the fix that
+does not mean restating every number in every stylesheet is to move the
+baseline: `BASE_ZOOM` is 1.25, the Interface size setting multiplies it, and
+what used to require choosing 125% is what 100% gives. Existing browsers are
+migrated by the reciprocal on load, so nothing anyone is looking at changes
+size; only the number describing it does. The preset list is re-based with it,
+0.8 landing on the old 100%.
+
+**A phone's text is larger still.** The design is drawn for a pointer at desk
+distance; the same numbers on a handset held closer, and tapped rather than
+clicked, come out small. The baseline covers the geometry now — a phone no
+longer starts at its own scale, which would stack with it and overshoot — but
+`--text-boost` still puts the 13px body text on 16px, and *only* the text: a handset needs larger type than a monitor but not
 proportionally larger buttons, and 16px of text wants a 39px send button rather
 than a 48px one. Zoom alone cannot express that, which is the whole reason the
 second lever exists.

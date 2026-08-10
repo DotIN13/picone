@@ -6,7 +6,6 @@
  * workspace JSON, which is shared and checked in.
  */
 
-import { COMPACT_QUERY } from "./media.ts";
 
 export type ColorSchemePreference = "system" | "light" | "dark";
 
@@ -42,12 +41,32 @@ export const BUNDLED_MONO = `"JetBrains Mono", ui-monospace, "SF Mono", "Cascadi
 export const SYSTEM_SANS = `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
 export const SYSTEM_MONO = `ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace`;
 
+/**
+ * What the interface is scaled by before the setting is applied at all.
+ *
+ * The design is drawn at a size that turned out to be a notch too small in use,
+ * on a monitor as much as on a handset. Rather than restate every number in
+ * every stylesheet, the baseline moves: what used to require choosing 125% is
+ * what you get at 100%.
+ *
+ * Existing browsers are migrated by the reciprocal on load, so nothing anyone
+ * is looking at changes size — only the number describing it does.
+ */
+export const BASE_ZOOM = 1.25;
+
+/**
+ * The choices, as multiples of the new baseline rather than of the design.
+ *
+ * Re-based along with it, so the range on offer is roughly what it was: 0.8
+ * lands on the old 100%, and the top of the list is as far above the default as
+ * it was before.
+ */
 export const SCALES = [
-  { value: 0.9, label: "Small" },
+  { value: 0.8, label: "Small" },
+  { value: 0.9, label: "Compact" },
   { value: 1, label: "Default" },
-  { value: 1.1, label: "Large" },
-  { value: 1.25, label: "Larger" },
-  { value: 1.4, label: "Largest" },
+  { value: 1.15, label: "Large" },
+  { value: 1.3, label: "Largest" },
 ];
 
 /**
@@ -63,17 +82,12 @@ export const FONT_SIZES = [11, 12, 13, 14, 15, 16];
 export const SIDEBAR_WIDTH = { default: 264, min: 180, max: 640 };
 
 /**
- * A phone starts one notch larger (DESIGN §47).
- *
- * The design is drawn for a pointer at desk distance; the same numbers on a
- * handset held closer, and tapped rather than clicked, come out small. Scale
- * rather than a separate set of sizes, so one control still governs it and the
- * proportions the design depends on are preserved — and it is only a *default*,
- * overridden the moment the setting is touched, per browser.
+ * The nearest offered scale to a value, so a migrated setting still matches a
+ * preset — the picker is a list of exact values and highlights nothing
+ * otherwise.
  */
-function defaultScale(): number {
-  if (typeof window === "undefined" || !window.matchMedia) return 1;
-  return window.matchMedia(COMPACT_QUERY).matches ? 1.15 : 1;
+function nearestScale(value: number): number {
+  return SCALES.reduce((best, s) => (Math.abs(s.value - value) < Math.abs(best - value) ? s.value : best), SCALES[0]!.value);
 }
 
 const DEFAULTS: AppSettings = {
@@ -81,7 +95,12 @@ const DEFAULTS: AppSettings = {
     colorScheme: "system",
     interfaceFont: "",
     codeFont: "",
-    scale: defaultScale(),
+    /*
+     * 1 on a phone as on a desktop. A handset used to start at 1.15 because the
+     * design was small; the baseline covers that now, and stacking the two
+     * would overshoot what was asked for.
+     */
+    scale: 1,
     fontSize: BASE_FONT_SIZE,
     sidebarWidth: SIDEBAR_WIDTH.default,
   },
@@ -122,17 +141,35 @@ export function loadAppSettings(): AppSettings {
     if (legacy === "light" || legacy === "dark") settings.appearance.colorScheme = legacy;
   }
 
+  /*
+   * The baseline moved (§49): scales are multiples of BASE_ZOOM now, not of the
+   * design. Dividing a stored value by it leaves the interface exactly the size
+   * it was — the number changes, the pixels do not — and snapping keeps it on a
+   * preset the picker can show. Marked so it happens once.
+   */
+  // Only a browser that *had* a scale has one to preserve. Without this a
+  // first visit converts the new default down to 0.8 and lands back on the old
+  // size, which is the one thing this change is meant to stop.
+  const rebased = isRecord(stored.appearance) && stored.scaleBase !== BASE_ZOOM;
+  if (rebased) {
+    settings.appearance.scale = nearestScale(settings.appearance.scale / BASE_ZOOM);
+  }
+
   // Text size was briefly a multiplier before it was a px value.
   const previous = isRecord(stored.appearance) ? stored.appearance : {};
   if (typeof previous.fontScale === "number" && previous.fontSize === undefined) {
     settings.appearance.fontSize = Math.round(BASE_FONT_SIZE * previous.fontScale);
   }
 
+  // Written back at once, so the stored value and what is on screen agree and
+  // the conversion cannot run twice on a value that has already had it.
+  if (rebased) saveAppSettings(settings);
+
   return settings;
 }
 
 export function saveAppSettings(settings: AppSettings): void {
-  localStorage.setItem(KEY, JSON.stringify(settings));
+  localStorage.setItem(KEY, JSON.stringify({ ...settings, scaleBase: BASE_ZOOM }));
 }
 
 export function defaultAppSettings(): AppSettings {
@@ -163,7 +200,10 @@ export function applyAppearance(appearance: AppearanceSettings): void {
   // installed degrades to the design font rather than to Times New Roman.
   root.style.setProperty("--v2-font-family-sans", appearance.interfaceFont || BUNDLED_SANS);
   root.style.setProperty("--v2-font-family-mono", appearance.codeFont || BUNDLED_MONO);
-  root.style.setProperty("--ui-scale", String(appearance.scale));
+  // The effective zoom, not the setting: everything that corrects for zoom —
+  // `--vh`, the resizer's drag deltas — reads this and must see what was
+  // actually applied.
+  root.style.setProperty("--ui-scale", String(appearance.scale * BASE_ZOOM));
   // Scoped by the stylesheet to the panes that display content — the tree,
   // the transcript, a file — rather than to the chrome around them.
   root.style.setProperty("--content-font-scale", String(appearance.fontSize / BASE_FONT_SIZE));

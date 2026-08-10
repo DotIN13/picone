@@ -16,9 +16,13 @@
      *
      * Three inputs feed those, each set in exactly one place:
      *
-     *   --ui-scale     the Interface size setting. Applied as `zoom` on #root
-     *                  (below) and on the portal layers, which sit outside it.
-     *                  Moves type and geometry together.
+     *   --ui-scale     the Interface size setting *times* the baseline zoom
+     *                  (BASE_ZOOM, 1.25) — the zoom actually applied, which is
+     *                  what anything correcting for zoom has to read. Applied
+     *                  as `zoom` on #root (below) and on the portal layers,
+     *                  which sit outside it. Moves type and geometry together.
+     *                  The baseline exists because the design was drawn a notch
+     *                  small: what needed 125% is what 100% now gives.
      *
      *   --text-boost   1 everywhere except the phone block of app.css, which
      *                  raises it to 16/13. Moves type only. A handset needs
