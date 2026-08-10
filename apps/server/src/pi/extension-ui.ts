@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionUiAnswer, ExtensionUiPrompt, ExtensionUiUpdate } from "@picone/protocol";
+import { FactoryWidget } from "./widget-render.ts";
 
 /**
  * Options Pi passes to the blocking dialog methods.
@@ -34,11 +35,18 @@ export interface ExtensionUiHooks {
  *
  * This is the same contract `runRpcMode` implements over stdio: four blocking
  * dialogs and a handful of fire-and-forget surfaces. Terminal-only affordances
- * (working indicator, custom header/footer, raw input, component widgets) have
- * no web equivalent and are deliberate no-ops, exactly as they are in RPC mode.
+ * (working indicator, custom header/footer, raw input) have no web equivalent
+ * and are deliberate no-ops, exactly as they are in RPC mode.
+ *
+ * Component widgets are the exception, and used to be in that list. A factory
+ * widget only asks for lines at a width, which a browser can answer as well as
+ * a terminal — see widget-render.ts. Treating it as terminal-only meant any
+ * extension that displays through a widget displayed nothing here at all.
  */
 export class ExtensionUiBridge {
   private readonly pending = new Map<string, (answer: ExtensionUiAnswer) => void>();
+  /** Live factory widgets, so a redraw request can reach the right component. */
+  private readonly widgets = new Map<string, FactoryWidget>();
 
   constructor(private readonly hooks: ExtensionUiHooks) {}
 
@@ -57,6 +65,9 @@ export class ExtensionUiBridge {
       resolve({ id, cancelled: true });
     }
     this.pending.clear();
+
+    for (const widget of this.widgets.values()) widget.dispose();
+    this.widgets.clear();
   }
 
   get pendingCount(): number {
@@ -154,14 +165,29 @@ export class ExtensionUiBridge {
         bridge.hooks.update({ method: "setStatus", key, text }),
 
       setWidget: (key: string, content: unknown, options?: { placement?: "aboveEditor" | "belowEditor" }) => {
-        // Component factories are TUI-only; RPC mode drops them too.
+        const placement = options?.placement;
+        const send = (lines: string[] | undefined) =>
+          bridge.hooks.update({ method: "setWidget", key, lines, placement });
+
+        // Registering under a key replaces whatever held it, as it does in Pi.
+        bridge.widgets.get(key)?.dispose();
+        bridge.widgets.delete(key);
+
         if (content === undefined || Array.isArray(content)) {
-          bridge.hooks.update({
-            method: "setWidget",
-            key,
-            lines: content as string[] | undefined,
-            placement: options?.placement,
-          });
+          send(content as string[] | undefined);
+          return;
+        }
+
+        /*
+         * The factory form. RPC mode drops this and so did we, which left any
+         * extension whose display *is* a widget — the todo overlay is the one
+         * that surfaced it — visible in the terminal and invisible here. It is
+         * only a request for lines at a given width, so we can answer it.
+         */
+        if (typeof content === "function") {
+          const widget = new FactoryWidget(content as never, send);
+          bridge.widgets.set(key, widget);
+          widget.push();
         }
       },
 

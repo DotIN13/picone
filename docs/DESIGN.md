@@ -1509,9 +1509,30 @@ Two hard-won details:
   ones. A missing method is not graceful degradation — the extension throws
   `ctx.ui.x is not a function` and the whole command fails.
 
-Not supported, as in RPC mode: component-factory widgets, custom message
-renderers, overlays, and keybindings. They are TUI-component-shaped and have no
-text representation to cross the wire.
+* **A component-factory widget is not TUI-shaped, and assuming it was cost us a
+  whole extension's display.** `setWidget` takes either an array of strings or a
+  factory, `(tui, theme) => { render(width): string[] }`. RPC mode drops the
+  factory and so did we — reasoning, wrongly, that a component is a terminal
+  thing. But that signature asks for a width and returns lines; the terminal is
+  merely the caller that usually asks. The `rpiv-todo` extension renders its
+  entire list this way, so todos worked in Pi's TUI and were invisible in
+  Picone, with no error anywhere to say why. We call the factory now, with a
+  plain-text theme in place of the ANSI one, and forward the lines to the same
+  place the array form goes. Extensions register once and then call
+  `tui.requestRender()` when their data changes, so the component is kept and
+  re-rendered on request.
+
+  Two judgements inside that. The theme styles *nothing* rather than emitting
+  ANSI for the browser to strip — colour is CSS's job, and a half-stripped
+  escape in a `<pre>` is worse than no colour; the glyphs (`○ ◐ ✓`) carry the
+  meaning anyway. And the width is a generous 160 rather than an accurate
+  guess, because extensions use it to truncate rather than to pad: too wide
+  only means nothing is cut and the browser wraps, while too narrow would lose
+  text before it was ever sent.
+
+Still not supported, as in RPC mode: custom message renderers, overlays, and
+keybindings. Those are genuinely TUI-component-shaped, with no text
+representation to cross the wire.
 
 ### The surface, in full
 
