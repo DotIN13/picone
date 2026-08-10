@@ -106,6 +106,9 @@ export const api = {
 
   models: () => request<{ models: ModelOption[] }>("/models"),
 
+  setAutoCompaction: (enabled: boolean) =>
+    request<{ autoCompaction: boolean }>("/compaction", { method: "POST", body: JSON.stringify({ enabled }) }),
+
   memorySubjects: () => request<{ subjects: MemorySubject[] }>("/memory/subjects"),
 
   settings: () => request<{ settings: GlobalSettings; errors: string[] }>("/settings"),

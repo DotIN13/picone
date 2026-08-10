@@ -1,9 +1,10 @@
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { MemorySubject, SlashCommand } from "@picone/protocol";
 import {
   abort,
   activeSessionState,
   compactSession,
+  setAutoCompaction,
   closeTab,
   consumeEditorPatch,
   newSession,
@@ -16,7 +17,9 @@ import {
   widgetsAt,
 } from "../store.ts";
 import { Dictation, isSpeechInputSupported, stopSpeaking } from "../voice/speech.ts";
+import { Button } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
+import { Switch } from "./ui/primitives.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import { SlashMenu, filterCommands } from "./SlashMenu.tsx";
 import { MentionMenu, filterSubjects, mentionQueryAt } from "./MentionMenu.tsx";
@@ -332,7 +335,6 @@ export function Composer() {
             </Show>
 
             <ModelPicker />
-            <ContextMeter />
 
             <div class="flex-1" />
 
@@ -369,6 +371,8 @@ export function Composer() {
       </div>
 
       <div data-slot="composer-hint">
+        <ContextMeter />
+
         <Show
           when={listening()}
           fallback={
@@ -397,35 +401,104 @@ export function Composer() {
 }
 
 /**
- * How full the context is (DESIGN §54).
+ * How full the context is, as a ring under the input (DESIGN §54).
  *
- * Only shown once it is worth knowing. A meter that reads 3% all morning is
- * furniture; one that appears as the conversation gets long is a warning, and
- * the point at which it appears is the point at which `/compact` starts to
- * matter. Nothing is shown while Pi cannot say — the window right after a
- * compaction, before the next reply.
+ * Ambient rather than alarming: a small dial that fills as the conversation
+ * grows, sitting with the other hints below the box rather than among the
+ * controls, where it would compete with the model and the send button. Clicking
+ * it opens the numbers behind it and the two things worth doing about them.
+ *
+ * Nothing is drawn while Pi cannot say — the window right after a compaction,
+ * before the next reply — because a ring at zero would read as an empty context
+ * rather than an unknown one.
  */
 function ContextMeter() {
+  const [open, setOpen] = createSignal(false);
+
   const usage = () => (state.activeSessionId ? state.contextUsage[state.activeSessionId] : null);
   const percent = () => usage()?.percent ?? null;
-  const shown = () => {
-    const value = percent();
-    return value !== null && value >= 50 ? value : null;
-  };
+  const level = (value: number) => (value >= 85 ? "high" : value >= 70 ? "warn" : "normal");
+
+  // Circumference of an r=6 circle, so `stroke-dasharray` can be read as a
+  // percentage directly.
+  const RING = 2 * Math.PI * 6;
+
+  let host: HTMLDivElement | undefined;
+  onMount(() => {
+    const dismiss = (event: MouseEvent) => {
+      if (host && !host.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    onCleanup(() => document.removeEventListener("pointerdown", dismiss));
+  });
 
   return (
-    <Show when={shown()}>
+    /* `percent() !== null`, not `percent()`: zero is a real reading and a falsy
+       one, and testing the number directly hid the dial on an empty context. */
+    <Show when={percent() !== null ? percent() : null}>
       {(value) => (
-        <button
-          type="button"
-          data-slot="context-meter"
-          data-level={value() >= 85 ? "high" : value() >= 70 ? "warn" : "normal"}
-          title={`Context ${Math.round(value())}% full — compact the conversation to free it`}
-          onClick={compactSession}
-        >
-          {Math.round(value())}%
-        </button>
+        <div data-slot="context-meter" ref={host}>
+          <button
+            type="button"
+            data-slot="context-dial"
+            data-level={level(value())}
+            aria-label={`Context ${Math.round(value())}% full`}
+            aria-expanded={open()}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <circle cx="7" cy="7" r="6" fill="none" stroke-width="2" data-slot="dial-track" />
+              <circle
+                cx="7"
+                cy="7"
+                r="6"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round"
+                data-slot="dial-fill"
+                /* Starts at twelve o'clock and fills clockwise. */
+                transform="rotate(-90 7 7)"
+                stroke-dasharray={`${(Math.min(value(), 100) / 100) * RING} ${RING}`}
+              />
+            </svg>
+            {Math.round(value())}%
+          </button>
+
+          <Show when={open()}>
+            <div data-slot="context-details">
+              <div data-slot="context-figure">
+                <strong>{formatTokens(usage()?.tokens ?? 0)}</strong> of{" "}
+                {formatTokens(usage()?.contextWindow ?? 0)} tokens
+              </div>
+              <p data-slot="field-hint">
+                Compacting summarises the earlier part of the conversation and drops what the summary
+                replaces. Pi does it on its own as the context fills.
+              </p>
+              <Switch
+                checked={state.autoCompaction}
+                onChange={(enabled) => void setAutoCompaction(enabled)}
+                label="Compact automatically"
+              />
+              <Button
+                size="small"
+                variant="outline"
+                onClick={() => {
+                  compactSession();
+                  setOpen(false);
+                }}
+              >
+                Compact now
+              </Button>
+            </div>
+          </Show>
+        </div>
       )}
     </Show>
   );
+}
+
+/** Token counts read at a glance rather than counted digit by digit. */
+function formatTokens(tokens: number): string {
+  if (tokens < 1000) return `${tokens}`;
+  return `${(tokens / 1000).toFixed(tokens < 10_000 ? 1 : 0)}k`;
 }

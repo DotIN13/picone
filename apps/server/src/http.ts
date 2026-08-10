@@ -57,6 +57,16 @@ export function createApiRouter(app: App): Router {
     }),
   );
 
+  /** Pi's automatic compaction, which is Pi's setting rather than ours (§54). */
+  router.post(
+    "/compaction",
+    asyncRoute(async (req, res) => {
+      const enabled = Boolean(req.body?.enabled);
+      app.setAutoCompaction(enabled);
+      res.json({ autoCompaction: app.state().autoCompaction });
+    }),
+  );
+
   router.get("/workspaces/recent", (_req, res) => {
     res.json({ workspaces: listRecentWorkspaces() });
   });

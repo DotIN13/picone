@@ -84,6 +84,8 @@ interface State {
   moreHistory: Record<string, boolean>;
   /** How full each session's context is, when Pi can say (§54). */
   contextUsage: Record<string, ContextUsage | null>;
+  /** Whether Pi compacts on its own. Pi's setting, read back rather than mirrored. */
+  autoCompaction: boolean;
   comments: FileComment[];
   mcp: McpServerState[];
   models: ModelOption[];
@@ -148,6 +150,7 @@ const [state, setState] = createStore<State>({
   memorySubjects: [],
   moreHistory: {},
   contextUsage: {},
+  autoCompaction: true,
   voice: { input: true, output: true },
   settings: { mcp: {}, skills: [], memory: {} },
   settingsErrors: [],
@@ -268,6 +271,7 @@ export async function refreshState(): Promise<void> {
     settings: next.settings,
     settingsErrors: next.settingsErrors,
     resources: next.resources,
+    autoCompaction: next.autoCompaction,
     restoring: next.restoring,
     // Do not offer the picker while a workspace is still being reopened.
     workspacePickerOpen: next.workspace === null && next.restoring === null,
@@ -676,6 +680,19 @@ export async function loadEarlier(sessionId: string): Promise<number> {
  * Summarise the conversation so far and free the context it was using
  * (DESIGN §54). Pi aborts whatever is running first, so this is safe mid-turn.
  */
+/** Turn Pi's automatic compaction on or off (DESIGN §54). Pi owns the flag. */
+export async function setAutoCompaction(enabled: boolean): Promise<void> {
+  setState("autoCompaction", enabled);
+  try {
+    const result = await api.setAutoCompaction(enabled);
+    // Read back: Pi is the source of truth, and refuses nothing silently.
+    setState("autoCompaction", result.autoCompaction);
+  } catch (err) {
+    setState("autoCompaction", !enabled);
+    setState("toast", { text: (err as Error).message, level: "error" });
+  }
+}
+
 export function compactSession(): void {
   const sessionId = state.activeSessionId;
   if (!sessionId) return;

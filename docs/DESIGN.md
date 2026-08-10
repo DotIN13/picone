@@ -2198,19 +2198,35 @@ a compaction ending, and a session opening. `tokens` is null until a reply comes
 back — a real state immediately after compaction, not an error — and the meter
 simply disappears rather than showing a zero.
 
-**The meter appears at 50% and not before.** A readout that says 3% all morning
-is furniture; one that appears as a conversation gets long is a warning, and the
-moment it appears is the moment compacting starts to be worth doing. It turns
-amber at 70% and red at 85%, and clicking it compacts. `/compact` does the same
-thing from the composer.
+**A dial under the input, not a control beside it.** A ring that fills as the
+conversation grows, sitting with the hints below the box rather than among the
+model picker and the send button, where it would compete with things you press.
+It is quiet at first and takes colour as it fills — amber at 70%, red at 85% —
+so it reads as ambient until it is worth reading.
+
+Clicking it opens the numbers behind it and the two things worth doing about
+them: the tokens used against the window, a switch for automatic compaction, and
+**Compact now**. `/compact` does the same from the composer.
+
+That is where the auto-compaction switch lives rather than in settings, because
+it is the answer to the question the dial provokes. It writes Pi's own flag,
+which is global to Pi and seen by the CLI too, so Picone reads it back after
+setting rather than keeping a copy — the same treatment as the session name
+(§26). It is applied to every loaded session, not only the active one, or a
+session left holding the old value would disagree with the setting that governs
+it.
+
+Two details the reading forces. `tokens` is null until a reply comes back, so
+the dial disappears rather than showing zero — right after a compaction, an
+empty ring would claim an empty context instead of an unknown one. And the test
+is `percent !== null`, not `percent`, because zero is both a real reading and a
+falsy one; testing the number hid the dial on a fresh session.
 
 ### Not built
 
 * **No custom compaction instructions.** `compact()` takes them; there is
   nowhere to type them, and a prompt for it would be in the way far more often
   than it was useful.
-* **No control over auto-compaction.** Pi's default is on, which is the right
-  default; exposing the toggle needs somewhere sensible in settings first.
 * **No `compaction` entry in the transcript.** Pi records one in its session
   tree; Picone shows the notices instead, which say the same thing in the place
   the reader is already looking.

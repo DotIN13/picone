@@ -233,6 +233,8 @@ export class App {
       settingsErrors: this.settingsErrors,
       restoring: this.restoring,
       resources: this.activeSession()?.resources() ?? null,
+      // Pi's default is on, which is also the answer before a session exists.
+      autoCompaction: this.activeSession()?.autoCompaction ?? true,
     };
   }
 
@@ -531,6 +533,17 @@ export class App {
 
   async steer(text: string, sessionId?: string): Promise<void> {
     await this.target(sessionId).steer(text);
+  }
+
+  /**
+   * Turn Pi's automatic compaction on or off (DESIGN §54).
+   *
+   * Applied to every loaded session, not just the active one: the flag is Pi's
+   * and global, so a session left holding the old value in memory would
+   * disagree with the setting that actually governs it.
+   */
+  setAutoCompaction(enabled: boolean): void {
+    for (const session of this.sessions.values()) session.setAutoCompaction(enabled);
   }
 
   /** Summarise the conversation so far, freeing context (DESIGN §54). */

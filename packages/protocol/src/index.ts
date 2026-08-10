@@ -609,6 +609,13 @@ export interface WorkspaceStateResponse {
   /** Problems reading the global settings file. */
   settingsErrors: string[];
   resources: ResourceReport | null;
+  /**
+   * Whether Pi compacts on its own when the context fills (DESIGN §54).
+   *
+   * Pi's setting, not Picone's — it lives in Pi's own store and applies to the
+   * CLI as well, so this is read from Pi rather than mirrored.
+   */
+  autoCompaction: boolean;
   /** Non-null while a workspace is being reopened at startup. */
   restoring: string | null;
 }

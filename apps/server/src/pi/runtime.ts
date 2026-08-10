@@ -480,6 +480,22 @@ ${pointers}` : text;
     this.publishContext();
   }
 
+  /** Whether Pi compacts on its own when the context fills (DESIGN §54). */
+  get autoCompaction(): boolean {
+    return this.session.autoCompactionEnabled;
+  }
+
+  /**
+   * Turn Pi's automatic compaction on or off.
+   *
+   * This writes Pi's own settings, which are global to Pi rather than scoped to
+   * a session or a workspace — the CLI sees the same flag. Picone reads it back
+   * rather than keeping a copy, the same way it treats the session name (§26).
+   */
+  setAutoCompaction(enabled: boolean): void {
+    this.session.setAutoCompactionEnabled(enabled);
+  }
+
   /**
    * Say how full the context is, whenever it can have changed.
    *

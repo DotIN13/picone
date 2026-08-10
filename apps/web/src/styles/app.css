@@ -2655,3 +2655,80 @@
   background: var(--v2-state-bg-danger, var(--v2-background-bg-layer-02));
   color: var(--v2-state-fg-danger, var(--v2-text-text-base));
 }
+
+/* ---------------------------------------------------------------------------
+   Context meter (DESIGN §54) — a dial under the input, not a control beside it
+   --------------------------------------------------------------------------- */
+
+[data-slot="context-meter"] {
+  position: relative;
+  display: inline-flex;
+}
+
+[data-slot="context-dial"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--v2-text-text-faint);
+  font: inherit;
+  font-size: calc(11px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+[data-slot="context-dial"]:hover {
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="dial-track"] {
+  stroke: var(--v2-border-border-base);
+}
+
+/* Quiet until it is worth noticing: the ring earns colour as it fills. */
+[data-slot="dial-fill"] {
+  stroke: var(--v2-text-text-faint);
+  transition: stroke-dasharray 200ms ease-out;
+}
+
+[data-slot="context-dial"][data-level="warn"] [data-slot="dial-fill"],
+[data-slot="context-dial"][data-level="warn"] {
+  stroke: var(--v2-state-fg-warning);
+  color: var(--v2-state-fg-warning);
+}
+
+[data-slot="context-dial"][data-level="high"] [data-slot="dial-fill"],
+[data-slot="context-dial"][data-level="high"] {
+  stroke: var(--v2-state-fg-danger);
+  color: var(--v2-state-fg-danger);
+}
+
+/* Opens upward: the composer sits at the bottom of the window. */
+[data-slot="context-details"] {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: max(240px, 22em);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow:
+    0 0 0 0.5px var(--v2-border-border-base),
+    0 10px 28px -10px rgb(0 0 0 / 0.32);
+  white-space: normal;
+}
+
+[data-slot="context-figure"] {
+  color: var(--v2-text-text-base);
+  font-size: calc(12.5px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+}
