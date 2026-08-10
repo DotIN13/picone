@@ -184,14 +184,25 @@ export function SettingsDrawer() {
 
       <Show when={error()}>
         {(message) => (
-          <div data-slot="dialog-error" class="mx-3.5 mt-3">
+          <div data-slot="dialog-error" class="mx-3.5 mt-3" data-corvu-no-drag>
             <Icon name="alert" size={14} />
             <span class="whitespace-pre-wrap">{message()}</span>
           </div>
         )}
       </Show>
 
-      <div data-slot="drawer-body">
+      {/*
+        Everything below the header is a no-drag region (DESIGN §47).
+
+        Corvu treats a drag anywhere on the drawer as a dismissal, and walks up
+        from the touch point looking for `data-corvu-no-drag` — so the way to
+        confine dragging to the header is to mark everything that is not the
+        header. It has no scroll-aware exception worth relying on: a list that
+        reaches its end, a row that is not scrollable, or a swipe that starts
+        slightly off-axis all handed the gesture to the drawer, which then
+        closed while someone was trying to read.
+      */}
+      <div data-slot="drawer-body" data-corvu-no-drag>
         {/* Wide screens: a permanent rail. */}
         <nav data-slot="settings-nav">
           <For each={GROUPS}>
@@ -459,7 +470,7 @@ export function SettingsDrawer() {
       {/* Only the workspace half has anything to save; app settings apply as
           they are changed, so a footer over them would invite a pointless click. */}
       <Show when={showPanel() && !APP_SECTIONS.has(current())}>
-        <div data-slot="drawer-footer">
+        <div data-slot="drawer-footer" data-corvu-no-drag>
           <span class="text-v2-text-text-muted">{dirty() ? "Unsaved changes" : "Saved"}</span>
           <span class="flex-1" />
           <Button variant="ghost" disabled={!dirty()} onClick={() => setDraft(snapshot())}>

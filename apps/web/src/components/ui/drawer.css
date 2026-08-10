@@ -34,6 +34,14 @@
 }
 
 [data-slot="drawer-header"] {
+  /*
+   * The only part of the drawer you can drag it closed by. `none`, because a
+   * drag handle wants the gesture itself rather than any panning the browser
+   * might do with it — everything below the header opts out through
+   * `data-corvu-no-drag` instead, so the two halves of this are in different
+   * places by necessity: one is an attribute Corvu looks for, the other is not.
+   */
+  touch-action: none;
   display: flex;
   align-items: center;
   gap: 10px;

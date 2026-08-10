@@ -1736,6 +1736,17 @@ with the desktop popover. Four lines and two controls do not: the context panel
 (§54) stays a popup at every size and is simply held inside the viewport. A
 drawer for that is more ceremony than content.
 
+**A drawer is dragged closed by its header, and nowhere else.** Corvu treats a
+drag anywhere on the drawer as a dismissal, which is right for a sheet of static
+content and wrong for one that is mostly a scrolling list: a list that reaches
+its end, a row that does not scroll, or a swipe a few degrees off-axis all
+handed the gesture to the drawer, and it closed while someone was reading. The
+library's escape hatch is an attribute it looks for on the way up from the touch
+point, so confining the drag means marking everything that is *not* the
+header — the body, the footer, the error strip — rather than marking the handle.
+The header takes `touch-action: none` to match, since a handle wants the gesture
+rather than any panning the browser might do with it.
+
 **The keyboard hints go on a phone, and the context dial with them.** There are
 no such keys to name, and the space below the input is worth more than a
 reading — the dial lives in that row, so hiding the row hides both.
