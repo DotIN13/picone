@@ -371,8 +371,6 @@ export function Composer() {
       </div>
 
       <div data-slot="composer-hint">
-        <ContextMeter />
-
         <Show
           when={listening()}
           fallback={
@@ -395,6 +393,8 @@ export function Composer() {
         >
           Listening… speak, then press <kbd>Enter</kbd> to send.
         </Show>
+
+        <ContextMeter />
       </div>
     </div>
   );

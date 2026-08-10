@@ -2198,11 +2198,18 @@ a compaction ending, and a session opening. `tokens` is null until a reply comes
 back — a real state immediately after compaction, not an error — and the meter
 simply disappears rather than showing a zero.
 
-**A dial under the input, not a control beside it.** A ring that fills as the
-conversation grows, sitting with the hints below the box rather than among the
-model picker and the send button, where it would compete with things you press.
-It is quiet at first and takes colour as it fills — amber at 70%, red at 85% —
-so it reads as ambient until it is worth reading.
+**A dial at the right of the hint row, not a control beside the model.** A ring
+that fills as the conversation grows, sitting at the far end of the hints below
+the box rather than among the model picker and the send button, where it would
+compete with things you press. No background until hovered — at rest it is a
+reading, not a button — and colour only as it fills: amber at 70%, red at 85%.
+
+It shares its baseline with the hints beside it, and getting that right needed
+the same fix as the mention pills (§52): an inline-flex box takes its baseline
+from its first flex item, and that is the ring — an `svg`, which has none, so
+the browser synthesises one from its bottom edge and lifts the whole control off
+the line. `align-items: baseline` hands the job to the percentage, and the ring
+opts out with `align-self: center`.
 
 Clicking it opens the numbers behind it and the two things worth doing about
 them: the tokens used against the window, a switch for automatic compaction, and

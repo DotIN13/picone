@@ -1280,6 +1280,18 @@
   color: var(--v2-text-text-faint);
 }
 
+/* The hints read left to right and the context dial sits at the far end, out
+   of the way of the sentence. `baseline` so the two line up as text. */
+[data-slot="composer-hint"] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+[data-slot="composer-hint"] [data-slot="context-meter"] {
+  margin-inline-start: auto;
+}
+
 [data-slot="composer-error"] {
   color: var(--v2-state-fg-danger);
 }
@@ -2626,36 +2638,6 @@
   letter-spacing: 0.02em;
 }
 
-/* How full the context is, beside the model (DESIGN §54). */
-[data-slot="context-meter"] {
-  display: inline-flex;
-  align-items: center;
-  min-height: max(22px, calc(22px * var(--font-scale)));
-  padding: 0 6px;
-  border: none;
-  border-radius: 5px;
-  background: var(--v2-background-bg-layer-02);
-  color: var(--v2-text-text-muted);
-  font: inherit;
-  font-size: calc(11px * var(--font-scale));
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-
-[data-slot="context-meter"]:hover {
-  color: var(--v2-text-text-base);
-}
-
-[data-slot="context-meter"][data-level="warn"] {
-  background: var(--v2-state-bg-warning, var(--v2-background-bg-layer-02));
-  color: var(--v2-state-fg-warning, var(--v2-text-text-base));
-}
-
-[data-slot="context-meter"][data-level="high"] {
-  background: var(--v2-state-bg-danger, var(--v2-background-bg-layer-02));
-  color: var(--v2-state-fg-danger, var(--v2-text-text-base));
-}
-
 /* ---------------------------------------------------------------------------
    Context meter (DESIGN §54) — a dial under the input, not a control beside it
    --------------------------------------------------------------------------- */
@@ -2665,11 +2647,18 @@
   display: inline-flex;
 }
 
+/*
+ * `align-items: baseline`, not `center`. An inline-flex box takes its baseline
+ * from its first flex item, and that is the ring — an svg, which has none, so
+ * the browser synthesises one from its bottom edge and lifts the whole control
+ * off the line of hints beside it. Aligning on the baseline hands the job to
+ * the percentage; the ring opts out below and stays centred against it.
+ */
 [data-slot="context-dial"] {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 5px;
-  padding: 0 4px;
+  padding: 1px 4px;
   border: none;
   border-radius: 5px;
   background: none;
@@ -2677,12 +2666,30 @@
   font: inherit;
   font-size: calc(11px * var(--font-scale));
   font-variant-numeric: tabular-nums;
+  line-height: inherit;
   cursor: pointer;
 }
 
+[data-slot="context-dial"] svg {
+  align-self: center;
+  flex: none;
+}
+
+/* Background on hover only — at rest this is a reading, not a button. Focus
+   after a click must not leave it looking permanently pressed, so the keyboard
+   affordance is an outline rather than a fill. */
 [data-slot="context-dial"]:hover {
   background: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-base);
+}
+
+[data-slot="context-dial"]:focus {
+  outline: none;
+}
+
+[data-slot="context-dial"]:focus-visible {
+  outline: 2px solid var(--v2-border-border-strong);
+  outline-offset: 1px;
 }
 
 [data-slot="dial-track"] {
@@ -2711,7 +2718,8 @@
 [data-slot="context-details"] {
   position: absolute;
   bottom: calc(100% + 6px);
-  inset-inline-start: 0;
+  /* Anchored to the right, because the dial is at the right end of the row. */
+  inset-inline-end: 0;
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
