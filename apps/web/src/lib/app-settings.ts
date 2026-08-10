@@ -15,8 +15,10 @@ export interface AppearanceSettings {
   codeFont: string;
   /** Whole-interface zoom, 1 being the design size. */
   scale: number;
-  /** Base text size in px, on top of the interface scale. */
+  /** Base text size in px for displayed content, on top of the interface scale. */
   fontSize: number;
+  /** Sidebar width in CSS pixels, as dragged. */
+  sidebarWidth: number;
 }
 
 export interface NotificationSettings {
@@ -47,16 +49,26 @@ export const SCALES = [
 ];
 
 /**
- * The design's body size. Every other size in the CSS is a multiple of it, so
- * the chosen px value drives them all through `--font-scale`.
+ * The design's body size. Text in the content panes is a multiple of it, so the
+ * chosen px value drives them all through `--content-font-scale`.
  */
 export const BASE_FONT_SIZE = 13;
 
 /** Narrower than the interface scale: text grows inside containers that do not. */
 export const FONT_SIZES = [11, 12, 13, 14, 15, 16];
 
+/** The design width, and the bounds a drag is held within. */
+export const SIDEBAR_WIDTH = { default: 264, min: 180, max: 640 };
+
 const DEFAULTS: AppSettings = {
-  appearance: { colorScheme: "system", interfaceFont: "", codeFont: "", scale: 1, fontSize: BASE_FONT_SIZE },
+  appearance: {
+    colorScheme: "system",
+    interfaceFont: "",
+    codeFont: "",
+    scale: 1,
+    fontSize: BASE_FONT_SIZE,
+    sidebarWidth: SIDEBAR_WIDTH.default,
+  },
   notifications: {
     enabled: false,
     turnFinished: true,
@@ -136,7 +148,10 @@ export function applyAppearance(appearance: AppearanceSettings): void {
   root.style.setProperty("--v2-font-family-sans", appearance.interfaceFont || BUNDLED_SANS);
   root.style.setProperty("--v2-font-family-mono", appearance.codeFont || BUNDLED_MONO);
   root.style.setProperty("--ui-scale", String(appearance.scale));
-  root.style.setProperty("--font-scale", String(appearance.fontSize / BASE_FONT_SIZE));
+  // Scoped by the stylesheet to the panes that display content — the tree,
+  // the transcript, a file — rather than to the chrome around them.
+  root.style.setProperty("--content-font-scale", String(appearance.fontSize / BASE_FONT_SIZE));
+  root.style.setProperty("--sidebar-width", `${appearance.sidebarWidth}px`);
 }
 
 /**

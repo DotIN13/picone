@@ -95,7 +95,7 @@ export function FileTab(props: { path: string }) {
               </div>
             </Show>
 
-            <div class="min-h-0 flex-1 overflow-auto">
+            <div data-slot="file-body" class="min-h-0 flex-1 overflow-auto">
               <Show
                 when={fileContent().kind !== "binary"}
                 fallback={

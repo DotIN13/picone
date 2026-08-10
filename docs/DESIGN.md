@@ -482,6 +482,27 @@ stays its own state, because the agent has stopped and it is the human's move.
 `Offline` outranks everything, since whatever the session was last doing, what
 is on screen is a snapshot from before the socket dropped.
 
+**The boundary between them is draggable.** The sidebar is 264px by design,
+180 to 640 by hand, and the handle between it and the main pane is a real
+`role="separator"`: pointer events so a trackpad, a pen and a finger take one
+code path, pointer capture so a fast drag that outruns the cursor keeps
+resizing, arrow keys because a control only a mouse can reach is not a control,
+and double-click (or `Home`) back to the design width — a pane dragged to
+nothing is otherwise hard to recover.
+
+The handle is 1px of visible hairline with a `::after` widening the hit target
+to ±3px, or ±8px on a coarse pointer: thin enough to read as a seam, wide enough
+to grab. The width is an app setting (§49), so it persists per browser rather
+than travelling in the workspace file.
+
+The one subtlety is that the drag delta arrives in **physical** pixels while the
+width it sets is CSS pixels, and interface scale is a `zoom` — at 140% an
+uncorrected handle slides out from under the cursor by 40%. The delta is divided
+by the element's `currentCSSZoom`, sampled once at pointer-down.
+
+Only beside a real column: at compact widths the sidebar is an overlay floating
+over the work, and there is no boundary to move.
+
 The same two primitives rearrange for small screens rather than being replaced —
 see §47.
 
@@ -1486,8 +1507,16 @@ under the controls, because a font choice cannot be judged from its name.
 **Two sizes, because they answer different complaints.** *Interface size* is a
 `zoom` on the root element: everything grows together, which is what you want
 when the whole app is too small to work in. It re-lays-out rather than
-stretching, so hairlines and glyphs stay crisp at any scale, and it goes on
-`html` so overlays portalled to `body` scale with everything else.
+stretching, so hairlines and glyphs stay crisp at any scale.
+
+It goes on **`#root`, not `html`**, and the difference is not cosmetic. A popper
+is portalled to `body` and positioned from `getBoundingClientRect`, which
+reports physical pixels; inside a zoomed tree that translation is then scaled a
+second time, so every menu drifted further from its trigger the larger the
+interface got — 399px adrift at 140%. Zooming `#root` leaves the portal layer in
+an unzoomed coordinate space where the arithmetic is already right, and the
+portalled *content* is zoomed individually. Positioners are deliberately left
+alone: they are the part that has to stay in physical pixels.
 
 *Font size* is the body text in **pixels** — 13px is the design, 11 to 16 the
 range — because that is the number a person actually has an opinion about. It is
@@ -1495,6 +1524,16 @@ stored as px and divided by the design size into `--font-scale`, which every
 `font-size` in the CSS multiplies: the system (§42) is written in absolute
 pixels, so this is applied a declaration at a time rather than through a single
 root rule.
+
+It applies to what you **read**, not to the machinery around it — the file tree
+and session list, the transcript, the contents of a file tab. Growing the text
+in a settings drawer or a title bar helps nobody, that being what interface size
+is for, and chrome that resizes with the prose makes the window feel unstable.
+`--font-scale` is inherited, so scoping it is a matter of declaring it on those
+panes rather than at the root: every `calc(Npx * var(--font-scale))` keeps
+working and resolves to 1 everywhere else. The panes restate the base size as
+well as the variable, since transcript prose has no size of its own and would
+otherwise keep inheriting the body's.
 
 Text that grows inside a box that does not is how a design gets cramped and then
 clipped, so the boxes grow too. Every single-line row — tree rows, tabs, the

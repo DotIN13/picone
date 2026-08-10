@@ -162,7 +162,7 @@
 [data-slot="sidebar"] {
   display: flex;
   flex-direction: column;
-  width: 264px;
+  width: var(--sidebar-width, 264px);
   flex: none;
   min-height: 0;
   background: var(--v2-background-bg-deep);
@@ -223,6 +223,47 @@
   padding: 6px 10px;
   font-size: calc(12px * var(--font-scale));
   color: var(--v2-text-text-faint);
+}
+
+/* The grab handle between the sidebar and the work. Two pixels of hairline
+   with a wider invisible target either side: a splitter you can see is ugly,
+   and one you cannot hit is worse. */
+[data-slot="resizer"] {
+  position: relative;
+  flex: none;
+  width: 1px;
+  background: var(--v2-border-border-muted);
+  cursor: col-resize;
+  outline: none;
+}
+
+[data-slot="resizer"]::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  /* Reaches past its own width on both sides, without taking layout space. */
+  inset-inline: -3px;
+}
+
+[data-slot="resizer"]:hover,
+[data-slot="resizer"][data-dragging] {
+  background: var(--v2-background-bg-accent);
+}
+
+[data-slot="resizer"]:focus-visible {
+  background: var(--v2-border-border-focus);
+}
+
+/* While dragging, nothing else should react to the pointer sweeping over it. */
+[data-slot="body"]:has([data-slot="resizer"][data-dragging]) {
+  cursor: col-resize;
+  user-select: none;
+}
+
+@media (pointer: coarse) {
+  [data-slot="resizer"]::after {
+    inset-inline: -8px;
+  }
 }
 
 /* ── File tree ── */

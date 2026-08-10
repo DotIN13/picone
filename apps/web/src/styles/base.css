@@ -7,14 +7,10 @@
 
   :root {
     /* Two scales, because they answer different complaints (DESIGN §49).
-       `--ui-scale` is a zoom on the root: everything grows together, which is
-       what you want when the whole app is too small to work in. It goes on
-       `html` so overlays portalled to `body` scale with it, and unlike a
-       transform it re-lays-out, so hairlines and glyphs stay crisp.
-       `--font-scale` multiplies every `font-size` and nothing else, for when
-       only the text is hard to read; the design system is written in absolute
-       pixels, so it is applied one declaration at a time. */
-    zoom: var(--ui-scale, 1);
+       `--ui-scale` zooms the whole interface; `--font-scale` grows only the
+       text of the things you are reading. Neither is set here: the zoom goes
+       on `#root` (see below) and the font scale on the panes that display
+       content, so that each applies exactly where it should. */
     --ui-scale: 1;
     --font-scale: 1;
 
@@ -63,11 +59,58 @@
     margin: 0;
   }
 
-  /* `--vh` follows the browser chrome as it collapses on mobile; the `vh`
-     declaration above it is the fallback for anything that lacks `dvh`. */
+  /*
+   * Interface scale lives here rather than on `html`, and the difference
+   * matters. A popper is portalled to `body`, and its position is computed
+   * from `getBoundingClientRect`, which reports *physical* pixels. Inside a
+   * zoomed tree that translation is then scaled again, so a menu drifted
+   * further from its trigger the larger the interface got — 399px adrift at
+   * 140%. Zooming `#root` leaves the portal layer in an unzoomed coordinate
+   * space where that arithmetic is already right; the portalled content is
+   * scaled individually, further down.
+   *
+   * `--vh` follows the browser chrome as it collapses on mobile; the `vh`
+   * declaration above it is the fallback for anything that lacks `dvh`.
+   */
   #root {
+    zoom: var(--ui-scale);
     height: 100vh;
     height: calc(100 * var(--vh));
+  }
+
+  /*
+   * Everything portalled out of `#root`, scaled on its own. Positioners are
+   * deliberately left alone — they are the part that must stay in physical
+   * pixels.
+   */
+  [data-popper-positioner] > *,
+  [data-component="dialog"],
+  [data-component="drawer"],
+  [data-component="tooltip"] {
+    zoom: var(--ui-scale);
+  }
+
+  /*
+   * Font size applies to what you *read*, not to the machinery around it: the
+   * file tree and session list, the transcript, and the contents of a file
+   * tab. Growing the text in a settings drawer or a title bar helps nobody —
+   * that is what interface size is for — and a chrome that resizes with the
+   * prose makes the window feel unstable.
+   *
+   * `--font-scale` is inherited, so scoping it is a matter of declaring it
+   * here rather than at the root; every `calc(Npx * var(--font-scale))` in the
+   * stylesheets keeps working, and resolves to 1 outside these panes.
+   */
+  [data-slot="sidebar-scroll"],
+  [data-slot="sidebar-section"],
+  [data-slot="chat"],
+  [data-slot="markdown-view"],
+  [data-slot="file-body"],
+  .cm-editor {
+    --font-scale: var(--content-font-scale, 1);
+    /* Restate the base as well as the variable: prose in the transcript has no
+       size of its own and would otherwise keep inheriting the body's. */
+    font-size: calc(13px * var(--font-scale));
   }
 
   body {

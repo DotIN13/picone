@@ -7,9 +7,12 @@ import {
   setLayout,
   setWorkspacePickerOpen,
   state,
+  updateAppSettings,
 } from "./store.ts";
+import { SIDEBAR_WIDTH } from "./lib/app-settings.ts";
 import { COARSE_QUERY, COMPACT_QUERY, mediaQuery, trackVisualViewport } from "./lib/media.ts";
 import { TitleBar } from "./components/TitleBar.tsx";
+import { Resizer } from "./components/Resizer.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { TabBar } from "./components/TabBar.tsx";
 import { ChatTab } from "./components/ChatTab.tsx";
@@ -89,6 +92,19 @@ export function App() {
 
           <Show when={sidebarVisible()}>
             <Sidebar />
+          </Show>
+
+          {/* Only beside a real column. As an overlay the sidebar floats over
+              the work and there is no boundary to move. */}
+          <Show when={sidebarVisible() && !state.compact}>
+            <Resizer
+              label="Resize sidebar"
+              value={state.app.appearance.sidebarWidth}
+              onChange={(sidebarWidth) => updateAppSettings({ appearance: { sidebarWidth } })}
+              min={SIDEBAR_WIDTH.min}
+              max={SIDEBAR_WIDTH.max}
+              reset={SIDEBAR_WIDTH.default}
+            />
           </Show>
 
           <main data-slot="main">

@@ -41,7 +41,7 @@ export function Sidebar() {
           <IconButton icon="refresh" label="Refresh" size="normal" onClick={() => void refreshGitStatus()} />
         </div>
 
-        <div class="min-h-0 flex-1 overflow-auto pb-2">
+        <div data-slot="sidebar-scroll" class="min-h-0 flex-1 overflow-auto pb-2">
           <Show when={state.filter.trim().length >= 2} fallback={<FileTree />}>
             <ul>
               <Show when={state.filterResults.length === 0}>
