@@ -18,6 +18,7 @@ import {
   deleteSession,
   getUiState,
   insertSession,
+  lastOpenedSession,
   listSessions,
   rememberWorkspace,
   setUiState,
@@ -118,8 +119,12 @@ export class App {
 
     // Reattach to the most recent session for this workspace, or start one.
     // A session whose Pi session file has gone missing must not block the open.
+    // The one that was last *opened*, not the one with the newest message: you
+    // come back to where you were, even if a background run has said more
+    // somewhere else since.
     const known = listSessions(workspace.path);
-    const mostRecent = known[0];
+    const lastOpened = lastOpenedSession(workspace.path);
+    const mostRecent = known.find((s) => s.id === lastOpened) ?? known[0];
     if (mostRecent) {
       try {
         await this.activateSession(mostRecent.id, mostRecent.title, mostRecent.sessionFile);
@@ -366,7 +371,16 @@ export class App {
     return listSessions(workspace.path).map((row) => {
       const live = loaded.get(row.id);
       if (!live) return row;
-      return { ...row, ...live, excerpt: row.excerpt, forkedFrom: live.forkedFrom ?? row.forkedFrom };
+      // `updatedAt` stays the row's — derived from the last message — because
+      // the runtime's is bumped by any activity at all, including the notices
+      // the list deliberately ignores.
+      return {
+        ...row,
+        ...live,
+        updatedAt: row.updatedAt,
+        excerpt: row.excerpt,
+        forkedFrom: live.forkedFrom ?? row.forkedFrom,
+      };
     });
   }
 
@@ -419,7 +433,25 @@ export class App {
         updateSession(sessionId, { title });
         this.publishSessionList();
       },
+      onActivity: () => this.scheduleSessionList(),
     });
+  }
+
+  /**
+   * Republish the list soon, coalescing a burst into one (DESIGN §27).
+   *
+   * Every committed item makes the excerpt and the ordering stale, and a busy
+   * turn commits a tool call at a time. Rebuilding the list is a query per
+   * session, so it is worth doing once after the flurry rather than on each.
+   */
+  private sessionListTimer: NodeJS.Timeout | null = null;
+
+  private scheduleSessionList(): void {
+    if (this.sessionListTimer) return;
+    this.sessionListTimer = setTimeout(() => {
+      this.sessionListTimer = null;
+      this.publishSessionList();
+    }, 400);
   }
 
   private publishSessionList(): void {

@@ -94,27 +94,57 @@ export function touchSession(id: string): void {
   openDb().prepare(`UPDATE sessions SET updated_at = ? WHERE id = ?`).run(new Date().toISOString(), id);
 }
 
+/**
+ * Sessions for the list, newest conversation first (DESIGN §27).
+ *
+ * "Newest" means the last thing said in it, not the last time it was opened.
+ * Ordering by `updated_at` put whichever session you clicked at the top, which
+ * reshuffles the list as you read it and buries a conversation you were in the
+ * middle of the moment you glance at another one.
+ *
+ * A session where nothing has been said falls back to when it was created, so a
+ * new empty session still appears at the top where it was just made.
+ */
 export function listSessions(workspaceId: string): SessionSummary[] {
   const rows = openDb()
     .prepare(
       `SELECT id, title, session_file, created_at, updated_at, forked_from
-       FROM sessions WHERE workspace_id = ? ORDER BY updated_at DESC`,
+       FROM sessions WHERE workspace_id = ?`,
     )
     .all(workspaceId) as Array<Record<string, unknown>>;
-  return rows.map((r) => ({
-    id: String(r.id),
-    title: String(r.title),
-    sessionFile: r.session_file == null ? undefined : String(r.session_file),
-    createdAt: String(r.created_at),
-    updatedAt: String(r.updated_at),
-    forkedFrom: r.forked_from == null ? undefined : String(r.forked_from),
-    excerpt: lastExcerpt(String(r.id)),
-  }));
+
+  return rows
+    .map((r) => {
+      const said = lastSaid(String(r.id));
+      return {
+        id: String(r.id),
+        title: String(r.title),
+        sessionFile: r.session_file == null ? undefined : String(r.session_file),
+        createdAt: String(r.created_at),
+        updatedAt: said?.at ?? String(r.created_at),
+        forkedFrom: r.forked_from == null ? undefined : String(r.forked_from),
+        excerpt: said?.text,
+      };
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 /**
- * One line of the newest thing anybody actually said, for the session list
- * (DESIGN §27).
+ * The session to reopen when the workspace opens — the one that was last
+ * *opened*, which is a different question from the one the list answers. You
+ * want to come back to where you were, even if another session has newer
+ * messages in it from a background run.
+ */
+export function lastOpenedSession(workspaceId: string): string | undefined {
+  const row = openDb()
+    .prepare(`SELECT id FROM sessions WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT 1`)
+    .get(workspaceId) as Record<string, unknown> | undefined;
+  return row ? String(row.id) : undefined;
+}
+
+/**
+ * The newest thing anybody actually said, and when — the session list shows one
+ * line of it and orders by its timestamp (DESIGN §27).
  *
  * Only user and assistant messages. A transcript ends in machinery far more
  * often than in conversation — a model switch, a rewind notice, an API error,
@@ -122,9 +152,11 @@ export function listSessions(workspaceId: string): SessionSummary[] {
  * nothing about which conversation each one was.
  *
  * The newest of the two rather than the newest *user* message: what a session
- * is about right now is usually the answer, not the question.
+ * is about right now is usually the answer, not the question. Its timestamp is
+ * also what the list sorts by, so the row's text and its time always describe
+ * the same moment.
  */
-function lastExcerpt(sessionId: string): string | undefined {
+function lastSaid(sessionId: string): { text: string; at: string } | undefined {
   // Narrow in SQL so this stays one small read per session, then confirm by
   // parsing — a message whose own text contains `"kind":"user"` would match the
   // pattern, and a coding transcript is exactly where that happens.
@@ -150,7 +182,7 @@ function lastExcerpt(sessionId: string): string | undefined {
     const flat = item.text.replace(/\s+/g, " ").trim();
     if (!flat) continue;
 
-    return flat.length > 120 ? `${flat.slice(0, 119)}…` : flat;
+    return { text: flat.length > 120 ? `${flat.slice(0, 119)}…` : flat, at: item.at };
   }
 
   return undefined;

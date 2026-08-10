@@ -91,6 +91,8 @@ export interface SessionRuntimeOptions {
   onSessionFile: (sessionId: string, file: string) => void;
   /** The session's name changed, from either side of the Pi boundary (§26). */
   onTitle: (sessionId: string, title: string) => void;
+  /** The transcript grew, so anything summarising it is now stale (§27). */
+  onActivity: (sessionId: string) => void;
 }
 
 /**
@@ -737,6 +739,9 @@ ${pointers}` : text;
       appendMessage(this.id, this.seq++, item);
     }
     this.updatedAt = new Date().toISOString();
+    // The session list shows an excerpt of this and orders by its timestamp,
+    // so it is stale the moment anything lands (§27).
+    this.options.onActivity(this.id);
   }
 }
 

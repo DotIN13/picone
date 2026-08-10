@@ -839,6 +839,24 @@ Times are relative — "2m ago", "3d ago", then a date. A column of full
 timestamps is near-identical text, and what a reader wants from a list is which
 one is recent.
 
+**The time, and the order, are the last message — not the last click.** Ordering
+by "updated at" put whichever session you opened at the top, so the list
+reshuffled itself as you read it and a conversation you were halfway through
+sank the moment you glanced at another. Both now come from the same message the
+excerpt does, so a row's text and its time always describe one moment. A session
+where nothing has been said sorts by when it was created, which keeps a new
+empty session at the top where it was just made.
+
+Which session **reopens** with the workspace is a different question, and still
+answered by the last one *opened*: you come back to where you were, even if a
+background run has said more somewhere else since.
+
+The list is republished whenever a transcript grows, coalesced into one update
+per 400ms — a busy turn commits a tool call at a time, and rebuilding costs a
+query per session. Without it the excerpt and the ordering were correct only
+until the next message and then quietly wrong until something else refreshed
+them.
+
 ---
 
 ## 28. Voice input
