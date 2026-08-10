@@ -773,9 +773,19 @@
   color: var(--v2-text-text-muted);
 }
 
-[data-slot="msg"][data-role="user"] {
+/* Wraps a user message and the actions under it, so the actions are outside
+   the bubble. The group takes the alignment and the width limit the bubble
+   used to own. */
+[data-slot="msg-group"][data-role="user"] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   align-self: flex-end;
   max-width: 82%;
+}
+
+[data-slot="msg"][data-role="user"] {
+  max-width: 100%;
   padding: 9px 12px;
   border-radius: 10px;
   background: var(--v2-background-bg-layer-02);
@@ -2503,20 +2513,25 @@
    --------------------------------------------------------------------------- */
 
 /*
- * Outside the bubble and under it, revealed on hover. A user message is short
- * and right-aligned, so buttons inside it would either wrap the text or widen
- * the bubble every time the pointer passed over.
+ * Under the bubble, outside it, revealed on hover. Inside the bubble they
+ * painted on its background and pushed it wider; a user message is short and
+ * right-aligned, so that showed.
+ *
+ * The row keeps its height whether or not it is visible — `opacity` rather than
+ * `display` — because a strip that appears on hover and reflows every message
+ * below it makes a transcript jump under the pointer.
  */
 [data-slot="msg-actions"] {
   display: flex;
   gap: 2px;
   justify-content: flex-end;
-  margin-top: 3px;
+  margin-top: 2px;
+  padding-inline-end: 2px;
   opacity: 0;
   transition: opacity 100ms ease-out;
 }
 
-[data-slot="msg"][data-role="user"]:hover [data-slot="msg-actions"],
+[data-slot="msg-group"]:hover [data-slot="msg-actions"],
 [data-slot="msg-actions"]:focus-within {
   opacity: 1;
 }

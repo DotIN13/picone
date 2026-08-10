@@ -69,15 +69,20 @@ function ChatRow(props: { item: ChatItem }) {
     <Switch>
       <Match when={props.item.kind === "user" ? props.item : null}>
         {(item) => (
-          <div data-slot="msg" data-role="user" data-source={item().source ?? "chat"}>
-            <Show when={item().source === "comment" || item().source === "voice"}>
-              <div data-slot="msg-tag">
-                <Icon name={item().source === "voice" ? "mic" : "comment"} size={11} />
-                {item().source === "voice" ? "voice" : "file comment"}
+          <div data-slot="msg-group" data-role="user">
+            {/* The bubble and its actions are siblings: the actions belong
+                under the message, not inside it, so they never paint on its
+                background or widen it when the pointer passes over. */}
+            <div data-slot="msg" data-role="user" data-source={item().source ?? "chat"}>
+              <Show when={item().source === "comment" || item().source === "voice"}>
+                <div data-slot="msg-tag">
+                  <Icon name={item().source === "voice" ? "mic" : "comment"} size={11} />
+                  {item().source === "voice" ? "voice" : "file comment"}
+                </div>
+              </Show>
+              <div data-slot="msg-body">
+                <MentionText text={item().text} />
               </div>
-            </Show>
-            <div data-slot="msg-body">
-              <MentionText text={item().text} />
             </div>
 
             {/* Only where Pi has a node to go back to (§53). Messages from
