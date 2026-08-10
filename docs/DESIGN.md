@@ -1736,6 +1736,17 @@ with the desktop popover. Four lines and two controls do not: the context panel
 (§54) stays a popup at every size and is simply held inside the viewport. A
 drawer for that is more ceremony than content.
 
+**A drawer ignores clicks that came from its own portaled popups.** Choosing
+from a select inside the settings drawer closed the drawer. Both libraries were
+behaving correctly and that was the problem: Kobalte renders the option list
+through a portal at the end of `<body>`, and Corvu closes on a pointer down
+outside `<Dialog.Content />` — which, in the DOM, is exactly where the option
+is. They are separate libraries with separate layer stacks and no way to know
+about each other. So the drawer declines the dismissal when the pointer landed
+inside a floating layer: `[data-popper-positioner]`, a dialog, a tooltip, or
+another drawer. Clicking the scrim still closes it, which is the behaviour worth
+protecting; only the ones that came from the drawer's own controls are refused.
+
 **A drawer is dragged closed by its header, and nowhere else.** Corvu treats a
 drag anywhere on the drawer as a dismissal, which is right for a sheet of static
 content and wrong for one that is mostly a scrolling list: a list that reaches

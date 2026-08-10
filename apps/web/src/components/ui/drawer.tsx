@@ -9,6 +9,22 @@ export interface DrawerProps {
 }
 
 /**
+ * Layers that are visually inside the drawer but not inside its DOM.
+ *
+ * A select, a popover or a tooltip renders through a portal at the end of
+ * `<body>`, so a click on one is a click *outside* the drawer as far as the DOM
+ * is concerned. Corvu is right to close on an outside click and has no way to
+ * know these belong to it — they come from a different library, with its own
+ * layer stack.
+ */
+const FLOATING_LAYERS = [
+  "[data-popper-positioner]",
+  '[data-component="dialog"]',
+  '[data-component="tooltip"]',
+  '[data-component="drawer"]',
+].join(",");
+
+/**
  * Side panel built on Corvu, matching opencode's drawer: inset 6px from the
  * viewport edge, 8px radius, overlay elevation, and a drag-to-dismiss handle.
  */
@@ -19,6 +35,16 @@ export function Drawer(props: DrawerProps) {
       onOpenChange={props.onOpenChange}
       side={props.side ?? "right"}
       breakPoints={[0.75]}
+      /*
+       * Choosing from a select inside the drawer used to close the drawer: the
+       * option is portaled out of it, so picking one read as clicking away. The
+       * scrim still dismisses, which is the behaviour worth keeping — this only
+       * declines the ones that came from the drawer's own controls.
+       */
+      onOutsidePointer={(event) => {
+        const target = event.target as Element | null;
+        if (target?.closest?.(FLOATING_LAYERS)) event.preventDefault();
+      }}
     >
       {(drawer) => (
         <DrawerPrimitive.Portal>
