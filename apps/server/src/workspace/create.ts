@@ -68,12 +68,14 @@ export function createWorkspace(options: CreateWorkspaceOptions): Workspace {
 
   // A workspace stored inside its own directory refers to it as ".", so the
   // file stays portable when the checkout moves or is cloned elsewhere.
-  const directories = options.location === "central" ? [directory] : ["."];
+  const cwd = options.location === "central" ? directory : ".";
 
   const file: WorkspaceFile = {
     version: 1,
     name,
-    directories,
+    // One directory to start with; context directories are added afterwards,
+    // in settings, once there is a reason for them (§3).
+    cwd,
     permissions: { files: "allow", shell: "ask", git: "ask" },
     voice: { input: true, output: true },
   };

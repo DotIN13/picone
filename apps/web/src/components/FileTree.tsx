@@ -12,11 +12,21 @@ const STATUS_MARK: Record<GitStatus, string> = {
   conflicted: "!",
 };
 
+/** Working directory, then context, then memory (DESIGN §3, §50). */
+const ORDER: Record<string, number> = { cwd: 0, context: 1, memory: 2 };
+
 export function FileTree() {
-  // Project directories first, then memory (§50) — the same order the tree is
-  // handed in, but stated here so it does not depend on how roots were built.
+  /*
+   * The cwd is first because it is where the projects are, and burying it among
+   * reference and memory directories is what made them hard to find. Sorted
+   * here rather than trusted from the server: this is the order the reader
+   * sees, so it is stated where the reading happens.
+   *
+   * A stable sort, so directories keep the order the workspace file lists them
+   * in within each group.
+   */
   const roots = () =>
-    [...(state.workspace?.roots ?? [])].sort((a, b) => Number(a.kind === "memory") - Number(b.kind === "memory"));
+    [...(state.workspace?.roots ?? [])].sort((a, b) => (ORDER[a.kind] ?? 1) - (ORDER[b.kind] ?? 1));
 
   return (
     <div class="py-0.5">
@@ -27,7 +37,7 @@ export function FileTree() {
             depth={0}
             missing={!root.exists}
             isRoot
-            memory={root.kind === "memory"}
+            kind={root.kind}
           />
         )}
       </For>
@@ -40,7 +50,8 @@ function TreeNode(props: {
   depth: number;
   missing?: boolean;
   isRoot?: boolean;
-  memory?: boolean;
+  /** Only set on roots; children are just files. */
+  kind?: "cwd" | "context" | "memory";
 }) {
   const expanded = () => state.expanded[props.entry.path] ?? false;
   const children = () => state.tree[props.entry.path];
@@ -78,9 +89,15 @@ function TreeNode(props: {
           <Icon name="folder" size={13} class="shrink-0 text-v2-icon-icon-muted" />
         </Show>
         <span class="truncate">{props.entry.name}</span>
-        {/* Says what this root is, since it is not project code (§50). */}
-        <Show when={props.memory}>
-          <span data-slot="tree-tag">memory</span>
+        {/*
+          What this root is. Worth saying for two of the three: a context
+          directory may also appear further down inside the working directory
+          (§3), and seeing the same folder twice with no explanation reads as a
+          bug. The working directory needs no label — it is the first row, and
+          everything else is named relative to it.
+        */}
+        <Show when={props.kind === "context" || props.kind === "memory"}>
+          <span data-slot="tree-tag">{props.kind}</span>
         </Show>
         <Show when={status()}>
           {(mark) => (

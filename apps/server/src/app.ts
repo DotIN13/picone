@@ -101,7 +101,8 @@ export class App {
     return {
       ...workspace,
       memory,
-      roots: [...workspace.roots.filter((root) => root.kind === "directory"), ...memoryRoots(memory)],
+      // Order is the order the sidebar shows: cwd, then context, then memory.
+      roots: [...workspace.roots.filter((root) => root.kind !== "memory"), ...memoryRoots(memory)],
       diagnostics,
     };
   }

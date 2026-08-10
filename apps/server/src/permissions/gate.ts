@@ -25,7 +25,7 @@ export interface GatePaths {
    * using than when it is somewhere off the map entirely. Read live, since a
    * workspace edit can change both the list and the flags.
    */
-  roots(): Array<{ path: string; writable: boolean; kind: "directory" | "memory" }>;
+  roots(): Array<{ path: string; writable: boolean; kind: "cwd" | "context" | "memory" }>;
 }
 
 /**

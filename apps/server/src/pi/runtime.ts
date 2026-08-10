@@ -170,7 +170,16 @@ export class SessionRuntime {
   private async init(): Promise<void> {
     const workspace = this.workspace;
     // A memory directory is readable, but it is not where work happens.
-    const cwd = workspace.roots.find((r) => r.exists && r.kind === "directory")?.path ?? process.cwd();
+    /*
+     * The workspace says where to work (§3). Falling back to a context
+     * directory matters when the cwd is missing — a workspace file shared from
+     * another machine still opens somewhere sensible rather than in whatever
+     * directory the server happened to start in.
+     */
+    const cwd =
+      workspace.roots.find((r) => r.exists && r.kind === "cwd")?.path ??
+      workspace.roots.find((r) => r.exists && r.kind === "context")?.path ??
+      process.cwd();
 
     const tail = loadTranscriptTail(this.id, TAIL);
     this.transcript = tail.items;

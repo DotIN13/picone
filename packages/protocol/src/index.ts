@@ -130,7 +130,22 @@ export interface MemorySubject {
 export interface WorkspaceFile {
   version: 1;
   name: string;
-  directories: string[];
+  /**
+   * Where work happens (DESIGN §3). One directory, and the agent's working
+   * directory for the session.
+   */
+  cwd?: string;
+  /**
+   * Directories that are open alongside the cwd — other repositories, a spec
+   * folder, anything worth having to hand. May sit inside the cwd or contain
+   * it; nesting is allowed and is often the point.
+   */
+  context?: string[];
+  /**
+   * The flat list this replaced. Still read: the first entry becomes the cwd
+   * and the rest become context, so an older workspace file opens unchanged.
+   */
+  directories?: string[];
   instructions?: string[];
   /** Extra directories to load skills from, on top of what Pi discovers. */
   skillPaths?: string[];
@@ -150,10 +165,14 @@ export interface Workspace {
   path: string;
   file: WorkspaceFile;
   /**
-   * Roots resolved to absolute paths, with existence checked: the project
-   * directories first, then the enabled memory directories.
+   * Every directory the workspace opens, resolved and existence-checked, in the
+   * order they should be shown: the cwd, then context directories, then the
+   * enabled memory directories (§50). Nesting is allowed, so a root may well be
+   * inside another one.
    */
   roots: WorkspaceRoot[];
+  /** The working directory, resolved. Null when the workspace names none. */
+  cwd: string | null;
   /**
    * Memory directories after merging the global list with this workspace's.
    * Empty until the app fills it, since the loader cannot see global settings.
@@ -169,8 +188,11 @@ export interface WorkspaceRoot {
   /** Absolute, normalized path. */
   path: string;
   exists: boolean;
-  /** Project code, or a memory directory (§50) that is readable alongside it. */
-  kind: "directory" | "memory";
+  /**
+   * What this directory is for. `cwd` is where work happens, `context` is open
+   * alongside it, and `memory` is the readable store described in §50.
+   */
+  kind: "cwd" | "context" | "memory";
   /** Whether the agent may write here. Always true for project directories. */
   writable: boolean;
 }

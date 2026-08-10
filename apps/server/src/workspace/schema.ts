@@ -55,11 +55,26 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
     errors.push(`"name" must be a non-empty string`);
   }
 
+  /*
+   * A workspace names one working directory and any number of directories open
+   * beside it (§3). `directories` is the flat list this replaced and is still
+   * accepted, so an older file opens without being touched: its first entry
+   * becomes the cwd and the rest become context.
+   */
   const directories = stringArray(raw.directories, "directories", errors) ?? [];
-  if (raw.directories === undefined) {
-    errors.push(`"directories" is required`);
-  } else if (directories.length === 0) {
-    warnings.push(`"directories" is empty — the agent will have no roots to work in`);
+  const context = stringArray(raw.context, "context", errors) ?? [];
+
+  let cwd: string | undefined;
+  if (raw.cwd !== undefined) {
+    if (typeof raw.cwd !== "string" || raw.cwd.trim() === "") errors.push(`"cwd" must be a non-empty path`);
+    else cwd = raw.cwd;
+  }
+
+  if (raw.cwd === undefined && raw.directories === undefined) {
+    errors.push(`"cwd" is required (or the older "directories")`);
+  }
+  if (cwd === undefined && directories.length === 0 && context.length === 0) {
+    warnings.push(`this workspace opens no directories — the agent will have nowhere to work`);
   }
 
   const instructions = stringArray(raw.instructions, "instructions", errors);
@@ -211,7 +226,9 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
     file: {
       version: 1,
       name: String(raw.name),
-      directories,
+      cwd,
+      context: context.length ? context : undefined,
+      directories: directories.length ? directories : undefined,
       instructions,
       skillPaths: skillPaths?.length ? skillPaths : undefined,
       skills,

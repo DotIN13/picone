@@ -36,8 +36,22 @@ function stripUndefined<T>(value: T): T {
 export function describeWorkspaceChange(before: WorkspaceFile, after: WorkspaceFile): string | null {
   const parts: string[] = [];
 
-  const added = after.directories.filter((d) => !before.directories.includes(d));
-  const removed = before.directories.filter((d) => !after.directories.includes(d));
+  // Every directory the workspace opens, whichever field it came from — what
+  // matters to the agent is that one appeared, not which list holds it.
+  const opened = (file: WorkspaceFile) => [
+    ...(file.cwd ? [file.cwd] : []),
+    ...(file.context ?? []),
+    ...(file.directories ?? []),
+  ];
+  const beforeDirs = opened(before);
+  const afterDirs = opened(after);
+
+  if (before.cwd !== after.cwd && after.cwd) {
+    parts.push(`The working directory is now ${after.cwd}.`);
+  }
+
+  const added = afterDirs.filter((d) => !beforeDirs.includes(d));
+  const removed = beforeDirs.filter((d) => !afterDirs.includes(d));
   if (added.length) parts.push(`The following directories were added:\n\n${added.map((d) => `- ${d}`).join("\n")}`);
   if (removed.length)
     parts.push(`The following directories were removed:\n\n${removed.map((d) => `- ${d}`).join("\n")}`);

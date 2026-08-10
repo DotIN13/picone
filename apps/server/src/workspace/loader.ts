@@ -44,11 +44,26 @@ export function loadWorkspace(filePath: string): Workspace {
   const seen = new Set<string>();
   const roots: WorkspaceRoot[] = [];
 
-  for (const dir of file.directories) {
+  /*
+   * One working directory, then everything open beside it (§3).
+   *
+   * `directories` is the flat list this replaced: its first entry is read as
+   * the cwd and the rest as context, which is what it already meant in
+   * practice — the runtime picked the first existing one to work in.
+   *
+   * Deduplication is by exact path only. A context directory *inside* the cwd
+   * is a different path and is kept: nesting is allowed, and pulling a
+   * subdirectory out to the top of the sidebar is a large part of the point.
+   */
+  const legacy = file.directories ?? [];
+  const cwdEntry = file.cwd ?? legacy[0];
+  const contextEntries = [...(file.context ?? []), ...(file.cwd ? legacy : legacy.slice(1))];
+
+  const add = (dir: string, kind: "cwd" | "context") => {
     const resolved = expandPath(dir, workspaceDir);
     if (seen.has(resolved)) {
       diagnostics.push(`Duplicate directory ignored: ${dir}`);
-      continue;
+      return;
     }
     seen.add(resolved);
 
@@ -64,10 +79,15 @@ export function loadWorkspace(filePath: string): Workspace {
       name: path.basename(resolved) || resolved,
       path: resolved,
       exists,
-      kind: "directory",
+      kind,
       writable: true,
     });
-  }
+  };
+
+  if (cwdEntry) add(cwdEntry, "cwd");
+  for (const dir of contextEntries) add(dir, "context");
+
+  const cwd = roots.find((root) => root.kind === "cwd")?.path ?? null;
 
   for (const skillPath of file.skillPaths ?? []) {
     const resolved = expandPath(skillPath, workspaceDir);
@@ -80,7 +100,7 @@ export function loadWorkspace(filePath: string): Workspace {
 
   // `memory` is filled by the app, which is the only thing that can see the
   // global list this workspace's entries merge with (§50).
-  return { path: abs, file, roots, memory: [], diagnostics };
+  return { path: abs, file, roots, cwd, memory: [], diagnostics };
 }
 
 /** Stable id for a workspace — the absolute file path is portable enough. */
@@ -95,14 +115,34 @@ export function workspaceId(ws: Workspace): string {
 export function workspaceContext(ws: Workspace): string {
   const lines: string[] = [];
   lines.push(`You are operating in the workspace "${ws.file.name}".`);
-  lines.push("");
-  lines.push("The workspace contains these directories:");
-  lines.push("");
-  // Memory directories are readable roots too, but they are not project code
-  // and listing them here would send the agent looking for source files in
-  // them. They get their own context file instead (§50).
-  for (const root of ws.roots.filter((root) => root.kind === "directory")) {
-    lines.push(`- ${root.path}${root.exists ? "" : " (missing)"}`);
+
+  /*
+   * Paths and one line of purpose, and nothing else (DESIGN §3).
+   *
+   * The directories are disclosed as pointers rather than described: what is
+   * inside them is discoverable with the tools, and spending context on a
+   * summary that will be stale by the second turn buys nothing. Memory
+   * directories are deliberately absent — they are readable roots, but listing
+   * them here sends the agent hunting for source files in them, so they get
+   * their own context file (§50).
+   */
+  const cwd = ws.roots.find((root) => root.kind === "cwd");
+  const context = ws.roots.filter((root) => root.kind === "context");
+
+  if (cwd) {
+    lines.push("");
+    lines.push(`Working directory: ${cwd.path}${cwd.exists ? "" : " (missing)"}`);
+  }
+
+  if (context.length > 0) {
+    lines.push("");
+    lines.push("Also open, and writable, alongside it:");
+    lines.push("");
+    for (const root of context) lines.push(`- ${root.path}${root.exists ? "" : " (missing)"}`);
+    // Worth saying, because a listing of the cwd will not reveal it and a
+    // listing of a nested one looks like a duplicate.
+    lines.push("");
+    lines.push("Some of these may sit inside the working directory, or contain it. That is intended.");
   }
 
   if (ws.file.instructions?.length) {
@@ -113,9 +153,7 @@ export function workspaceContext(ws: Workspace): string {
   }
 
   lines.push("");
-  lines.push(
-    "Use ordinary absolute paths. Work across any of these directories as needed; there is no single working directory that matters.",
-  );
+  lines.push("Use ordinary absolute paths. Work across any of these directories as needed.");
   lines.push("");
   lines.push(
     "The human reviews your work in a web UI and can leave comments anchored to selected text in a file. " +

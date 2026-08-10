@@ -118,6 +118,25 @@ export function SettingsDrawer() {
     if (current) setDraft({ ...current, ...changes });
   };
 
+  /*
+   * What the workspace opens, read through the older flat list as well (§3).
+   *
+   * A file still using `directories` shows its first entry as the working
+   * directory and the rest as context — the same reading the loader gives it —
+   * so the panel matches the sidebar before anything is saved.
+   */
+  const openedCwd = () => {
+    const f = draft();
+    return f?.cwd ?? f?.directories?.[0];
+  };
+
+  const openedContext = () => {
+    const f = draft();
+    if (!f) return [];
+    const legacy = f.directories ?? [];
+    return [...(f.context ?? []), ...(f.cwd ? legacy : legacy.slice(1))];
+  };
+
   const save = async () => {
     const current = draft();
     if (!current) return;
@@ -331,12 +350,29 @@ export function SettingsDrawer() {
                 </Show>
 
                 <Show when={current() === "directories"}>
-                  <StringListEditor
-                    label="Directories"
-                    placeholder="/path/to/repo"
-                    values={file().directories}
-                    onChange={(directories) => patch({ directories })}
-                  />
+                  <div class="flex flex-col gap-4">
+                    {/*
+                      One working directory, then everything open beside it
+                      (§3). Editing either writes the new fields, which is also
+                      how a workspace still on the old flat `directories` list
+                      is migrated: the first save moves it across.
+                    */}
+                    <StringListEditor
+                      label="Working directory"
+                      placeholder="/path/to/repo"
+                      values={openedCwd() ? [openedCwd()!] : []}
+                      max={1}
+                      hint="Where the agent works by default."
+                      onChange={(values) => patch({ cwd: values[0], directories: undefined, context: openedContext() })}
+                    />
+                    <StringListEditor
+                      label="Context directories"
+                      placeholder="/path/to/reference"
+                      values={openedContext()}
+                      hint="Open alongside it, and writable. These may sit inside the working directory, or contain it."
+                      onChange={(context) => patch({ context, cwd: openedCwd(), directories: undefined })}
+                    />
+                  </div>
                 </Show>
 
                 <Show when={current() === "skills"}>
@@ -489,11 +525,19 @@ function StringListEditor(props: {
   label: string;
   values: string[];
   placeholder: string;
+  /** A note under the heading, for lists whose purpose is not self-evident. */
+  hint?: string;
+  /** How many entries the list may hold. Used for the single working directory. */
+  max?: number;
   onChange: (values: string[]) => void;
 }) {
+  const full = () => props.max !== undefined && props.values.length >= props.max;
   return (
     <div class="flex flex-col gap-2">
       <div data-slot="section-title">{props.label}</div>
+      <Show when={props.hint}>
+        <p data-slot="field-hint">{props.hint}</p>
+      </Show>
       <For each={props.values}>
         {(value, index) => (
           <div class="flex items-end gap-2">
@@ -514,9 +558,11 @@ function StringListEditor(props: {
           </div>
         )}
       </For>
-      <Button variant="neutral" icon="plus" class="self-start" onClick={() => props.onChange([...props.values, ""])}>
-        Add
-      </Button>
+      <Show when={!full()}>
+        <Button variant="neutral" icon="plus" class="self-start" onClick={() => props.onChange([...props.values, ""])}>
+          Add
+        </Button>
+      </Show>
     </div>
   );
 }

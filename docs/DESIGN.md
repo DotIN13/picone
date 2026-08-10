@@ -109,10 +109,37 @@ Open workspace UI
 Only one workspace is active at a time. Switching workspace disposes every
 session, stops MCP servers, drops file watches, and opens the other one.
 
+**A workspace opens one working directory, any number of context directories,
+and any number of memory directories.** The three differ in role, not in kind:
+`cwd` is where the agent works and where a shell command starts; `context` is
+open beside it and equally writable — another repository, a spec folder, the
+subdirectory you are actually living in this week; `memory` is the readable
+store of §50. The older flat `directories` list is still read, its first entry
+as the cwd and the rest as context, which is what it already meant in practice
+since the runtime picked the first existing entry to work in. Nothing needs
+rewriting to open.
+
+**They may nest, and that is often the point.** Deduplication is by exact path,
+so naming `…/picone/docs` while the cwd is `…/dotty-projects` opens both: one is
+the tree you navigate, the other is a shortcut to the part of it you care about.
+The sidebar lists the cwd first, then context, then memory — a fixed order,
+because the cwd is where the projects are and burying it among reference and
+memory directories is what made them hard to find. Context and memory roots
+carry a tag; the cwd does not need one, being the first row.
+
+**The agent is told the paths and nothing else.** A directory listing is
+discoverable with the tools it already has, and a summary written at session
+start is stale by the second turn — so the workspace description is a working
+directory, a list of the rest, one line saying that nesting is deliberate, and
+the workspace's own instructions. Memory directories are deliberately absent
+from it: they are readable roots, but listing them beside project code sends the
+agent looking for source files in them, so they get their own context file
+(§50).
+
 **A workspace can be created from any directory.** Requiring a hand-written JSON
 file before anything could be opened made the product unusable on first run.
 `POST /api/workspace/create` takes a directory, writes
-`<name>.workspace.json` into it with `directories: ["."]` — so the file travels
+`<name>.workspace.json` into it with `cwd: "."` — so the file travels
 with the checkout — and opens the result. The alternative location, Picone's own
 data directory, exists for projects that should not carry a Picone file.
 
