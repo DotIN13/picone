@@ -2441,6 +2441,8 @@
   }
 
   [data-slot="settings-index-group"] {
+    /* See the card below: a heading must not absorb the shortfall either. */
+    flex: none;
     padding: 10px 4px 2px;
     color: var(--v2-text-text-faint);
     font-size: calc(11px * var(--font-scale));
@@ -2452,6 +2454,16 @@
   [data-slot="settings-index-card"] {
     display: flex;
     flex-direction: column;
+    /*
+     * `none`, so the card keeps the height of its rows and the list scrolls.
+     *
+     * A flex item shrinks by default, and this one clips — `overflow: hidden`
+     * is what rounds the corners over the rows inside. Together those meant a
+     * list too tall for the drawer did not scroll: the cards absorbed the
+     * shortfall and cut their last row in half. The scrolling belongs to the
+     * container, which already has `overflow: auto` and was never reached.
+     */
+    flex: none;
     border-radius: 10px;
     overflow: hidden;
     background: var(--v2-background-bg-layer-01);
