@@ -500,11 +500,17 @@ ${pointers}` : text;
    * Say how full the context is, whenever it can have changed.
    *
    * Pi offers this as a reading rather than an event, so it is sampled at the
-   * three moments that move it: a turn ending, a compaction ending, and a
-   * session being opened. `tokens` is null until a reply has come back, which
-   * is a real state — right after compaction — and not an error.
+   * moments that move it: a turn ending, a compaction ending, and a session
+   * being opened. `tokens` is null until a reply has come back, which is a real
+   * state — right after compaction — and not an error.
+   *
+   * It is also sampled whenever a transcript is pushed, which is what makes it
+   * survive a reload. Those three moments are all *changes*, and a browser that
+   * reconnects to an already-open session sees none of them: the reading was
+   * emitted while it was away and the dial stayed empty until the next reply.
+   * Being a pull rather than an event, it costs nothing to ask again.
    */
-  private publishContext(): void {
+  publishContext(): void {
     const usage = this.session.getContextUsage();
     this.options.emit(this.id, { type: "context.usage", usage: usage ?? null });
   }

@@ -343,10 +343,14 @@ export class App {
     this.publishSnapshot(id);
   }
 
-  /** Push a session's transcript to every connected browser. */
+  /** Push a session's transcript, and how full its context is, to every browser. */
   private publishSnapshot(id: string): void {
     const runtime = this.sessions.get(id);
-    if (runtime) this.hub.publish(id, runtime.snapshot());
+    if (!runtime) return;
+    this.hub.publish(id, runtime.snapshot());
+    // With the transcript, because the context reading is emitted on change and
+    // a browser that has just reconnected has missed every change so far.
+    runtime.publishContext();
   }
 
   async removeSession(id: string): Promise<void> {

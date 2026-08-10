@@ -1513,13 +1513,12 @@
 [data-slot="model-trigger"] {
   display: inline-flex;
   /*
-   * `baseline`, so the model name and the thinking badge sit on one line.
-   * They are 12px and 10px, and centring text of two sizes aligns their line
-   * boxes rather than their letters — the badge ends up riding low, because a
-   * line box carries descender space the uppercase badge never uses. The icons
-   * opt out below: a glyph wants centring, not a baseline.
+   * Centred, because the button's min-height exceeds its text and that slack
+   * has to fall on both sides. The name/badge baseline is handled one level in,
+   * by `model-label` — aligning the two here would align them to the icons too,
+   * and put every spare pixel of the button below the words.
    */
-  align-items: baseline;
+  align-items: center;
   gap: 5px;
   max-width: 260px;
   min-height: max(26px, calc(26px * var(--font-scale)));
@@ -1545,8 +1544,19 @@
 }
 
 [data-slot="model-trigger"] > [data-slot="icon-svg"] {
-  align-self: center;
   flex: none;
+}
+
+/*
+ * The name and its thinking badge, on one baseline. An `<svg>` has no baseline
+ * of its own, so the browser synthesises one from its bottom edge — which is
+ * why the icons are kept out of this box rather than being aligned with it.
+ */
+[data-slot="model-label"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
 }
 
 [data-slot="model-thinking"] {
@@ -2787,20 +2797,45 @@
  * A phone composer is a different shape from a desktop one, not the same shape
  * scaled: the text gets a line of its own, the controls become round targets
  * under it, and the whole thing is a soft capsule rather than a tight box.
- * Sizes follow what a thumb needs — nothing here is under 36px.
+ *
+ * The numbers are CSS pixels, and a phone also carries `--ui-scale` 1.15 as a
+ * `zoom` on the root — so they paint about a sixth larger than they read here.
+ * They are chosen for the painted size: 34px of send is 39 on the glass, which
+ * is the thumb target. Writing 42 here, as this block first did, gave 48.
  */
 @media (max-width: 767px) {
+  :root {
+    --mobile-text: max(16px, calc(15px * var(--font-scale)));
+  }
+
   [data-slot="composer-box"] {
-    gap: 10px;
-    padding: 14px 12px 10px;
-    border-radius: 24px;
+    gap: 8px;
+    padding: 12px 10px 9px;
+    border-radius: 22px;
+  }
+
+  /*
+   * One size for what you read and what you type. They inherit from different
+   * places — the transcript from the app's base text, the input from its own
+   * rule — so on a phone they are pinned to a single declaration rather than
+   * two numbers that agree today. 16px is also the size below which iOS zooms
+   * the page on focus, which is a far worse outcome than slightly larger text,
+   * so that is the floor and the transcript comes up to meet it.
+   */
+  [data-slot="chat"],
+  [data-slot="composer-input"] {
+    font-size: var(--mobile-text);
+  }
+
+  /* Markdown sets its own size rather than inheriting the chat's, so it is
+     named here too — a message is the same words whether or not it happens to
+     be formatted. */
+  [data-slot="chat"] [data-component="markdown"] {
+    font-size: var(--mobile-text);
   }
 
   [data-slot="composer-input"] {
     padding: 0 6px;
-    /* 16px is also the size below which iOS zooms the page on focus, which is
-       a far worse outcome than slightly larger text. */
-    font-size: max(16px, calc(15px * var(--font-scale)));
     line-height: 1.4;
   }
 
@@ -2812,8 +2847,8 @@
   /* Round, filled, and thumb-sized — the same treatment for every control in
      the row so none of them reads as more of a button than the others. */
   [data-slot="composer-mic"] {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
     border-radius: 999px;
     background: var(--v2-background-bg-layer-02);
     color: var(--v2-text-text-base);
@@ -2821,15 +2856,15 @@
 
   [data-slot="composer-send"],
   [data-slot="composer-stop"] {
-    width: 42px;
-    height: 42px;
+    width: 34px;
+    height: 34px;
     border-radius: 999px;
   }
 
   /* The model reads as a pill in the row rather than a bare label. */
   [data-slot="model-trigger"] {
-    min-height: 38px;
-    padding: 0 14px;
+    min-height: 32px;
+    padding: 0 12px;
     border-radius: 999px;
     background: var(--v2-background-bg-layer-02);
     font-size: calc(13px * var(--font-scale));

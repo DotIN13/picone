@@ -130,10 +130,19 @@ export function ModelPicker() {
   const trigger = (
     <>
       <Icon name="sparkle" size={12} />
-      <span class="truncate">{label()}</span>
-      <Show when={current()?.thinking && current()!.thinking !== "off" && levels().length > 0}>
-        <span data-slot="model-thinking">{current()!.thinking}</span>
-      </Show>
+      {/*
+        The name and the badge are wrapped, because the two alignments here are
+        different jobs. Within the pair it is a baseline: they are 12px and 10px
+        and their letters have to sit on one line. Between the pair and the
+        button it is centring — a button with a min-height taller than its text
+        has slack, and baseline alignment would drop all of it below the words.
+      */}
+      <span data-slot="model-label">
+        <span class="truncate">{label()}</span>
+        <Show when={current()?.thinking && current()!.thinking !== "off" && levels().length > 0}>
+          <span data-slot="model-thinking">{current()!.thinking}</span>
+        </Show>
+      </span>
       <Icon name="chevron-down" size={11} class="opacity-60" />
     </>
   );
