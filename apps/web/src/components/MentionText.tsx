@@ -1,8 +1,6 @@
 import { For, Show } from "solid-js";
 import type { MemorySubject } from "@picone/protocol";
 import { openFile, state } from "../store.ts";
-import { subjectIcon } from "./MentionMenu.tsx";
-import { Icon } from "./ui/icon.tsx";
 
 /**
  * A user message, with `@subject` shown as a pill (DESIGN §52).
@@ -48,16 +46,27 @@ export function MentionText(props: { text: string }) {
       {(part) => (
         <Show when={"subject" in part ? part : null} fallback={<>{"text" in part ? part.text : null}</>}>
           {(hit) => (
-            <button
-              type="button"
-              data-component="reference-pill"
-              data-kind="memory"
+            /*
+              A span, not a button. Blink coerces `<button>` to inline-block
+              whatever the stylesheet says, and an inline-block rides above the
+              text beside it. A mention is a name inside a sentence, so it has
+              to be a genuinely inline box — which means carrying the button's
+              keyboard behaviour by hand.
+            */
+            <span
+              data-component="mention-pill"
+              role="button"
+              tabindex={0}
               title={hit().subject.path}
               onClick={() => void openFile(hit().subject.path)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                void openFile(hit().subject.path);
+              }}
             >
-              <Icon name={subjectIcon(hit().subject.type)} size={11} />
-              <span data-slot="reference-label">{hit().subject.name}</span>
-            </button>
+              @{hit().subject.name}
+            </span>
           )}
         </Show>
       )}

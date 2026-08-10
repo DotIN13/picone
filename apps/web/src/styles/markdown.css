@@ -135,7 +135,16 @@
  */
 [data-component="reference-pill"] {
   display: inline-flex;
-  align-items: center;
+  /*
+   * `baseline`, not `center`, and this is the whole reason the pill used to
+   * float above the sentence: an inline-flex box takes its baseline from its
+   * *first* flex item, and that is the icon — which has no baseline, so the
+   * browser synthesises one from its bottom edge and hangs the whole pill from
+   * there. Aligning on the baseline hands the job to the label instead, so the
+   * name inside the pill sits on the same line as the words either side of it.
+   * The icon opts out below and stays centred.
+   */
+  align-items: baseline;
   gap: 4px;
   max-width: 100%;
   padding: 0 5px;
@@ -159,6 +168,9 @@
 
 [data-component="reference-pill"] [data-slot="icon-svg"] {
   flex: none;
+  /* Centred against the label rather than sat on its baseline, and excluded
+     from the container's baseline so the label alone decides it. */
+  align-self: center;
   color: var(--v2-icon-icon-muted);
 }
 
@@ -386,13 +398,39 @@
   color: var(--v2-text-text-muted);
 }
 
-/* A memory subject named with `@`. Purple, like the memory tag in the tree. */
-[data-component="reference-pill"][data-kind="memory"] [data-slot="icon-svg"] {
+/*
+ * A memory subject named with `@` (DESIGN §52). Purple, like the memory tag in
+ * the tree — the same "this came from the store" signal in both places.
+ *
+ * Coloured type and nothing else at rest: no border, no fill. A mention is a
+ * name inside a sentence, and a box around every one of them turns a paragraph
+ * into a row of buttons. The fill arrives on hover, which is when you are
+ * asking about it.
+ *
+ * `display: inline` matters as much as the colour. An inline-block chip rides
+ * above the words either side of it and pushes the line taller; padding on an
+ * inline box paints without displacing the line, so the name sits on the same
+ * baseline as the sentence it is part of.
+ */
+[data-component="mention-pill"] {
+  display: inline;
+  padding: 1px 3px;
+  margin: 0 -1px;
+  border-radius: 4px;
   color: var(--v2-state-fg-magic);
+  /* The size of the sentence it sits in — inherited rather than pinned, so it
+     tracks the content font-size setting (§49) instead of drifting from the
+     prose the moment that changes. The colour is what marks it out. */
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  /* The name is one thing; never break it across two lines. */
+  white-space: nowrap;
+  transition: background-color 90ms ease-out;
 }
 
-[data-component="reference-pill"][data-kind="memory"] [data-slot="reference-label"] {
-  font-family: inherit;
-  font-size: calc(12px * var(--font-scale));
-  font-weight: 500;
+[data-component="mention-pill"]:hover,
+[data-component="mention-pill"]:focus-visible {
+  background: var(--v2-state-bg-magic);
+  outline: none;
 }

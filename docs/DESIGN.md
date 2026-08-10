@@ -1958,8 +1958,25 @@ been typed. Exactly one menu is open at a time and the keyboard belongs to it.
 comment matchers (§17): text survives editing, copy-paste, reload, and being
 read by something that is not this app. The server re-resolves mentions when the
 turn is sent, and one that no longer resolves degrades to the words the user
-typed. In the transcript a resolved mention renders as a pill (purple, like the
-memory tag in the tree) that opens the page in a tab.
+typed. In the transcript a resolved mention renders as `@Name` in purple — the same
+"this came from the store" signal the memory tag in the tree uses — and opens
+the page in a tab. Coloured type and nothing else at rest: no border, no fill,
+and the size of the sentence it sits in. A box drawn around every mention turns
+a paragraph into a row of buttons; the fill arrives on hover, which is when you
+are asking about it.
+
+It is a `span`, not a `button`, and that is not cosmetic. Blink coerces a button
+to `inline-block` whatever the stylesheet says, and an inline-block rides above
+the words either side of it. A mention is a name inside a sentence, so it has to
+be a genuinely inline box — which means carrying the button's keyboard
+behaviour by hand.
+
+The same trap sits in the reference pills of §51, which *are* inline-flex: an
+inline-flex box takes its baseline from its **first flex item**, and that is the
+icon, which has no baseline — so the browser synthesises one from its bottom
+edge and hangs the whole pill from there. `align-items: baseline` with the icon
+opted out via `align-self: center` hands the job to the label, and the name
+lands on the line it belongs to.
 
 ### Not built
 
