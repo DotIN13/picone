@@ -568,18 +568,24 @@ calls offer **Open**, which appears on hover and opens a tab without navigating
 away from the conversation.
 
 **The view follows the bottom and lets go the instant you scroll up.** It takes
-up again two ways: scrolling all the way back down, or sending — the latter only
-from within 120px of the bottom, so sending from halfway up a long transcript
-leaves you where you were reading. What it never does is re-attach while you sit
-part-way up: coming back has to be something you did.
+up again when you move back *down* to within 120px of the bottom, or when you
+send from within that same distance — sending from halfway up a long transcript
+leaves you where you were reading. What it never does is re-attach on its own:
+every way back requires a deliberate move downwards.
 
-Returning to the bottom is detected **once a frame, not from the `scroll`
-event**. A scroll event is dispatched at the end of the frame, and mid-turn the
-transcript has grown underneath it by then: a scroll that landed exactly on the
-bottom measured ~100px above it by the time the handler ran, so no event-time
-threshold small enough to mean "at the bottom" ever matched. A frame is the
-shortest interval available, and at one frame of growth 16px is plenty. While
-nothing is streaming there is no growth, so the scroll handler does it.
+One threshold for both, and a generous one, because they are the same
+judgement: near enough that you meant to be following. Re-attaching only on a
+perfect landing means chasing a target that is still moving while an answer
+streams in; the *direction* is what carries the meaning, and downwards is
+unambiguous.
+
+Coming back down is detected **once a frame, not from the `scroll` event**. A
+scroll event is dispatched at the end of the frame, and mid-turn the transcript
+has grown underneath it by then: a scroll that landed exactly on the bottom
+measured ~100px above it by the time the handler ran, so a threshold tight
+enough to mean "at the bottom" never matched. A frame is the shortest interval
+available, so what it measures is barely stale. While nothing is streaming
+there is no growth, and the scroll handler does it.
 
 Following takes two mechanisms because neither is enough alone. Watching the
 number of items only fires when a message is *added*, and a streaming message

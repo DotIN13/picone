@@ -15,19 +15,20 @@ export function ChatTab(props: { sessionId: string }) {
   /*
    * Following the bottom, and the rules for stopping and starting again.
    *
-   * Off the moment you scroll up. Back on when you scroll all the way down
-   * again, or when you send something from near the bottom. What it never does
-   * is re-attach on its own while you are reading part-way up.
+   * Off the moment you scroll up. Back on when you scroll back down towards the
+   * bottom, or when you send something from near it. What it never does is
+   * re-attach on its own: every way back requires a deliberate move downwards.
    */
-  const REARM_WITHIN = 120;
   /**
-   * How close counts as "back at the bottom".
+   * How close to the bottom counts as being at it — for sending, and for
+   * scrolling back down. One number for both, because they are the same
+   * judgement: near enough that you meant to be following.
    *
-   * Tighter than `REARM_WITHIN`, because re-attaching has to be something you
-   * did on purpose. Small enough to be meaningful only because it is checked
-   * once a frame during a turn rather than from the `scroll` event — see below.
+   * Generous on purpose. Re-attaching only on a perfect landing means chasing a
+   * moving target while an answer streams in; what matters is the *direction*
+   * you moved, and moving down is unambiguous.
    */
-  const AT_BOTTOM = 16;
+  const NEAR_BOTTOM = 120;
   let pinned = true;
   /** Last position we set ourselves, so a scroll we did not cause is visible. */
   let ownTop = 0;
@@ -82,14 +83,13 @@ export function ChatTab(props: { sessionId: string }) {
   /*
    * One loop per turn, doing both halves of the job.
    *
-   * Pinned, it follows. Released, it watches for the reader arriving back at
-   * the bottom — and that check has to happen here rather than in the `scroll`
-   * handler, because a scroll event is dispatched at the end of the frame and
-   * by then a streaming transcript has grown underneath it. Measured: a scroll
-   * that landed exactly on the bottom was already ~100px above it by the time
-   * the handler ran, so no event-time threshold small enough to mean "at the
-   * bottom" ever matched. A frame is the shortest interval available, and at
-   * one frame of growth 16px is plenty.
+   * Pinned, it follows. Released, it watches for the reader heading back down
+   * — and that check happens here rather than in the `scroll` handler, because
+   * a scroll event is dispatched at the end of the frame and by then a
+   * streaming transcript has grown underneath it. Measured: a scroll that
+   * landed exactly on the bottom was already ~100px above it by the time the
+   * handler ran. A frame is the shortest interval available, so what it
+   * measures is barely stale.
    */
   createEffect(() => {
     if (!working()) return;
@@ -102,7 +102,7 @@ export function ChatTab(props: { sessionId: string }) {
         } else {
           const top = scroller.scrollTop;
           const distance = scroller.scrollHeight - scroller.clientHeight - top;
-          if (top > previousTop && distance <= AT_BOTTOM) pinned = true;
+          if (top > previousTop && distance <= NEAR_BOTTOM) pinned = true;
           previousTop = top;
         }
       }
@@ -121,7 +121,7 @@ export function ChatTab(props: { sessionId: string }) {
   createEffect((previous: string | undefined) => {
     const list = items();
     const latest = [...list].reverse().find((item) => item.kind === "user")?.id;
-    if (latest && latest !== previous && gap() <= REARM_WITHIN) {
+    if (latest && latest !== previous && gap() <= NEAR_BOTTOM) {
       pinned = true;
       queueMicrotask(stick);
     }
@@ -165,7 +165,7 @@ export function ChatTab(props: { sessionId: string }) {
 
         if (top < ownTop - 1 && distance > 1) {
           release();
-        } else if (!pinned && top > ownTop && distance <= AT_BOTTOM) {
+        } else if (!pinned && top > ownTop && distance <= NEAR_BOTTOM) {
           // Back at the bottom while nothing is streaming, so the measurement
           // is trustworthy. During a turn the frame loop above does this.
           pinned = true;
