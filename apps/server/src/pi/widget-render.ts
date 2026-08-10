@@ -108,3 +108,21 @@ export class FactoryWidget {
     this.component.dispose?.();
   }
 }
+
+/**
+ * The keybindings manager a `custom` factory is handed.
+ *
+ * Components consult it to ask whether a keystroke is already claimed by an app
+ * binding before acting on it themselves. Picone has no terminal keymap, so
+ * nothing is claimed and the component keeps every key — which is the right
+ * answer for a dialog that owns the keyboard for as long as it is open.
+ */
+export const keybindingsStub = {
+  matches: () => false,
+  get: () => undefined,
+  getBinding: () => undefined,
+  getAll: () => [],
+  getKeybindings: () => ({}),
+  on: () => () => {},
+  off: () => {},
+};

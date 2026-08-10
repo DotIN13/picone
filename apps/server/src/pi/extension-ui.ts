@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionUiAnswer, ExtensionUiPrompt, ExtensionUiUpdate } from "@picone/protocol";
-import { FactoryWidget, plainTheme } from "./widget-render.ts";
+import { FactoryWidget, WIDGET_WIDTH, keybindingsStub, plainTheme } from "./widget-render.ts";
 
 /**
  * Options Pi passes to the blocking dialog methods.
@@ -39,6 +39,8 @@ export interface ExtensionUiHooks {
   closePrompt(id: string): void;
   /** Push a fire-and-forget surface update. */
   update(update: ExtensionUiUpdate): void;
+  /** Redraw an open `custom` component. */
+  frame(id: string, lines: string[]): void;
   /** Surface a message in the transcript. */
   notify(message: string, level: "info" | "warn" | "error"): void;
   /** Current composer contents, mirrored from the browser. */
@@ -68,8 +70,26 @@ export class ExtensionUiBridge {
    * owns the value and the browser is told when it changes.
    */
   private toolsExpanded = false;
+  /** Open `custom` components, so a keystroke can reach the right one. */
+  private readonly customs = new Map<string, { handleInput?(data: string): void; dispose?(): void }>();
 
   constructor(private readonly hooks: ExtensionUiHooks) {}
+
+  /**
+   * A keystroke for an open `custom` component.
+   *
+   * Already encoded as the bytes a terminal would have sent, because that is
+   * what the component's `handleInput` parses — translating a browser key event
+   * is the browser's job, where the event actually is.
+   */
+  key(id: string, data: string): void {
+    try {
+      this.customs.get(id)?.handleInput?.(data);
+    } catch {
+      // A component that throws on a keystroke should not take the session
+      // down; it stays open and the key is simply lost.
+    }
+  }
 
   /** Resolve a prompt from the browser. Unknown ids are stale and ignored. */
   answer(answer: ExtensionUiAnswer): void {
@@ -89,6 +109,9 @@ export class ExtensionUiBridge {
 
     for (const widget of this.widgets.values()) widget.dispose();
     this.widgets.clear();
+
+    for (const component of this.customs.values()) component.dispose?.();
+    this.customs.clear();
   }
 
   get pendingCount(): number {
@@ -162,6 +185,72 @@ export class ExtensionUiBridge {
       if (options?.timeout) timer = setTimeout(() => settle(fallback), options.timeout);
 
       this.hooks.prompt({ ...prompt, id } as ExtensionUiPrompt);
+    });
+  }
+
+  /**
+   * Run a `ui.custom` component against the browser.
+   *
+   * Three ways out, and all of them settle the promise exactly once: the
+   * component calls `done`, the human dismisses the dialog, or the session goes
+   * away. An extension awaiting this must never be left waiting — before this
+   * existed the call returned `undefined` immediately, which at least did not
+   * hang, and hanging would be a worse trade than not supporting it at all.
+   */
+  private async runCustom<T>(factory: unknown): Promise<T | undefined> {
+    if (typeof factory !== "function") return undefined;
+    const id = randomUUID();
+
+    return new Promise<T | undefined>((resolve) => {
+      let settled = false;
+      const settle = (value: T | undefined) => {
+        if (settled) return;
+        settled = true;
+        this.customs.get(id)?.dispose?.();
+        this.customs.delete(id);
+        this.pending.delete(id);
+        this.hooks.closePrompt(id);
+        resolve(value);
+      };
+
+      // The dialog's own dismissal arrives through the ordinary answer path.
+      this.pending.set(id, () => settle(undefined));
+
+      const draw = (component: { render(width: number): string[] }) => {
+        try {
+          return component.render(WIDGET_WIDTH);
+        } catch {
+          return [];
+        }
+      };
+
+      const tui = {
+        requestRender: () => {
+          const component = this.customs.get(id) as { render(width: number): string[] } | undefined;
+          if (component) this.hooks.frame(id, draw(component));
+        },
+      };
+
+      void (async () => {
+        try {
+          const made = await (factory as (t: unknown, th: unknown, kb: unknown, done: (r: T) => void) => unknown)(
+            tui,
+            plainTheme,
+            keybindingsStub,
+            (result: T) => settle(result),
+          );
+          const component = made as { render(width: number): string[]; handleInput?(d: string): void };
+          if (settled) {
+            (component as { dispose?(): void }).dispose?.();
+            return;
+          }
+          this.customs.set(id, component as never);
+          this.hooks.prompt({ id, method: "custom", lines: draw(component) });
+        } catch {
+          // A component that will not even construct is not worth a dialog.
+          settle(undefined);
+        }
+      })();
     });
   }
 
@@ -302,8 +391,17 @@ export class ExtensionUiBridge {
       setEditorComponent: () => {},
       getEditorComponent: () => undefined,
       addAutocompleteProvider: () => {},
-      custom: async () => undefined,
       overlay: async () => undefined,
+
+      // --- an interactive component ---
+      //
+      // `ui.custom` is a screen the extension draws and drives: it renders
+      // lines and consumes keystrokes until it calls `done`. That is a terminal
+      // *idiom*, but not a terminal requirement — lines can be shown in a
+      // dialog and keys can be forwarded to it. The component runs here, where
+      // it already is; only the pixels and the keystrokes cross the wire.
+      custom: <T,>(factory: unknown, _options?: unknown): Promise<T | undefined> =>
+        bridge.runCustom<T>(factory),
     };
   }
 }

@@ -1530,9 +1530,25 @@ Two hard-won details:
   only means nothing is cut and the browser wraps, while too narrow would lose
   text before it was ever sent.
 
-Still not supported, as in RPC mode: custom message renderers, overlays, and
-keybindings. Those are genuinely TUI-component-shaped, with no text
-representation to cross the wire.
+* **`ui.custom` is a screen, not a question, and it runs where it already is.**
+  An extension hands over a component that renders lines and consumes
+  keystrokes until it calls `done` — `pi-subagents` builds a whole chain editor
+  this way. The component stays on the server; only its lines and your
+  keystrokes cross the wire, which is all a terminal was doing for it. The
+  browser translates a `KeyboardEvent` into the bytes a terminal would have
+  sent, because the browser is the only place that has the event.
+
+  It settles exactly once, by one of three routes: the component calls `done`,
+  you dismiss the dialog, or the session ends. That matters more than the
+  rendering — an extension awaiting `ui.custom` must never be left waiting, and
+  the old behaviour of returning `undefined` immediately was at least honest
+  about not supporting it. Escape is deliberately *not* intercepted: a text UI
+  reads it as "back one level", and stealing it would make the outermost level
+  unreachable.
+
+Still not supported: raw terminal input (`onTerminalInput`), replacing the
+editor with a component that reads it, and custom autocomplete providers. The
+first two need a terminal specifically.
 
 ### The surface, in full
 

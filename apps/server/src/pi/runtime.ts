@@ -155,6 +155,7 @@ export class SessionRuntime {
       prompt: (prompt) => this.options.emit(this.id, { type: "extension.ui.prompt", prompt }),
       closePrompt: (id) => this.options.emit(this.id, { type: "extension.ui.prompt.closed", id }),
       update: (update) => this.options.emit(this.id, { type: "extension.ui.update", update }),
+      frame: (id, lines) => this.options.emit(this.id, { type: "extension.ui.frame", id, lines }),
       notify: (message, level) => this.translator.notice(message, level),
       editorText: () => this.editorText,
     });
@@ -357,6 +358,10 @@ export class SessionRuntime {
   /** Resolve a blocking extension dialog with the human's answer. */
   answerExtensionUi(answer: ExtensionUiAnswer): void {
     this.extensionUi.answer(answer);
+  }
+
+  keyExtensionUi(id: string, data: string): void {
+    this.extensionUi.key(id, data);
   }
 
   /** Mirror of the browser composer, so `getEditorText()` returns something real. */

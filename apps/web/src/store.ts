@@ -120,6 +120,8 @@ interface State {
 
   /** Blocking extension dialogs, oldest first. */
   extensionPrompts: ExtensionUiPrompt[];
+  /** The latest frame of each open `custom` component, which redraws itself. */
+  extensionFrames: Record<string, string[]>;
   /**
    * Everything extensions have drawn, per session (§55).
    *
@@ -182,6 +184,7 @@ const [state, setState] = createStore<State>({
   restoring: null,
 
   extensionPrompts: [],
+  extensionFrames: {},
   extensionUi: {},
   editorPatch: null,
 
@@ -741,6 +744,11 @@ export async function setSessionModel(provider: string, model: string, thinking?
 // Extension UI
 // ---------------------------------------------------------------------------
 
+/** Send a keystroke to an open `custom` component (§55). */
+export function keyExtensionUi(id: string, data: string): void {
+  socket.send({ type: "extension_ui_key", id, data });
+}
+
 export function answerExtensionUi(answer: ExtensionUiAnswer): void {
   socket.send({ type: "extension_ui_answer", answer });
   setState("extensionPrompts", (prompts) => prompts.filter((p) => p.id !== answer.id));
@@ -1088,6 +1096,7 @@ function applyFrame(frame: ServerFrame): void {
     case "extension.ui.prompt.closed":
       // The server gave up on it (timeout or abort) — drop it silently.
       setState("extensionPrompts", (prompts) => prompts.filter((p) => p.id !== event.id));
+      setState("extensionFrames", produce((frames) => void delete frames[event.id]));
       break;
 
     case "extension.ui.update": {
@@ -1144,6 +1153,10 @@ function applyFrame(frame: ServerFrame): void {
       );
       break;
     }
+
+    case "extension.ui.frame":
+      setState("extensionFrames", event.id, event.lines);
+      break;
 
     case "mcp.state":
       setState("mcp", event.servers);

@@ -363,7 +363,16 @@ export type ExtensionUiPrompt =
   | { id: string; method: "select"; title: string; options: string[] }
   | { id: string; method: "confirm"; title: string; message: string }
   | { id: string; method: "input"; title: string; placeholder?: string }
-  | { id: string; method: "editor"; title: string; prefill?: string };
+  | { id: string; method: "editor"; title: string; prefill?: string }
+  /**
+   * `ui.custom` — an interactive component the extension drives itself.
+   *
+   * Unlike the four above, this one has no question and no answer: it is a
+   * screen that renders lines and consumes keystrokes until it decides it is
+   * done. The browser shows the lines and forwards the keys; the component,
+   * running on the server, does the rest.
+   */
+  | { id: string; method: "custom"; lines: string[] };
 
 export type ExtensionUiAnswer =
   | { id: string; value: string }
@@ -532,6 +541,8 @@ export type AgentEvent =
   | { type: "session.commands"; sessionId: string; commands: SlashCommand[] }
   | { type: "extension.ui.prompt"; prompt: ExtensionUiPrompt }
   | { type: "extension.ui.prompt.closed"; id: string }
+  /** A `custom` component redrawing itself while it is open. */
+  | { type: "extension.ui.frame"; id: string; lines: string[] }
   | { type: "extension.ui.update"; update: ExtensionUiUpdate }
   | { type: "mcp.state"; servers: McpServerState[] };
 
@@ -605,6 +616,8 @@ export type ClientMessage =
   | { type: "compact"; sessionId?: string }
   | { type: "new_session"; title?: string }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
+  /** A keystroke for an open `custom` component, already in terminal form. */
+  | { type: "extension_ui_key"; id: string; data: string }
   /** Mirrors composer contents so extensions can read and patch the editor. */
   | { type: "editor_text"; text: string }
   | { type: "ping" };

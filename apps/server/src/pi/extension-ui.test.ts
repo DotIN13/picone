@@ -5,15 +5,24 @@ import { ExtensionUiBridge } from "./extension-ui.ts";
 
 function harness() {
   const updates: ExtensionUiUpdate[] = [];
+  const prompts: { id: string; method: string; lines?: string[] }[] = [];
+  const frames: { id: string; lines: string[] }[] = [];
+  const closed: string[] = [];
   const bridge = new ExtensionUiBridge({
-    prompt: () => {},
-    closePrompt: () => {},
-    update: (u) => updates.push(u),
+    prompt: (p) => void prompts.push(p as never),
+    closePrompt: (id) => void closed.push(id),
+    update: (u) => void updates.push(u),
+    frame: (id, lines) => void frames.push({ id, lines }),
     notify: () => {},
     editorText: () => "typed",
   });
-  return { updates, ui: bridge.context() as never as Record<string, never>, bridge };
+  return { updates, prompts, frames, closed, ui: bridge.context() as never as Record<string, never>, bridge };
 }
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+/** Carriage return, as a terminal sends Enter. */
+const ENTER = String.fromCharCode(13);
 
 test("a factory widget is rendered to lines", () => {
   const { updates, ui } = harness();
@@ -92,4 +101,64 @@ test("disposing the bridge disposes the widgets it is holding", () => {
   }));
   bridge.dispose();
   assert.equal(disposed, true);
+});
+
+test("a custom component is shown, driven by keys, and returns its result", async () => {
+  const { prompts, frames, closed, ui, bridge } = harness();
+  const custom = ui.custom as never as (f: unknown) => Promise<string | undefined>;
+
+  let typed = "";
+  const result = custom((tui: { requestRender(): void }, _theme: unknown, _kb: unknown, done: (r: string) => void) => ({
+    render: () => [`typed: ${typed}`],
+    handleInput: (data: string) => {
+      if (data === ENTER) {
+        done(typed);
+        return;
+      }
+      typed += data;
+      tui.requestRender();
+    },
+  }));
+  await tick();
+
+  // Shown, with its first frame.
+  assert.equal(prompts.length, 1);
+  assert.equal(prompts[0]!.method, "custom");
+  assert.deepEqual(prompts[0]!.lines, ["typed: "]);
+
+  const id = prompts[0]!.id;
+  bridge.key(id, "h");
+  bridge.key(id, "i");
+  assert.deepEqual(frames.map((f) => f.lines), [["typed: h"], ["typed: hi"]]);
+
+  bridge.key(id, ENTER);
+  assert.equal(await result, "hi");
+  assert.deepEqual(closed, [id], "the dialog was not dismissed");
+});
+
+test("dismissing a custom component resolves it rather than hanging", async () => {
+  const { prompts, ui, bridge } = harness();
+  const custom = ui.custom as never as (f: unknown) => Promise<string | undefined>;
+
+  const result = custom(() => ({ render: () => ["waiting"] }));
+  await tick();
+
+  // An extension awaiting this must never be left waiting.
+  bridge.answer({ id: prompts[0]!.id, cancelled: true });
+  assert.equal(await result, undefined);
+});
+
+test("a component that will not construct resolves instead of throwing", async () => {
+  const { prompts, ui } = harness();
+  const custom = ui.custom as never as (f: unknown) => Promise<string | undefined>;
+  const result = custom(() => {
+    throw new Error("no");
+  });
+  assert.equal(await result, undefined);
+  assert.equal(prompts.length, 0, "a dialog was shown for a component that does not exist");
+});
+
+test("a keystroke for an unknown component is ignored", () => {
+  const { bridge } = harness();
+  assert.doesNotThrow(() => bridge.key("nope", "x"));
 });

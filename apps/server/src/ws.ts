@@ -128,6 +128,10 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
       app.answerExtensionUi(message.answer);
       break;
 
+    case "extension_ui_key":
+      app.keyExtensionUi(message.id, message.data);
+      break;
+
     case "editor_text":
       app.setEditorText(message.text);
       break;

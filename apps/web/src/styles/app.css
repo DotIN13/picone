@@ -1331,6 +1331,25 @@
  * a status line rather than a panel, so it gets the same monospace and none of
  * the surface.
  */
+/*
+ * A screen drawn by an extension (§55). Monospace and fixed-width, because the
+ * component laid it out in columns; it holds focus while open, and the focus
+ * ring is suppressed because the whole dialog is the focused thing.
+ */
+[data-slot="ext-custom"] {
+  max-height: min(60vh, 560px);
+  overflow: auto;
+  outline: none;
+}
+
+[data-slot="ext-custom"] pre {
+  margin: 0;
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(12px * var(--font-scale));
+  line-height: 1.45;
+  white-space: pre;
+}
+
 [data-slot="ext-chrome"] {
   margin: 0;
   padding: 2px 4px;

@@ -621,6 +621,11 @@ export class App {
     for (const session of this.sessions.values()) session.answerExtensionUi(answer);
   }
 
+  /** A keystroke for an open `custom` component; unknown ids are ignored. */
+  keyExtensionUi(id: string, data: string): void {
+    for (const session of this.sessions.values()) session.keyExtensionUi(id, data);
+  }
+
   setEditorText(text: string, sessionId?: string): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.activeSession();
     session?.setEditorText(text);
