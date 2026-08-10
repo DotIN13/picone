@@ -778,7 +778,20 @@ function applyFrame(frame: ServerFrame): void {
 
   switch (event.type) {
     case "session.snapshot":
-      setState("transcripts", event.sessionId, event.items);
+      /*
+       * Reconciled by id, not replaced.
+       *
+       * A snapshot arrives with fresh objects, and `<For>` keys on reference —
+       * so assigning it rebuilt every row in the transcript, re-parsing every
+       * markdown message with it. Measured on a 153-row transcript: one short
+       * turn tore down 152 rows and built 154, because a snapshot is emitted
+       * mid-turn (§53). Diffing by id touches only what actually changed.
+       */
+      setState(
+        "transcripts",
+        event.sessionId,
+        state.transcripts[event.sessionId] ? reconcile(event.items, { key: "id" }) : event.items,
+      );
       setState("agentStates", event.sessionId, event.state);
       break;
 

@@ -605,6 +605,24 @@ kept as a backstop — but only when the view also moved *off* the bottom, becau
 content shrinking mid-turn makes the browser clamp `scrollTop` down by itself,
 and reading that as a gesture unpinned the view in the middle of its own answer.
 
+**Snapshots are reconciled by id, not assigned.** A `session.snapshot` arrives
+with fresh objects and `<For>` keys on reference, so assigning it rebuilt every
+row and re-parsed every markdown message with it. Measured on a 153-row
+transcript, one short turn tore down 152 rows and built 154 — because a snapshot
+is emitted mid-turn (§53). Reconciling by `id` took the same turn to 2 nodes
+added and none removed.
+
+That leaves the whole transcript in the DOM, which is fine at this size and
+worth stating with numbers: 155 rows is 2 759 nodes and 45ms to build from
+scratch, against a 51-screen scroll height. `content-visibility: auto` on the
+rows was tried and rejected — layout is already cheap (0.3ms for a full pass),
+and it collapsed `scrollHeight` from 36 187 to 19 605 as unmeasured rows fall
+back to their intrinsic-size estimate, which breaks both the scrollbar and
+sticking to the bottom. Windowing is the answer if transcripts ever reach
+thousands of rows, and it costs text selection across messages, find-in-page,
+and simple height handling — so it wants a real problem first. The nearer limit
+is that opening a session loads its entire transcript from SQLite.
+
 **The working indicator sits in a slot that keeps its height.** It used to be a
 row in its own right, so finishing a turn removed it and slid the whole
 transcript down by its height plus the gap — a jump at the exact moment the
