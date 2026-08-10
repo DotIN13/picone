@@ -23,3 +23,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# The development server's own data directory (see apps/server/scripts/dev.mjs).
+.dev-data/

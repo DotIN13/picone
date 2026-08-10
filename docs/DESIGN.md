@@ -2333,3 +2333,50 @@ falsy one; testing the number hid the dial on a fresh session.
 * **No `compaction` entry in the transcript.** Pi records one in its session
   tree; Picone shows the notices instead, which say the same thing in the place
   the reader is already looking.
+
+---
+
+## 55. What an extension can draw
+
+Covered in §31, where the `ExtensionUIContext` mapping lives. Named here so the
+references from the code resolve: extension surfaces are keyed by session,
+component factories are rendered to lines, and `ui.custom` runs on the server
+with its lines and keystrokes crossing the wire.
+
+---
+
+## 56. Structured tool results
+
+Pi lets a tool return `details` beside its text output — arbitrary JSON, no
+schema — and extensions use it to say what they did in a form other than prose.
+The todo tool sends its entire task list there. Picone kept only `details.patch`
+and discarded the rest, so a tool that had already done the work of describing
+itself structurally was rendered as the sentence it wrote for the model.
+
+**Shape, not name.** The obvious way to draw a task list is to check whether the
+tool is called `todo`. The better way is to check whether the value *is* a task
+list — `tasks: [{ id, subject, status }]` — because the shape is the actual
+contract and a second extension emitting it should render the same way. Every
+task must typecheck before the list is claimed: half-recognising a shape renders
+half its rows, which is worse than not recognising it.
+
+**Everything else is laid out by shape too, and this is the part that matters.**
+A renderer per extension does not scale past the extensions someone has bothered
+to write one for. But the shapes repeat even when the meanings do not: a list of
+records is a table whether the records are subagent runs or search hits; a flat
+object of scalars is a row of fields. So `describeDetails` reads one level down
+and picks a layout from what it finds, and an extension nobody has heard of gets
+a table for free. One level and no further — nesting past that is structure we
+would be guessing at, and a wrong guess reads worse than the JSON, which is at
+least honestly shapeless.
+
+**Unknown tools get their arguments as words.** `summarizeArgs` fell back to
+`JSON.stringify`, which put `{"action":"update","id":4,"status":"completed"}` in
+the transcript — mostly punctuation. Values carry the meaning, so the ones whose
+keys are self-describing (`action`, `status`, `mode`) are shown bare and the
+rest are labelled: `update · id 4 · completed`.
+
+**`details` is capped at 16 KB and dropped if it does not serialise.** These are
+written to the database with the row. A tool that returned a whole file in
+`details` would otherwise store it twice — once as text, once as structure.
+

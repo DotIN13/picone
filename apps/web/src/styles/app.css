@@ -1336,6 +1336,150 @@
  * component laid it out in columns; it holds focus while open, and the focus
  * ring is suppressed because the whole dialog is the focused thing.
  */
+/*
+ * A task list a tool returned (§56). Real text at the reading size rather than
+ * the extension's ASCII, with status in colour and weight — the glyph is kept
+ * so the two renderings are recognisably the same list.
+ */
+[data-slot="todo-list"] {
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+[data-slot="todo-item"] {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: calc(12.5px * var(--font-scale));
+  line-height: 1.45;
+}
+
+[data-slot="todo-glyph"] {
+  flex: none;
+  width: 1em;
+  font-family: var(--v2-font-family-mono);
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="todo-item"][data-status="in_progress"] [data-slot="todo-glyph"] {
+  color: var(--v2-state-fg-warning);
+}
+
+[data-slot="todo-item"][data-status="completed"] [data-slot="todo-glyph"] {
+  color: var(--v2-state-fg-success);
+}
+
+/* Done is quiet: what wants reading is what is left. */
+[data-slot="todo-item"][data-status="completed"] [data-slot="todo-subject"] {
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="todo-item"][data-status="in_progress"] [data-slot="todo-subject"] {
+  font-weight: 560;
+}
+
+[data-slot="todo-blocked"] {
+  color: var(--v2-text-text-muted);
+  font-size: calc(11px * var(--font-scale));
+}
+
+/* The count beside a collapsed row, so it says something without opening. */
+[data-slot="toolcall-count"] {
+  flex: none;
+  color: var(--v2-text-text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(11px * var(--font-scale));
+}
+
+/*
+ * A tool's structured result, laid out by shape (§56). Prose-sized rather than
+ * monospace: these are values to read, not output to scan — the JSON fallback
+ * inside keeps the monospace, because there alignment is all it has.
+ */
+[data-slot="toolcall-details"] {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  font-size: calc(12px * var(--font-scale));
+  line-height: 1.45;
+}
+
+[data-slot="detail-field"] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+[data-slot="detail-block"] {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+[data-slot="detail-key"] {
+  flex: none;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11px * var(--font-scale));
+  letter-spacing: 0.02em;
+}
+
+[data-slot="detail-value"] {
+  color: var(--v2-text-text-base);
+  overflow-wrap: anywhere;
+}
+
+[data-slot="detail-list"] {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="detail-table"] {
+  border-collapse: collapse;
+  width: max-content;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-slot="detail-table"] th {
+  padding: 2px 10px 3px 0;
+  text-align: left;
+  font-weight: 560;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11px * var(--font-scale));
+  border-bottom: 1px solid var(--v2-border-border-muted);
+  white-space: nowrap;
+}
+
+[data-slot="detail-table"] td {
+  padding: 3px 10px 3px 0;
+  color: var(--v2-text-text-base);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+[data-slot="detail-json"] {
+  margin: 0;
+  color: var(--v2-text-text-muted);
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11px * var(--font-scale));
+  white-space: pre-wrap;
+}
+
 [data-slot="ext-custom"] {
   max-height: min(60vh, 560px);
   overflow: auto;

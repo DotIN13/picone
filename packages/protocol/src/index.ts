@@ -480,6 +480,15 @@ export interface ToolCall {
   output?: string;
   /** Unified patch for edit/write tools, when available. */
   patch?: string;
+  /**
+   * The structured result a tool attached to its output (DESIGN §56).
+   *
+   * Pi lets a tool return `details` alongside its text, and extensions use it
+   * to say what they did in a form other than prose — the todo tool puts its
+   * whole task list here. Kept so the browser can draw it rather than print it.
+   * Capped on the way in: this is persisted with the transcript.
+   */
+  details?: unknown;
 }
 
 // ---------------------------------------------------------------------------

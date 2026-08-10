@@ -133,6 +133,8 @@ export class EventTranslator {
         toolCall.output = extractText(event.result) || toolCall.output;
         const patch = extractPatch(event.result);
         if (patch) toolCall.patch = patch;
+        const details = extractDetails(event.result);
+        if (details !== undefined) toolCall.details = details;
         this.toolCalls.delete(event.toolCallId);
         this.hooks.emit({ type: "tool.completed", toolCall: { ...toolCall } });
         this.hooks.commit({ kind: "tool", id: toolCall.id, toolCall: { ...toolCall }, at: now() });
@@ -259,11 +261,43 @@ export function summarizeArgs(toolName: string, args: unknown): string {
       return `${String(a.pattern ?? "")}${a.path ? ` in ${String(a.path)}` : ""}`;
     case "find":
       return String(a.pattern ?? a.path ?? toolName);
-    default: {
-      const preview = JSON.stringify(a);
-      return preview.length > 120 ? `${preview.slice(0, 117)}…` : preview;
-    }
+    default:
+      return summarizeUnknown(a);
   }
+}
+
+/**
+ * A one-line summary of arguments for a tool we know nothing about.
+ *
+ * Extensions bring their own tools, and dumping their arguments as JSON put
+ * `{"action":"update","id":4,"status":"completed"}` in the transcript — mostly
+ * punctuation. The values are what carry meaning, so the leading ones are shown
+ * bare and the rest are named, which reads as `update · id 4 · completed`.
+ *
+ * Only scalars: an argument whose value is an object is not summarisable in a
+ * line, and guessing at one reads worse than leaving it out.
+ */
+function summarizeUnknown(args: Record<string, unknown>): string {
+  // Keys whose *value* already says what it is: "completed" needs no label,
+  // where "4" does.
+  const LEAD = new Set(["action", "mode", "name", "subject", "query", "task", "title", "status"]);
+  const parts: string[] = [];
+
+  for (const [key, value] of Object.entries(args)) {
+    if (value === null || value === undefined || value === "") continue;
+    if (typeof value === "object") continue;
+    const text = String(value);
+    parts.push(LEAD.has(key) || typeof value === "boolean" ? text : `${key} ${text}`);
+    if (parts.length === 4) break;
+  }
+
+  if (parts.length === 0) {
+    const preview = JSON.stringify(args) ?? "";
+    return preview.length > 120 ? `${preview.slice(0, 117)}…` : preview;
+  }
+
+  const line = parts.join(" · ");
+  return line.length > 120 ? `${line.slice(0, 117)}…` : line;
 }
 
 /** Custom message content is either a plain string or content blocks. */
@@ -293,6 +327,45 @@ function extractText(result: unknown): string {
     })
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * How large a `details` payload may be before it is dropped.
+ *
+ * Generous for a description of what a tool did, and small next to a
+ * transcript: these are written to the database with the row, so a tool that
+ * returns a whole file in `details` would otherwise be stored twice — once as
+ * text and once as structure.
+ */
+const MAX_DETAILS = 16_000;
+
+/**
+ * The structured result a tool attached to its output (DESIGN §56).
+ *
+ * `patch` is pulled out separately above and stays there — it has its own
+ * renderer. Everything else is passed through untouched, because the point is
+ * that we do not know what an extension will put here: the todo tool sends its
+ * task list, another might send a table. Judging the shape is the browser's
+ * job, and only for the shapes it recognises.
+ */
+export function extractDetails(result: unknown): unknown {
+  if (!result || typeof result !== "object") return undefined;
+  const details = (result as { details?: unknown }).details;
+  if (!details || typeof details !== "object") return undefined;
+
+  // `patch` alone is already rendered as a diff; passing it on would draw it
+  // twice.
+  const keys = Object.keys(details as Record<string, unknown>);
+  if (keys.length === 0 || (keys.length === 1 && keys[0] === "patch")) return undefined;
+
+  try {
+    const encoded = JSON.stringify(details);
+    if (!encoded || encoded.length > MAX_DETAILS) return undefined;
+  } catch {
+    // Circular, or otherwise not serialisable — it could not survive the trip.
+    return undefined;
+  }
+  return details;
 }
 
 function extractPatch(result: unknown): string | undefined {
