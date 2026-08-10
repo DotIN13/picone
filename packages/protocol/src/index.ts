@@ -433,7 +433,19 @@ export interface ToolCall {
 // ---------------------------------------------------------------------------
 
 export type ChatItem =
-  | { kind: "user"; id: string; text: string; source?: "chat" | "voice" | "comment"; at: string }
+  | {
+      kind: "user";
+      id: string;
+      text: string;
+      source?: "chat" | "voice" | "comment";
+      at: string;
+      /**
+       * The Pi session entry this message became (DESIGN §53). Pi's session file
+       * is a tree, and this is the only handle the browser has on a node in it —
+       * without it there is nothing for "rewind to here" to address.
+       */
+      entryId?: string;
+    }
   /** Output an extension pushed with `pi.sendMessage({ display: true })`. */
   | { kind: "extension"; id: string; customType: string; text: string; at: string }
   | { kind: "assistant"; id: string; text: string; thinking?: string; at: string }
@@ -447,6 +459,8 @@ export type ChatItem =
 
 export type AgentEvent =
   | { type: "session.snapshot"; sessionId: string; items: ChatItem[]; state: AgentState }
+  /** Put text in the composer — a rewound message, ready to be said differently. */
+  | { type: "editor.set"; text: string }
   | { type: "user.message"; id: string; text: string; source: "chat" | "voice" | "comment"; at: string }
   | { type: "assistant.start"; id: string }
   | { type: "assistant.delta"; id: string; text: string }
@@ -538,6 +552,8 @@ export type ClientMessage =
   | { type: "watch_file"; path: string }
   | { type: "unwatch_file"; path: string }
   | { type: "select_session"; sessionId: string }
+  /** Move the leaf back to just before a message, in place (DESIGN §53). */
+  | { type: "rewind"; itemId: string; sessionId?: string }
   | { type: "new_session"; title?: string }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
   /** Mirrors composer contents so extensions can read and patch the editor. */

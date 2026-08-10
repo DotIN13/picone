@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createEffect, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
-import { openFile, state, transcriptOf } from "../store.ts";
+import { forkAt, openFile, rewindTo, state, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
@@ -79,6 +79,32 @@ function ChatRow(props: { item: ChatItem }) {
             <div data-slot="msg-body">
               <MentionText text={item().text} />
             </div>
+
+            {/* Only where Pi has a node to go back to (§53). Messages from
+                before the session tree was tracked have no entry id, and an
+                affordance that cannot work is worse than none. */}
+            <Show when={item().entryId}>
+              <div data-slot="msg-actions">
+                <button
+                  type="button"
+                  data-slot="msg-action"
+                  title="Go back to just before this message, in this session"
+                  onClick={() => rewindTo(item().id)}
+                >
+                  <Icon name="rewind" size={11} />
+                  Rewind
+                </button>
+                <button
+                  type="button"
+                  data-slot="msg-action"
+                  title="Continue from here in a new session, leaving this one as it is"
+                  onClick={() => void forkAt(item().id)}
+                >
+                  <Icon name="git-branch" size={11} />
+                  Fork
+                </button>
+              </div>
+            </Show>
           </div>
         )}
       </Match>

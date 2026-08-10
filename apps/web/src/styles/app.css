@@ -2451,3 +2451,58 @@
 [data-slot="mention-item"][data-active] [data-slot="mention-type"] {
   background: var(--v2-background-bg-layer-03);
 }
+
+/* ---------------------------------------------------------------------------
+   Rewind and fork, on a user message (DESIGN §53)
+   --------------------------------------------------------------------------- */
+
+/*
+ * Outside the bubble and under it, revealed on hover. A user message is short
+ * and right-aligned, so buttons inside it would either wrap the text or widen
+ * the bubble every time the pointer passed over.
+ */
+[data-slot="msg-actions"] {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  margin-top: 3px;
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+
+[data-slot="msg"][data-role="user"]:hover [data-slot="msg-actions"],
+[data-slot="msg-actions"]:focus-within {
+  opacity: 1;
+}
+
+[data-slot="msg-action"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: max(20px, calc(20px * var(--font-scale)));
+  padding: 0 5px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--v2-text-text-muted);
+  font: inherit;
+  font-size: calc(11px * var(--font-scale));
+  cursor: pointer;
+}
+
+[data-slot="msg-action"]:hover {
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-base);
+}
+
+/* No hover on a touch screen, so the actions are simply always there. */
+@media (pointer: coarse) {
+  [data-slot="msg-actions"] {
+    opacity: 1;
+  }
+
+  [data-slot="msg-action"] {
+    min-height: 28px;
+    padding: 0 8px;
+  }
+}

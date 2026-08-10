@@ -117,6 +117,18 @@ export function appendMessage(sessionId: string, seq: number, item: ChatItem): v
     .run(`${sessionId}:${item.id}`, sessionId, seq, JSON.stringify(item));
 }
 
+/**
+ * Drop everything from `seq` onwards (DESIGN §53).
+ *
+ * Used when a session is rewound: our transcript is the rendered conversation,
+ * not Pi's tree, so the branch just left stops being part of it. Nothing is
+ * lost that matters — Pi's session file keeps the whole tree, and this table is
+ * only what the browser draws.
+ */
+export function truncateTranscript(sessionId: string, seq: number): void {
+  openDb().prepare(`DELETE FROM messages WHERE session_id = ? AND seq >= ?`).run(sessionId, seq);
+}
+
 export function loadTranscript(sessionId: string): ChatItem[] {
   const rows = openDb()
     .prepare(`SELECT payload FROM messages WHERE session_id = ? ORDER BY seq ASC`)

@@ -458,6 +458,37 @@ export class App {
     await this.target(sessionId).steer(text);
   }
 
+  /** Go back to just before a message, in place (DESIGN §53). */
+  async rewind(itemId: string, sessionId?: string): Promise<void> {
+    await this.target(sessionId).rewind(itemId);
+  }
+
+  /**
+   * The same point, in a session of its own — the original is left as it is.
+   *
+   * The new session opens with the message in its composer rather than already
+   * having asked it, so a fork is a place to say something different rather
+   * than a copy of a conversation that has already happened.
+   */
+  async fork(itemId: string, sessionId?: string): Promise<SessionRuntime> {
+    const source = this.target(sessionId);
+    const { sessionFile, text, history } = source.forkPoint(itemId);
+
+    const workspace = this.requireWorkspace();
+    const id = randomUUID();
+    const runtime = await this.buildSession(id, forkTitle(source.title), sessionFile ?? undefined);
+    runtime.seedTranscript(history);
+
+    insertSession(workspace.path, runtime.summary());
+    this.sessions.set(id, runtime);
+    this.activeSessionId = id;
+    this.publishSessionList();
+    this.publishCommands(id);
+    this.hub.publish(id, runtime.snapshot());
+    if (text) this.hub.publish(id, { type: "editor.set", text });
+    return runtime;
+  }
+
   async abort(sessionId?: string): Promise<void> {
     await this.target(sessionId).abort();
   }
@@ -500,4 +531,15 @@ export class App {
   publish(sessionId: string | null, event: AgentEvent): void {
     this.hub.publish(sessionId, event);
   }
+}
+
+/**
+ * "Auth redesign" forked twice should not produce "Fork of fork of Auth
+ * redesign" — the number is the useful part, and the original name is what the
+ * session list is scanned for.
+ */
+function forkTitle(title: string): string {
+  const match = /^(.*) \((\d+)\)$/.exec(title);
+  if (match?.[1]) return `${match[1]} (${Number(match[2]) + 1})`;
+  return `${title} (2)`;
 }

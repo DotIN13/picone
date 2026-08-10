@@ -5,11 +5,11 @@ filename — so finishing one never renumbers the rest.
 
 | | |
 |---|---|
-| [Forking and rewinding a session](session-forking.md) | Pi's session file is already a tree; Picone only uses the trunk |
 | [Thin test coverage](automated-tests.md) | only the reference detector has tests; the rest is verified by hand |
 | [Web bundle is one 870 kB chunk](bundle-size.md) | CodeMirror loads whether or not a file is opened |
 | [MCP streamable-HTTP is unverified](mcp-http-transport.md) | written from the spec, exercised only over stdio |
 | [Server logs go nowhere](server-logging.md) | stdout only, lost when the terminal closes |
+| [Branches are invisible](branch-switching.md) | rewinding keeps the old path, but nothing can navigate back to it |
 | [Smaller things](smaller-things.md) | the ones too small to deserve a page each |
 
 ## How this works

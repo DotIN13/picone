@@ -1099,6 +1099,7 @@ App settings             theme · fonts · two size controls · notifications  �
 Resizable sidebar        dragged, keyboard-reachable, persisted            §11
 Media and references     images · diagrams · path and URL pills            §51
 Memory mentions          `@` a subject; the agent gets a pointer, not a page  §52
+Rewind and fork          go back to a message, in place or in a new session §53
 ```
 
 Tests cover the pure pieces of §51 — the reference detector, fence completion
@@ -1879,3 +1880,72 @@ memory tag in the tree) that opens the page in a tab.
   the useful part; that is a much larger feature with its own problems.
 * **`@` names memory subjects only**, not files or sessions. §51 already
   resolves paths in prose, and mixing the two would make the menu a grab bag.
+
+---
+
+## 53. Rewinding and forking a session
+
+A Pi session file is not a transcript. It is an **append-only tree**: every
+entry carries an `id` and a `parentId`, and the "leaf" is where the next entry
+attaches. Branching is moving the leaf. Picone used only the trunk, so a
+conversation that went wrong could be abandoned but not revisited.
+
+Two operations, and the difference is the point.
+
+**Rewind** goes back to just before one of your messages, in the same session.
+Pi's `navigateTree(entryId)` does the work: for a user message it sets the leaf
+to that message's *parent*, hands back the text, and rebuilds the agent's
+in-memory messages from the new branch. Say it differently and the new exchange
+becomes a sibling of the old one.
+
+**Fork** is the same point in a session of its own, leaving the original alone.
+`createBranchedSession` writes the path up to an entry into a new file — but it
+*switches the manager it is called on* to that file, which would hijack the live
+session, so it runs on a throwaway `SessionManager.open()` of the same path and
+only the returned filename is kept.
+
+Both open with the message back in the composer rather than already asked. A
+rewind you cannot edit is just a delete.
+
+**Nothing is ever deleted.** After rewinding past two messages the tree holds
+both paths as siblings; the file grows, and Pi can still reach either leaf.
+
+**Finding the entry id was the interesting part.** Pi has an `entry_appended`
+event, and it is a trap: it fires only for entries an *extension* appended,
+never for ordinary messages. What Pi does offer is the branch, and the user
+messages on it are the same sequence, in the same order, as the user items in
+our transcript (§37) — which is not Pi's, and holds things Pi never sees like
+permission cards. So after every turn the two are walked together and each user
+item is stamped with the entry it became.
+
+The alignment is checked as it goes. The entry holds the *model-facing* text,
+which for a mention (§52) has a pointer block appended, so the test is that the
+entry starts with what was displayed; the moment they disagree it stops. A
+missing id costs the rewind affordance on that message, which is the right way
+to be wrong — an affordance that cannot work is worse than none, so the buttons
+only appear where there is a node to go back to.
+
+**Our transcript is truncated to match**, in memory and in the `messages` table.
+It is what the browser draws, not a record of everything that ever happened;
+Pi's file is that. A forked session is seeded with the history it inherited, so
+its chat shows the conversation its agent actually remembers rather than opening
+blank on top of a full context.
+
+**Rewinding says what it did.** Picone cannot switch between branches yet, and
+silently removing messages from the screen while keeping them on disk is the
+kind of thing a user discovers by accident. One notice, in the transcript, at
+the point it happened.
+
+### Not built
+
+* **No way to switch to an abandoned branch.** The tree is intact and Pi's own
+  interface can reach it; Picone shows one path at a time. A tree view in the
+  Sessions section is the obvious home for this.
+* **No branch summaries.** `navigateTree` can spend a model call describing what
+  was abandoned, which is worth having when rewinding past real work and pure
+  cost when fixing a typo. It needs a choice in the UI before it is worth
+  wiring.
+* **Comments do not follow a branch.** A comment (§16) anchored to a message on
+  an abandoned path still exists and still points at its file. That is
+  harmless — comments anchor to files, not to messages — but it means a
+  conversation about a comment can end up on a path the agent no longer sees.

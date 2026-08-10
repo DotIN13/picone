@@ -83,6 +83,11 @@ export const api = {
   createSession: (title: string) =>
     request<{ session: SessionSummary }>("/sessions", { method: "POST", body: JSON.stringify({ title }) }),
   selectSession: (id: string) => request<{ ok: true }>(`/sessions/${id}/select`, { method: "POST" }),
+  forkSession: (id: string, itemId: string) =>
+    request<{ session: SessionSummary }>(`/sessions/${id}/fork`, {
+      method: "POST",
+      body: JSON.stringify({ itemId }),
+    }),
   renameSession: (id: string, title: string) =>
     request<{ ok: true }>(`/sessions/${id}`, { method: "PATCH", body: JSON.stringify({ title }) }),
   deleteSession: (id: string) => request<{ ok: true }>(`/sessions/${id}`, { method: "DELETE" }),

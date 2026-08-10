@@ -602,6 +602,32 @@ export function sendPrompt(text: string, source: "chat" | "voice" = "chat"): voi
   socket.send({ type: "prompt", text, source, sessionId });
 }
 
+/**
+ * Go back to just before a message and say it differently (DESIGN §53).
+ *
+ * The server truncates the transcript and sends a fresh snapshot, so nothing
+ * has to be guessed here — including the message text, which comes back as an
+ * `editor.set` and lands in the composer.
+ */
+export function rewindTo(itemId: string): void {
+  const sessionId = state.activeSessionId;
+  if (!sessionId) return;
+  socket.send({ type: "rewind", itemId, sessionId });
+}
+
+/** The same point, in a session of its own. This one leaves the original alone. */
+export async function forkAt(itemId: string): Promise<void> {
+  const sessionId = state.activeSessionId;
+  if (!sessionId) return;
+  try {
+    const { session } = await api.forkSession(sessionId, itemId);
+    addSessionTab(session.id, session.title);
+    setState({ activeTabId: session.id, activeSessionId: session.id });
+  } catch (err) {
+    setState("toast", { text: (err as Error).message, level: "error" });
+  }
+}
+
 export function abort(): void {
   if (!state.activeSessionId) return;
   socket.send({ type: "abort", sessionId: state.activeSessionId });
@@ -740,6 +766,10 @@ function applyFrame(frame: ServerFrame): void {
     case "session.snapshot":
       setState("transcripts", event.sessionId, event.items);
       setState("agentStates", event.sessionId, event.state);
+      break;
+
+    case "editor.set":
+      setState("editorPatch", { text: event.text, at: Date.now() });
       break;
 
     case "user.message":

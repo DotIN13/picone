@@ -29,6 +29,7 @@ import Pencil from "lucide-solid/icons/pencil";
 import Plug from "lucide-solid/icons/plug";
 import Plus from "lucide-solid/icons/plus";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
+import Undo2 from "lucide-solid/icons/undo-2";
 import Search from "lucide-solid/icons/search";
 import Settings from "lucide-solid/icons/settings";
 import Shield from "lucide-solid/icons/shield";
@@ -76,6 +77,7 @@ const ICONS = {
   plug: Plug,
   plus: Plus,
   refresh: RefreshCw,
+  rewind: Undo2,
   rename: Pencil,
   search: Search,
   settings: Settings,

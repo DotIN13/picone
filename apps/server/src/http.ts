@@ -292,6 +292,21 @@ export function createApiRouter(app: App): Router {
     }),
   );
 
+  /**
+   * Fork the conversation at a message into a session of its own (DESIGN §53).
+   * A request rather than a socket frame because the caller needs the new
+   * session back to open a tab for it.
+   */
+  router.post(
+    "/sessions/:id/fork",
+    asyncRoute(async (req, res) => {
+      const itemId = String(req.body?.itemId ?? "");
+      if (!itemId) throw new Error("itemId is required");
+      const session = await app.fork(itemId, String(req.params.id));
+      res.json({ session: session.summary() });
+    }),
+  );
+
   router.post(
     "/sessions/:id/select",
     asyncRoute(async (req, res) => {
