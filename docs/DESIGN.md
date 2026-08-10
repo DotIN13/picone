@@ -821,10 +821,17 @@ session, it changes under you, and it is already on the composer where it can
 also be changed — three reasons for a column that never distinguishes one row
 from another.
 
-The excerpt is the newest message rather than the newest *user* message: what a
-session is about right now is usually the answer, not the question. It is read
-one row per session straight from the transcript table, so the list costs one
-extra query and no memory. Filtering matches the name *and* the excerpt, since
+The excerpt is the newest thing anybody actually **said** — user or assistant,
+and nothing else. A transcript ends in machinery far more often than in
+conversation (a model switch, a rewind notice, an API error, a tool call), and a
+column of rows reading "Model switched to …" says nothing about which
+conversation each one was. Between the two it is simply the newest: what a
+session is about right now is usually the answer, not the question. A session
+where nothing was ever said shows no excerpt at all.
+
+It is read straight from the transcript table, narrowed in SQL and confirmed by
+parsing — a message whose own text contains `"kind":"user"` would match the
+pattern, and a coding transcript is exactly where that happens. Filtering matches the name *and* the excerpt, since
 a conversation is often remembered by what was said in it rather than by what
 it was called.
 

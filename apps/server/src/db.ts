@@ -113,32 +113,47 @@ export function listSessions(workspaceId: string): SessionSummary[] {
 }
 
 /**
- * One line from the newest message, for the session list (DESIGN §27).
+ * One line of the newest thing anybody actually said, for the session list
+ * (DESIGN §27).
  *
- * The newest row rather than the newest *user* row: what a session is "about"
- * right now is usually the answer, not the question. Read one row per session,
- * which is why the list stays cheap with a hundred of them.
+ * Only user and assistant messages. A transcript ends in machinery far more
+ * often than in conversation — a model switch, a rewind notice, an API error,
+ * a tool call — and a list of rows reading "Model switched to …" tells you
+ * nothing about which conversation each one was.
+ *
+ * The newest of the two rather than the newest *user* message: what a session
+ * is about right now is usually the answer, not the question.
  */
 function lastExcerpt(sessionId: string): string | undefined {
-  const row = openDb()
-    .prepare(`SELECT payload FROM messages WHERE session_id = ? ORDER BY seq DESC LIMIT 1`)
-    .get(sessionId) as Record<string, unknown> | undefined;
-  if (!row) return undefined;
+  // Narrow in SQL so this stays one small read per session, then confirm by
+  // parsing — a message whose own text contains `"kind":"user"` would match the
+  // pattern, and a coding transcript is exactly where that happens.
+  const rows = openDb()
+    .prepare(
+      `SELECT payload FROM messages
+       WHERE session_id = ?
+         AND (payload LIKE '%"kind":"user"%' OR payload LIKE '%"kind":"assistant"%')
+       ORDER BY seq DESC LIMIT 12`,
+    )
+    .all(sessionId) as Array<Record<string, unknown>>;
 
-  try {
-    const item = JSON.parse(String(row.payload)) as ChatItem;
-    const text =
-      item.kind === "user" || item.kind === "assistant" || item.kind === "notice" || item.kind === "extension"
-        ? item.text
-        : item.kind === "tool"
-          ? item.toolCall.title
-          : "";
-    const flat = text.replace(/\s+/g, " ").trim();
-    if (!flat) return undefined;
+  for (const row of rows) {
+    let item: ChatItem;
+    try {
+      item = JSON.parse(String(row.payload)) as ChatItem;
+    } catch {
+      continue;
+    }
+    if (item.kind !== "user" && item.kind !== "assistant") continue;
+
+    // An assistant turn that was all thinking, or all tool calls, has no text.
+    const flat = item.text.replace(/\s+/g, " ").trim();
+    if (!flat) continue;
+
     return flat.length > 120 ? `${flat.slice(0, 119)}…` : flat;
-  } catch {
-    return undefined;
   }
+
+  return undefined;
 }
 
 export function deleteSession(id: string): void {
