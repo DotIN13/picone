@@ -114,22 +114,32 @@ function ChatRow(props: { item: ChatItem }) {
         )}
       </Match>
 
+      {/*
+        An assistant turn with nothing in it gets no bubble. The turn is
+        announced before its first token and only dropped once it ends, so a
+        step that produces only tool calls would otherwise show an empty bubble
+        for as long as the tool takes and then delete it — which is what made a
+        transcript look like nothing was happening. `working…` already says the
+        agent is busy; a blank bubble says it replied with nothing.
+      */}
       <Match when={props.item.kind === "assistant" ? props.item : null}>
         {(item) => (
-          <div data-slot="msg" data-role="assistant">
-            <Show when={item().thinking}>
-              {(thinking) => (
-                <details data-slot="thinking">
-                  <summary>
-                    <Icon name="sparkle" size={11} />
-                    thinking
-                  </summary>
-                  <pre>{thinking()}</pre>
-                </details>
-              )}
-            </Show>
-            <Markdown text={item().text} onOpenFile={(path) => void openFile(path)} />
-          </div>
+          <Show when={item().text.trim() || item().thinking}>
+            <div data-slot="msg" data-role="assistant">
+              <Show when={item().thinking}>
+                {(thinking) => (
+                  <details data-slot="thinking">
+                    <summary>
+                      <Icon name="sparkle" size={11} />
+                      thinking
+                    </summary>
+                    <pre>{thinking()}</pre>
+                  </details>
+                )}
+              </Show>
+              <Markdown text={item().text} onOpenFile={(path) => void openFile(path)} />
+            </div>
+          </Show>
         )}
       </Match>
 
