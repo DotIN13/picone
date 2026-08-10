@@ -6,13 +6,40 @@
   }
 
   :root {
-    /* Two scales, because they answer different complaints (DESIGN §49).
-       `--ui-scale` zooms the whole interface; `--font-scale` grows only the
-       text of the things you are reading. Neither is set here: the zoom goes
-       on `#root` (see below) and the font scale on the panes that display
-       content, so that each applies exactly where it should. */
+    /*
+     * ==== How everything gets its size (DESIGN §49) ==========================
+     *
+     * Any painted size in the app is one of these two, and nothing else:
+     *
+     *     text      = <px in the rule> x --font-scale x --ui-scale
+     *     geometry  = <px in the rule>                x --ui-scale
+     *
+     * Three inputs feed those, each set in exactly one place:
+     *
+     *   --ui-scale     the Interface size setting. Applied as `zoom` on #root
+     *                  (below) and on the portal layers, which sit outside it.
+     *                  Moves type and geometry together.
+     *
+     *   --text-boost   1 everywhere except the phone block of app.css, which
+     *                  raises it to 16/13. Moves type only. A handset needs
+     *                  larger text than a monitor but not proportionally larger
+     *                  buttons — 16px of text wants a 39px send button, not a
+     *                  48px one — and zoom cannot say that.
+     *
+     *   --content-font-scale
+     *                  the Font size setting, as a ratio of the 13px design
+     *                  base. Set by applyAppearance(); folded into --font-scale
+     *                  on the content panes only (see the block further down),
+     *                  so prose grows without the chrome moving.
+     *
+     * --font-scale is the one both text levers arrive through, which is why
+     * every rule that sizes text writes `calc(Npx * var(--font-scale))` and
+     * never reads the three inputs directly.
+     * =======================================================================
+     */
     --ui-scale: 1;
-    --font-scale: 1;
+    --text-boost: 1;
+    --font-scale: var(--text-boost);
 
     /* Anything measured against the viewport — `vh`, `env()`, a pixel count
        from JS — is in unzoomed pixels, so inside a zoomed root it renders
@@ -91,15 +118,16 @@
   }
 
   /*
-   * Font size applies to what you *read*, not to the machinery around it: the
+   * The *setting* applies to what you read, not to the machinery around it: the
    * file tree and session list, the transcript, and the contents of a file
    * tab. Growing the text in a settings drawer or a title bar helps nobody —
    * that is what interface size is for — and a chrome that resizes with the
    * prose makes the window feel unstable.
    *
-   * `--font-scale` is inherited, so scoping it is a matter of declaring it
-   * here rather than at the root; every `calc(Npx * var(--font-scale))` in the
-   * stylesheets keeps working, and resolves to 1 outside these panes.
+   * This is the second of the two places --font-scale is declared (the chain is
+   * documented at :root). Here it carries both text levers; at the root it
+   * carries only --text-boost, so the same `calc(Npx * var(--font-scale))`
+   * follows the setting inside these panes and ignores it outside them.
    */
   [data-slot="sidebar-scroll"],
   [data-slot="sidebar-section"],
@@ -107,7 +135,7 @@
   [data-slot="markdown-view"],
   [data-slot="file-body"],
   .cm-editor {
-    --font-scale: var(--content-font-scale, 1);
+    --font-scale: calc(var(--content-font-scale, 1) * var(--text-boost, 1));
     /* Restate the base as well as the variable: prose in the transcript has no
        size of its own and would otherwise keep inheriting the body's. */
     font-size: calc(13px * var(--font-scale));

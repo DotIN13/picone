@@ -2804,34 +2804,20 @@
  * is the thumb target. Writing 42 here, as this block first did, gave 48.
  */
 @media (max-width: 767px) {
+  /*
+   * All text one notch larger; geometry stays with the zoom. This is the only
+   * override of the three sizing inputs — the chain is documented at :root in
+   * base.css. 16/13 puts the design's 13px body text on 16px, which is also
+   * the size below which iOS zooms the page when you focus an input.
+   */
   :root {
-    --mobile-text: max(16px, calc(15px * var(--font-scale)));
+    --text-boost: calc(16 / 13);
   }
 
   [data-slot="composer-box"] {
     gap: 8px;
     padding: 12px 10px 9px;
     border-radius: 22px;
-  }
-
-  /*
-   * One size for what you read and what you type. They inherit from different
-   * places — the transcript from the app's base text, the input from its own
-   * rule — so on a phone they are pinned to a single declaration rather than
-   * two numbers that agree today. 16px is also the size below which iOS zooms
-   * the page on focus, which is a far worse outcome than slightly larger text,
-   * so that is the floor and the transcript comes up to meet it.
-   */
-  [data-slot="chat"],
-  [data-slot="composer-input"] {
-    font-size: var(--mobile-text);
-  }
-
-  /* Markdown sets its own size rather than inheriting the chat's, so it is
-     named here too — a message is the same words whether or not it happens to
-     be formatted. */
-  [data-slot="chat"] [data-component="markdown"] {
-    font-size: var(--mobile-text);
   }
 
   [data-slot="composer-input"] {

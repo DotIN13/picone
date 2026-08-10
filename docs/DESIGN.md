@@ -1637,19 +1637,39 @@ from fighting.
 **Installability.** A web manifest, maskable icon, `standalone` display, and
 scheme-aware `theme-color` so the status bar matches the app in both themes.
 
-**A phone starts one notch larger.** The design is drawn for a pointer at desk
-distance; the same numbers on a handset held closer, and tapped rather than
-clicked, come out small. So `scale` *defaults* to 1.15 on a compact viewport —
-scale rather than a second set of sizes, so one control still governs it and the
-proportions hold — and it is only a default, overridden per browser the moment
-the setting is touched.
+**One chain, three inputs.** Every painted size in the app is
+`px x --font-scale x --ui-scale` for text and `px x --ui-scale` for geometry.
+Three things feed that, each set in exactly one place: `--ui-scale` is the
+Interface size setting, applied as `zoom`; `--content-font-scale` is the Font
+size setting, folded in on the content panes only, so prose grows without the
+chrome moving; and `--text-boost` is 1 everywhere but the phone. Rules never
+read the three — they write `calc(Npx * var(--font-scale))` and let the chain
+resolve. The full statement lives at `:root` in `base.css`.
+
+**A phone starts one notch larger, and its text larger still.** The design is
+drawn for a pointer at desk distance; the same numbers on a handset held closer,
+and tapped rather than clicked, come out small. Two levers move, because they
+answer different halves of that. `scale` defaults to 1.15 on a compact viewport,
+which grows the geometry — and is only a default, overridden per browser the
+moment the setting is touched. `--text-boost` then puts the 13px body text on
+16px, and *only* the text: a handset needs larger type than a monitor but not
+proportionally larger buttons, and 16px of text wants a 39px send button rather
+than a 48px one. Zoom alone cannot express that, which is the whole reason the
+second lever exists.
+
+Sixteen is not an arbitrary landing point. It is the size below which iOS zooms
+the page when you focus an input, so putting the base there means the composer
+clears the threshold without being special-cased — and because the boost is a
+multiplier and not a size, the Font size setting still does what it says on a
+phone: 16px chosen in settings is 16/13 *on top of* the boost, and the transcript
+grows past the chrome exactly as it does on a desktop.
 
 **The composer is a different shape on a phone, not the same shape scaled.** The
 text takes a line of its own, the controls become round targets beneath it, and
 the whole thing is a soft capsule: 24px radius, 38px mic, 42px send, and the
 model as a filled pill rather than a bare label. Nothing in the row is under
-36px. The input is at least 16px because that is the size below which iOS zooms
-the page on focus, which is a worse outcome than slightly larger text.
+36px. The input needs no size of its own: the phone's text boost already puts it on
+16px, which is where iOS stops zooming the page on focus.
 
 **What becomes a sheet, and what does not.** A long list wants the full width and
 the keyboard: the model picker is a bottom sheet on compact, sharing one body
