@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
-import { forkAt, loadEarlier, openFile, rewindTo, state, transcriptOf } from "../store.ts";
+import { forkAt, loadEarlier, openFile, rewindTo, state, surfaceOf, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
@@ -307,10 +307,23 @@ export function ChatTab(props: { sessionId: string }) {
           the reader starts reading the answer.
         */}
         <div data-slot="chat-tail">
-          <Show when={working()}>
+          {/*
+            An extension can rename this row, hide it, or replace the spinner
+            (§55). `frames` of one is a static glyph and `[]` means no indicator
+            at all, which is why an empty array is not the same as undefined.
+          */}
+          <Show when={working() && !surfaceOf(props.sessionId).workingHidden}>
             <div data-slot="chat-working">
-              <Spinner />
-              {agentState() === "tool" ? "running tools" : "working"}…
+              <Show
+                when={surfaceOf(props.sessionId).workingFrames}
+                fallback={<Spinner />}
+              >
+                {(frames) => <Show when={frames().length > 0}>
+                  <span data-slot="chat-working-frame">{frames()[0]}</span>
+                </Show>}
+              </Show>
+              {surfaceOf(props.sessionId).workingMessage ??
+                `${agentState() === "tool" ? "running tools" : "working"}…`}
             </div>
           </Show>
         </div>

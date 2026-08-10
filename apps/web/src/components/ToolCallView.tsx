@@ -1,6 +1,6 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import type { ToolCall } from "@picone/protocol";
-import { openFile } from "../store.ts";
+import { surfaceOf, openFile } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
 import { Spinner } from "./ui/primitives.tsx";
 
@@ -16,7 +16,13 @@ const FILE_TOOLS = new Set(["read", "write", "edit", "ls"]);
  * long run is the one call that failed.
  */
 export function ToolCallView(props: { toolCall: ToolCall }) {
-  const [open, setOpen] = createSignal(false);
+  /*
+   * Collapsed unless an extension has asked otherwise (§55). `setToolsExpanded`
+   * is a global preference, so a change to it re-syncs every call — that is the
+   * point of the call — while a toggle in between stays a local decision.
+   */
+  const [open, setOpen] = createSignal(surfaceOf().toolsExpanded ?? false);
+  createEffect(() => setOpen(surfaceOf().toolsExpanded ?? false));
 
   const path = () => (FILE_TOOLS.has(props.toolCall.name) ? extractPath(props.toolCall.args) : null);
   const hasDetail = () => Boolean(props.toolCall.output || props.toolCall.patch);

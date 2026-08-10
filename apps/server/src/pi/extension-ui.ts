@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionUiAnswer, ExtensionUiPrompt, ExtensionUiUpdate } from "@picone/protocol";
-import { FactoryWidget } from "./widget-render.ts";
+import { FactoryWidget, plainTheme } from "./widget-render.ts";
 
 /**
  * Options Pi passes to the blocking dialog methods.
@@ -16,6 +16,21 @@ interface DialogOptions {
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 type PromptDraft = DistributiveOmit<ExtensionUiPrompt, "id">;
+
+/**
+ * What Pi hands a footer factory as its third argument.
+ *
+ * Present so a factory that destructures it works rather than throwing; the
+ * values it exposes are terminal-footer concerns that Picone shows elsewhere or
+ * not at all, so they answer emptily rather than wrongly. `onBranchChange`
+ * returns its unsubscribe, as the real one does.
+ */
+const footerData = {
+  getGitBranch: () => null,
+  getExtensionStatuses: () => new Map<string, string>(),
+  getAvailableProviderCount: () => 0,
+  onBranchChange: () => () => {},
+};
 
 export interface ExtensionUiHooks {
   /** Push a blocking prompt to the browser. */
@@ -47,6 +62,12 @@ export class ExtensionUiBridge {
   private readonly pending = new Map<string, (answer: ExtensionUiAnswer) => void>();
   /** Live factory widgets, so a redraw request can reach the right component. */
   private readonly widgets = new Map<string, FactoryWidget>();
+  /**
+   * Whether tool output starts expanded. Held here because `getToolsExpanded`
+   * is synchronous — it cannot wait for the browser to answer — so the server
+   * owns the value and the browser is told when it changes.
+   */
+  private toolsExpanded = false;
 
   constructor(private readonly hooks: ExtensionUiHooks) {}
 
@@ -72,6 +93,33 @@ export class ExtensionUiBridge {
 
   get pendingCount(): number {
     return this.pending.size;
+  }
+
+  /**
+   * A header or footer, which Pi takes only as a component factory.
+   *
+   * The same shape as a factory widget and rendered by the same machinery; the
+   * only difference is where the lines land. The footer factory is called with
+   * a third argument, a data provider, so one is supplied — an extension that
+   * destructures it should find the fields it expects rather than a crash.
+   */
+  private chrome(slot: "header" | "footer", factory: unknown): void {
+    const key = `chrome:${slot}`;
+    this.widgets.get(key)?.dispose();
+    this.widgets.delete(key);
+
+    const send = (lines: string[] | undefined) => this.hooks.update({ method: "setChrome", slot, lines });
+    if (typeof factory !== "function") {
+      send(undefined);
+      return;
+    }
+
+    const widget = new FactoryWidget(
+      (tui, theme) => (factory as (t: unknown, th: unknown, data: unknown) => never)(tui, theme, footerData),
+      send,
+    );
+    this.widgets.set(key, widget);
+    widget.push();
   }
 
   private ask<T>(
@@ -197,32 +245,65 @@ export class ExtensionUiBridge {
       pasteToEditor: (text: string) => bridge.hooks.update({ method: "setEditorText", text }),
       getEditorText: () => bridge.hooks.editorText(),
 
-      // --- terminal-only, intentionally inert ---
+      // --- the row shown while the agent works ---
+      //
+      // Picone draws one too, so all three of these describe something real
+      // here rather than a terminal affordance.
+      setWorkingMessage: (message?: string) => bridge.hooks.update({ method: "setWorkingMessage", message }),
+      setWorkingVisible: (visible: boolean) => bridge.hooks.update({ method: "setWorkingVisible", visible }),
+      setWorkingIndicator: (options?: { frames?: string[] }) =>
+        bridge.hooks.update({ method: "setWorkingIndicator", frames: options?.frames }),
+
+      setHiddenThinkingLabel: (label?: string) =>
+        bridge.hooks.update({ method: "setHiddenThinkingLabel", label }),
+
+      // --- header and footer ---
+      //
+      // Factories, like the second form of setWidget, and rendered the same
+      // way. The footer factory is additionally handed a data provider; we pass
+      // one that answers what we can and nothing where we cannot, rather than
+      // omitting it and having the factory throw on arity.
+      setFooter: (factory?: unknown) => bridge.chrome("footer", factory),
+      setHeader: (factory?: unknown) => bridge.chrome("header", factory),
+
+      // --- tool output folding ---
+      //
+      // A real setting here, not a TUI one: it decides whether a tool call in
+      // the transcript starts open. Held on the server so the synchronous
+      // getter can answer, and mirrored to the browser so it can act on it.
+      getToolsExpanded: () => bridge.toolsExpanded,
+      setToolsExpanded: (expanded: boolean) => {
+        bridge.toolsExpanded = expanded;
+        bridge.hooks.update({ method: "setToolsExpanded", expanded });
+      },
+
+      // --- theming ---
+      //
+      // `theme` is a property rather than a method, and extensions reach for it
+      // to style their own output. Returning the plain-text theme keeps that
+      // working — styling is a no-op and the text arrives intact. It used to be
+      // absent entirely, which would throw on the first `ctx.ui.theme.fg(...)`.
+      get theme() {
+        return plainTheme;
+      },
+      getAllThemes: () => [{ name: "picone", path: undefined }],
+      getTheme: () => plainTheme,
+      setTheme: () => ({ success: false, error: "Themes are controlled by the Picone UI" }),
+
+      // --- genuinely terminal-only, intentionally inert ---
       //
       // Every member of Pi's `ExtensionUIContext` is present even when it does
       // nothing. An absent method is not a graceful degradation: the extension
       // throws `ctx.ui.x is not a function` and its whole command fails.
+      //
+      // What is left here needs a terminal specifically: raw keystrokes, and
+      // replacing the editor with a TUI component that reads them.
       onTerminalInput: () => () => {},
-      setWorkingMessage: () => {},
-      setWorkingVisible: () => {},
-      setWorkingIndicator: () => {},
-      setHiddenThinkingLabel: () => {},
-      setFooter: () => {},
-      setHeader: () => {},
       setEditorComponent: () => {},
       getEditorComponent: () => undefined,
       addAutocompleteProvider: () => {},
       custom: async () => undefined,
       overlay: async () => undefined,
-
-      // Tool-output folding is a TUI affordance; the web view always expands.
-      getToolsExpanded: () => true,
-      setToolsExpanded: () => {},
-
-      // Theming is Picone's own concern, not the TUI theme registry's.
-      getAllThemes: () => [],
-      getTheme: () => undefined,
-      setTheme: () => ({ ok: false as const, error: "Themes are controlled by the Picone UI" }),
     };
   }
 }

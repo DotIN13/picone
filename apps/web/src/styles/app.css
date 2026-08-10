@@ -1326,6 +1326,35 @@
   margin-top: 8px;
 }
 
+/*
+ * A header or footer drawn by an extension (§55). Quieter than a widget: it is
+ * a status line rather than a panel, so it gets the same monospace and none of
+ * the surface.
+ */
+[data-slot="ext-chrome"] {
+  margin: 0;
+  padding: 2px 4px;
+  color: var(--v2-text-text-muted);
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11px * var(--font-scale));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+[data-slot="ext-chrome"][data-chrome="header"] {
+  margin-bottom: 6px;
+}
+
+[data-slot="ext-chrome"][data-chrome="footer"] {
+  margin-top: 6px;
+}
+
+/* A static indicator an extension supplied in place of the spinner. */
+[data-slot="chat-working-frame"] {
+  font-family: var(--v2-font-family-mono);
+}
+
 [data-slot="ext-widget"] {
   margin: 0;
   padding: 8px 10px;

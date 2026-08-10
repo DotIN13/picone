@@ -4,6 +4,7 @@ import {
   setSettingsOpen,
   setWorkspacePickerOpen,
   state,
+  surfaceOf,
   toggleColorScheme,
   toggleSidebar,
 } from "../store.ts";
@@ -80,8 +81,8 @@ export function TitleBar() {
 
       <div class="flex items-center gap-1.5">
         {/* Extension `setStatus` entries live here, the way the TUI footer
-            shows them. */}
-        <For each={Object.entries(state.extensionStatus)}>
+            shows them — the active session's, since they belong to one. */}
+        <For each={Object.entries(surfaceOf().status)}>
           {([key, text]) => (
             <Tooltip label={`Set by an extension (${key})`}>
               <span data-slot="titlebar-ext-status">{text}</span>

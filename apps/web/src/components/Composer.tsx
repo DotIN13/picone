@@ -14,6 +14,7 @@ import {
   state,
   toggleColorScheme,
   toggleSidebar,
+  surfaceOf,
   widgetsAt,
 } from "../store.ts";
 import { Dictation, isSpeechInputSupported, stopSpeaking } from "../voice/speech.ts";
@@ -23,6 +24,26 @@ import { Switch } from "./ui/primitives.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import { SlashMenu, filterCommands } from "./SlashMenu.tsx";
 import { MentionMenu, filterSubjects, mentionQueryAt } from "./MentionMenu.tsx";
+
+/**
+ * A header or footer an extension drew (§55).
+ *
+ * Pi puts the header above the chat and the footer along the bottom; here both
+ * sit with the composer, which is the nearest equivalent Picone has to a status
+ * line and keeps extension chrome in one place rather than two.
+ */
+export function ExtensionChrome(props: { slot: "header" | "footer" }) {
+  const lines = () => (props.slot === "header" ? surfaceOf().header : surfaceOf().footer);
+  return (
+    <Show when={lines()?.length ? lines() : null}>
+      {(text) => (
+        <pre data-slot="ext-chrome" data-chrome={props.slot}>
+          {text().join("\n")}
+        </pre>
+      )}
+    </Show>
+  );
+}
 
 /** Line blocks an extension pushed via `setWidget`, rendered as monospace. */
 function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
@@ -279,6 +300,7 @@ export function Composer() {
       <Show when={voiceError()}>{(error) => <div data-slot="composer-error">{error()}</div>}</Show>
 
       <div data-slot="composer-shell">
+        <ExtensionChrome slot="header" />
         <ExtensionWidgets placement="aboveEditor" />
 
         <SlashMenu
@@ -368,6 +390,7 @@ export function Composer() {
         </div>
 
         <ExtensionWidgets placement="belowEditor" />
+        <ExtensionChrome slot="footer" />
       </div>
 
       <div data-slot="composer-hint">

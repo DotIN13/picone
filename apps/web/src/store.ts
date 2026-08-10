@@ -65,6 +65,25 @@ export interface OpenFileState {
   markdownSource: boolean;
 }
 
+/** One session's extension-drawn surfaces (DESIGN §55). */
+export interface ExtensionSurface {
+  /** `setStatus`, keyed as the extension keyed it. */
+  status: Record<string, string>;
+  /** `setWidget` blocks around the composer. */
+  widgets: Record<string, { lines: string[]; placement: "aboveEditor" | "belowEditor" }>;
+  /** `setHeader` / `setFooter`, rendered from their component factories. */
+  header?: string[];
+  footer?: string[];
+  /** `setWorkingMessage` / `setWorkingVisible` / `setWorkingIndicator`. */
+  workingMessage?: string;
+  workingHidden?: boolean;
+  workingFrames?: string[];
+  /** `setHiddenThinkingLabel`. */
+  thinkingLabel?: string;
+  /** `setToolsExpanded` — whether a tool call starts open. */
+  toolsExpanded?: boolean;
+}
+
 export type ColorScheme = "light" | "dark";
 
 export type { AppSettings } from "./lib/app-settings.ts";
@@ -101,10 +120,14 @@ interface State {
 
   /** Blocking extension dialogs, oldest first. */
   extensionPrompts: ExtensionUiPrompt[];
-  /** `setStatus` entries, keyed as the extension keyed them. */
-  extensionStatus: Record<string, string>;
-  /** `setWidget` line blocks around the composer. */
-  extensionWidgets: Record<string, { lines: string[]; placement: "aboveEditor" | "belowEditor" }>;
+  /**
+   * Everything extensions have drawn, per session (§55).
+   *
+   * Keyed by session because it belongs to one: the todo list of the session
+   * you are looking at is not the todo list of the one working in another tab.
+   * Keyed globally, a background session's update overwrote the foreground's.
+   */
+  extensionUi: Record<string, ExtensionSurface>;
   /** Text an extension pushed into the composer, consumed by the Composer. */
   editorPatch: { text: string; at: number } | null;
 
@@ -159,8 +182,7 @@ const [state, setState] = createStore<State>({
   restoring: null,
 
   extensionPrompts: [],
-  extensionStatus: {},
-  extensionWidgets: {},
+  extensionUi: {},
   editorPatch: null,
 
   tabs: [],
@@ -733,8 +755,15 @@ export function consumeEditorPatch(): void {
   setState("editorPatch", null);
 }
 
+/** The active session's extension surfaces, or an empty one before anything draws. */
+export function surfaceOf(sessionId: string | null = state.activeSessionId): ExtensionSurface {
+  return (sessionId && state.extensionUi[sessionId]) || EMPTY_SURFACE;
+}
+
+const EMPTY_SURFACE: ExtensionSurface = { status: {}, widgets: {} };
+
 export function widgetsAt(placement: "aboveEditor" | "belowEditor"): string[][] {
-  return Object.values(state.extensionWidgets)
+  return Object.values(surfaceOf().widgets)
     .filter((widget) => widget.placement === placement)
     .map((widget) => widget.lines);
 }
@@ -1063,26 +1092,56 @@ function applyFrame(frame: ServerFrame): void {
 
     case "extension.ui.update": {
       const update = event.update;
-      if (update.method === "setStatus") {
-        if (update.text === undefined) {
-          setState("extensionStatus", produce((status) => void delete status[update.key]));
-        } else {
-          setState("extensionStatus", update.key, update.text);
-        }
-      } else if (update.method === "setWidget") {
-        if (update.lines === undefined) {
-          setState("extensionWidgets", produce((widgets) => void delete widgets[update.key]));
-        } else {
-          setState("extensionWidgets", update.key, {
-            lines: update.lines,
-            placement: update.placement ?? "aboveEditor",
-          });
-        }
-      } else if (update.method === "setTitle") {
+
+      // Two of these are not surfaces of a session and stay where they were.
+      if (update.method === "setTitle") {
         if (sid) setState("tabs", (tab) => tab.id === sid, "name", update.title);
-      } else if (update.method === "setEditorText") {
-        setState("editorPatch", { text: update.text, at: Date.now() });
+        break;
       }
+      if (update.method === "setEditorText") {
+        setState("editorPatch", { text: update.text, at: Date.now() });
+        break;
+      }
+
+      // The rest belong to the session that drew them. A workspace-level frame
+      // has no session to file under, and there is nothing sensible to do with
+      // it — better dropped than shown against whichever session is in front.
+      if (!sid) break;
+      setState(
+        "extensionUi",
+        produce((all) => {
+          const surface = (all[sid] ??= { status: {}, widgets: {} });
+          switch (update.method) {
+            case "setStatus":
+              if (update.text === undefined) delete surface.status[update.key];
+              else surface.status[update.key] = update.text;
+              break;
+            case "setWidget":
+              if (update.lines === undefined) delete surface.widgets[update.key];
+              else surface.widgets[update.key] = { lines: update.lines, placement: update.placement ?? "aboveEditor" };
+              break;
+            case "setChrome":
+              if (update.slot === "header") surface.header = update.lines;
+              else surface.footer = update.lines;
+              break;
+            case "setWorkingMessage":
+              surface.workingMessage = update.message;
+              break;
+            case "setWorkingVisible":
+              surface.workingHidden = !update.visible;
+              break;
+            case "setWorkingIndicator":
+              surface.workingFrames = update.frames;
+              break;
+            case "setHiddenThinkingLabel":
+              surface.thinkingLabel = update.label;
+              break;
+            case "setToolsExpanded":
+              surface.toolsExpanded = update.expanded;
+              break;
+          }
+        }),
+      );
       break;
     }
 

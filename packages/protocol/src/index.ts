@@ -374,6 +374,25 @@ export type ExtensionUiAnswer =
 export type ExtensionUiUpdate =
   | { method: "setStatus"; key: string; text: string | undefined }
   | { method: "setWidget"; key: string; lines: string[] | undefined; placement?: "aboveEditor" | "belowEditor" }
+  /**
+   * `setHeader` and `setFooter`. Both take a component factory in Pi and are
+   * rendered to lines the same way a factory widget is; they differ from a
+   * widget only in where they sit, so they share one message.
+   */
+  | { method: "setChrome"; slot: "header" | "footer"; lines: string[] | undefined }
+  /** The label on the row shown while the agent works. */
+  | { method: "setWorkingMessage"; message: string | undefined }
+  /** Whether that row appears at all. */
+  | { method: "setWorkingVisible"; visible: boolean }
+  /**
+   * The animation beside it. `frames` of one is a static glyph, `[]` hides the
+   * indicator but keeps the row, and undefined restores the default spinner.
+   */
+  | { method: "setWorkingIndicator"; frames: string[] | undefined }
+  /** What a collapsed thinking block is called. */
+  | { method: "setHiddenThinkingLabel"; label: string | undefined }
+  /** Whether tool output starts expanded. */
+  | { method: "setToolsExpanded"; expanded: boolean }
   | { method: "setTitle"; title: string }
   | { method: "setEditorText"; text: string };
 
