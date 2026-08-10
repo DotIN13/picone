@@ -204,37 +204,16 @@
     background: transparent;
   }
 
-  /*
-   * Momentum scrolling inside panes, without dragging what is behind them.
-   *
-   * `contain` matters most inside a drawer. A drawer is dismissed by dragging
-   * it, and a swipe that runs off the end of a list would otherwise chain into
-   * that drag — so reaching the bottom of the settings list would start closing
-   * the drawer. Every scrollable pane is named here, including the ones inside
-   * drawers, for that reason rather than for the momentum.
-   */
+  /* Momentum scrolling inside panes, without dragging the page behind them. */
   [data-slot="chat"],
   [data-slot="sidebar-scroll"],
   [data-slot="settings-panel"],
-  [data-slot="settings-index"],
-  [data-slot="settings-nav"],
   [data-slot="picker-list"],
   [data-slot="model-list"],
-  [data-slot="ext-custom"],
-  [data-slot="toolcall-details"],
-  [data-slot="toolcall-output"],
   [data-component="slash-menu"],
   .cm-scroller {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-  }
-
-  /*
-   * The tab strip scrolls sideways, and a horizontal swipe there must not turn
-   * into the browser's back gesture at either end.
-   */
-  [data-slot="tabstrip"] {
-    overscroll-behavior-x: contain;
   }
 
   /*

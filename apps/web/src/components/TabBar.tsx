@@ -11,25 +11,7 @@ interface DropTarget {
 /** Movement before a press becomes a drag rather than a tap or a scroll. */
 const DRAG_THRESHOLD = 8;
 /** On touch, a drag has to be deliberate or it fights the scroll gesture. */
-/**
- * How long a finger must rest on a tab before it becomes a reorder.
- *
- * 500ms is the platform convention, and the reason to match it is scrolling:
- * once the drag arms, every move is `preventDefault`ed, so a strip that has
- * armed cannot be swiped. At 320ms an ordinary pause before swiping — putting
- * a thumb down and then deciding — reordered the tabs instead of scrolling
- * them.
- */
-const LONG_PRESS_MS = 500;
-
-/**
- * Movement that cancels a pending long press.
- *
- * Smaller than the drag threshold, and deliberately below the browser's own
- * touch slop: a finger that has moved at all is scrolling, and waiting for the
- * full threshold leaves a window where the press arms mid-swipe.
- */
-const LONG_PRESS_SLOP = 3;
+const LONG_PRESS_MS = 320;
 
 export function TabBar() {
   const [dragging, setDragging] = createSignal<string | null>(null);
@@ -86,7 +68,7 @@ export function TabBar() {
       if (!armed) {
         // A touch that moves before the long press is a scroll, not a drag.
         if (touch) {
-          if (dx > LONG_PRESS_SLOP || dy > LONG_PRESS_SLOP) cleanup();
+          if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) cleanup();
           return;
         }
         if (dx > DRAG_THRESHOLD) arm();
