@@ -32,7 +32,7 @@ export function ToolCallView(props: { toolCall: ToolCall }) {
           title={hasDetail() ? (open() ? "Hide output" : "Show output") : undefined}
         >
           <span data-slot="toolcall-status">
-            <Switch status={props.toolCall.status} />
+            <StatusGlyph status={props.toolCall.status} />
           </span>
           <span data-slot="toolcall-name">{props.toolCall.name}</span>
           <span data-slot="toolcall-title">{props.toolCall.title}</span>
@@ -78,8 +78,16 @@ export function ToolCallView(props: { toolCall: ToolCall }) {
   );
 }
 
-/** One glyph, same width in every state, so the names below it stay in a column. */
-function Switch(props: { status: ToolCall["status"] }) {
+/**
+ * One glyph, same width in every state, so the names below it stay in a column.
+ *
+ * Not called `Switch`. Solid's JSX compiler treats `Switch` as control flow and
+ * compiles `<Switch>` into the built-in whatever is in scope, so a local
+ * component of that name is read as a `Switch` whose children should be
+ * `Match` elements — and it crashed on `mp.when` the moment a tool call
+ * rendered, taking the transcript with it.
+ */
+function StatusGlyph(props: { status: ToolCall["status"] }) {
   return (
     <Show when={props.status !== "running"} fallback={<Spinner size={9} />}>
       <Show when={props.status !== "ok"} fallback={<span data-slot="toolcall-dot" />}>

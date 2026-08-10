@@ -1313,6 +1313,14 @@ drawer at 101, so every dropdown in settings opened *behind* the panel and the
 click landed on the drawer. Hence `--z-inline`, `--z-overlay`, `--z-dialog`,
 `--z-drawer`, `--z-floating`, `--z-tooltip`, `--z-toast`, all in one block.
 
+**Never name a component after a Solid control-flow primitive.** `Show`,
+`Switch`, `Match`, `For`, `Index`, `Dynamic`, `Portal` are compiled specially by
+the JSX transform, so a local `function Switch()` is read as *the* `Switch` and
+its children are expected to be `Match` elements. A status glyph called `Switch`
+crashed on `mp.when` the moment a tool call rendered, which took the whole
+transcript down with it — and only in the dev build, so a production build had
+been passing all along. Verify in `npm run dev`, not only against `vite build`.
+
 ---
 
 ## 43. Slash commands
