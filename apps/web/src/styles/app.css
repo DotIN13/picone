@@ -2536,6 +2536,12 @@
   opacity: 1;
 }
 
+/*
+ * `line-height: 1` is what makes the glyph and the word line up. With an
+ * inherited line-height the text sits in a 14px box while the icon is 11px,
+ * and centring two boxes of different heights leaves the glyph a pixel high —
+ * visible at this size, next to a word this short. Equal boxes centre exactly.
+ */
 [data-slot="msg-action"] {
   display: inline-flex;
   align-items: center;
@@ -2548,7 +2554,14 @@
   color: var(--v2-text-text-muted);
   font: inherit;
   font-size: calc(11px * var(--font-scale));
+  line-height: 1;
   cursor: pointer;
+}
+
+/* Without this the svg keeps a baseline gap under it inside the flex line. */
+[data-slot="msg-action"] [data-slot="icon-svg"] {
+  display: block;
+  flex: none;
 }
 
 [data-slot="msg-action"]:hover {
@@ -2556,12 +2569,19 @@
   color: var(--v2-text-text-base);
 }
 
-/* No hover on a touch screen, so the actions are simply always there. */
-@media (pointer: coarse) {
+/*
+ * Always visible only where hovering is impossible. `hover: none` rather than
+ * `pointer: coarse`: a laptop with a touchscreen reports a coarse pointer while
+ * still having a mouse, and it would have pinned the strip on permanently.
+ */
+@media (hover: none) {
   [data-slot="msg-actions"] {
     opacity: 1;
   }
+}
 
+/* Thumb-sized targets wherever the pointer is coarse, hover or not. */
+@media (pointer: coarse) {
   [data-slot="msg-action"] {
     min-height: 28px;
     padding: 0 8px;
