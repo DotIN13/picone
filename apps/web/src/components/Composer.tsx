@@ -330,14 +330,22 @@ export function Composer() {
 
             <div class="flex-1" />
 
+            {/*
+              Stop is what an empty composer offers while the agent runs. The
+              moment there is something typed, the button becomes Send — that
+              text is steering (DESIGN §28), and having to clear the box to
+              reach a send button, or press Enter on a control that reads
+              "stop", is the wrong way round. Emptying the field brings Stop
+              back.
+            */}
             <Show
-              when={busy()}
+              when={busy() && !text().trim()}
               fallback={
                 <button
                   type="button"
                   data-slot="composer-send"
                   disabled={!text().trim() || disabled()}
-                  aria-label="Send"
+                  aria-label={busy() ? "Steer the agent" : "Send"}
                   onClick={() => submit()}
                 >
                   <Icon name="arrow-up" size={14} />

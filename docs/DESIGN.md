@@ -567,6 +567,29 @@ long run is the one call that failed, so only failures take a colour. File-shape
 calls offer **Open**, which appears on hover and opens a tab without navigating
 away from the conversation.
 
+**The view follows the bottom, and lets go when you scroll away.** Following
+takes two mechanisms because neither is enough alone. Watching the number of
+items only fires when a message is *added*, and a streaming message does not
+change the count — so the view stopped following the moment an answer began. A
+resize observer is the obvious replacement and is too coarse on its own: during
+a fast stream it delivered two callbacks for an entire turn while the bottom
+drifted 140px away. So a frame loop runs while the agent is working, which is
+exactly when the transcript is growing, and the observer covers everything else
+— an image finishing, a tool call expanding, the window changing shape. Both
+respect the same latch: scroll more than 80px from the bottom and following
+stops until you come back.
+
+**The working indicator sits in a slot that keeps its height.** It used to be a
+row in its own right, so finishing a turn removed it and slid the whole
+transcript down by its height plus the gap — a jump at the exact moment the
+reader starts reading the answer.
+
+**Send outranks stop.** While the agent runs an empty composer offers **Stop**,
+but the moment something is typed the button becomes **Send**: that text is
+steering (§28), and making someone clear the box to reach a send button — or
+press Enter on a control labelled "stop" — is the wrong way round. Emptying the
+field brings Stop back.
+
 ---
 
 ## 15. Read-only file tabs

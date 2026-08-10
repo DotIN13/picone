@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, onMount } from "solid-js";
+import { For, Match, Show, Switch, createEffect, onCleanup, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
 import { forkAt, openFile, rewindTo, state, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
@@ -10,21 +10,48 @@ import { Spinner, Tag } from "./ui/primitives.tsx";
 
 export function ChatTab(props: { sessionId: string }) {
   let scroller: HTMLDivElement | undefined;
-  let bottom: HTMLDivElement | undefined;
+  let inner: HTMLDivElement | undefined;
+  /** Following the bottom, until the reader scrolls away from it. */
   let pinned = true;
 
   const items = () => transcriptOf(props.sessionId);
   const agentState = () => state.agentStates[props.sessionId] ?? "idle";
+  const working = () => agentState() !== "idle" && agentState() !== "waiting_permission";
 
-  const scrollToBottom = () => {
-    if (pinned) bottom?.scrollIntoView({ block: "end" });
+  const stick = () => {
+    if (pinned && scroller) scroller.scrollTop = scroller.scrollHeight;
   };
 
-  onMount(scrollToBottom);
+  /*
+   * Following the bottom is two mechanisms, because one is not enough.
+   *
+   * Watching `items().length` — what this used to do — only fires when a
+   * message is *added*, and a streaming message does not change the count, so
+   * the view stopped following the moment an answer began and caught up only at
+   * the next item. A resize observer is the obvious replacement and turned out
+   * to be too coarse on its own: during a fast stream it delivered a couple of
+   * callbacks for a whole turn, and the bottom drifted 140px away between them.
+   *
+   * So: a frame loop while the agent is working, which is exactly when the
+   * transcript is growing and following matters; and the observer for
+   * everything else — an image finishing, a tool call expanding, the window
+   * changing shape — which happens while nothing is streaming.
+   */
+  onMount(() => {
+    stick();
+    if (!inner || !("ResizeObserver" in window)) return;
+    const observer = new ResizeObserver(() => stick());
+    observer.observe(inner);
+    onCleanup(() => observer.disconnect());
+  });
+
   createEffect(() => {
-    items().length;
-    agentState();
-    queueMicrotask(scrollToBottom);
+    if (!working()) return;
+    let frame = requestAnimationFrame(function follow() {
+      stick();
+      frame = requestAnimationFrame(follow);
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
   });
 
   return (
@@ -36,7 +63,7 @@ export function ChatTab(props: { sessionId: string }) {
         pinned = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
       }}
     >
-      <div data-slot="chat-inner">
+      <div data-slot="chat-inner" ref={inner}>
         <Show when={items().length === 0}>
           <div data-slot="chat-empty">
             <div data-slot="chat-empty-mark">
@@ -51,14 +78,20 @@ export function ChatTab(props: { sessionId: string }) {
 
         <For each={items()}>{(item) => <ChatRow item={item} />}</For>
 
-        <Show when={agentState() !== "idle" && agentState() !== "waiting_permission"}>
-          <div data-slot="chat-working">
-            <Spinner />
-            {agentState() === "tool" ? "running tools" : "working"}…
-          </div>
-        </Show>
-
-        <div ref={bottom} />
+        {/*
+          The tail keeps its height whether or not the agent is working. It used
+          to be the indicator itself, so finishing a turn removed a row and the
+          whole transcript slid down by its height — a jump at the exact moment
+          the reader starts reading the answer.
+        */}
+        <div data-slot="chat-tail">
+          <Show when={working()}>
+            <div data-slot="chat-working">
+              <Spinner />
+              {agentState() === "tool" ? "running tools" : "working"}…
+            </div>
+          </Show>
+        </div>
       </div>
     </div>
   );

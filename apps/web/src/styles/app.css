@@ -841,6 +841,16 @@
   font-size: calc(11.5px * var(--font-scale));
 }
 
+/*
+ * Reserved space for the working indicator, held whether or not it is showing.
+ * The indicator used to be a flex child in its own right, so a turn ending
+ * removed a row and shortened the column by its height plus the gap — the
+ * transcript slid down just as the answer became worth reading.
+ */
+[data-slot="chat-tail"] {
+  min-height: max(18px, calc(18px * var(--font-scale)));
+}
+
 [data-slot="chat-working"] {
   display: flex;
   align-items: center;
