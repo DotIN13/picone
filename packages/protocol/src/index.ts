@@ -315,6 +315,16 @@ export interface SessionSummary {
   forkedFrom?: string;
 }
 
+/**
+ * A page of older transcript, fetched when the browser scrolls back past what
+ * it was given (DESIGN §14).
+ */
+export interface TranscriptPageResponse {
+  items: ChatItem[];
+  /** There is still history before this page. */
+  hasMore: boolean;
+}
+
 /** Pi's thinking levels, lowest effort first. */
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 

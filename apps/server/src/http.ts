@@ -3,7 +3,7 @@ import { extname } from "node:path";
 import express, { type Request, type Response, type Router } from "express";
 import type { CommentStatus, GlobalSettings, WorkspaceFile } from "@picone/protocol";
 import type { App } from "./app.ts";
-import { listRecentWorkspaces, forgetWorkspace } from "./db.ts";
+import { forgetWorkspace, listRecentWorkspaces, loadTranscriptBefore, loadTranscriptTail, seqOfMessage } from "./db.ts";
 import { listDirectory, searchFiles } from "./files/browser.ts";
 import { gitChanges } from "./files/git.ts";
 import { completePath, inspectPath } from "./files/paths.ts";
@@ -304,6 +304,30 @@ export function createApiRouter(app: App): Router {
       if (!itemId) throw new Error("itemId is required");
       const session = await app.fork(itemId, String(req.params.id));
       res.json({ session: session.summary() });
+    }),
+  );
+
+  /**
+   * The page of transcript before a message (DESIGN §14). The cursor is a
+   * message id rather than a row number, so the browser never has to know how
+   * the transcript is stored.
+   */
+  router.get(
+    "/sessions/:id/messages",
+    asyncRoute(async (req, res) => {
+      const sessionId = String(req.params.id);
+      const before = String(req.query.before ?? "");
+      const limit = Math.min(Number(req.query.limit ?? 60) || 60, 200);
+
+      const seq = before ? seqOfMessage(sessionId, before) : null;
+      if (before && seq === null) {
+        // The anchor is gone — rewound away, most likely. Nothing before it.
+        res.json({ items: [], hasMore: false });
+        return;
+      }
+
+      const page = seq === null ? loadTranscriptTail(sessionId, limit) : loadTranscriptBefore(sessionId, seq, limit);
+      res.json({ items: page.items, hasMore: page.hasMore });
     }),
   );
 

@@ -25,7 +25,7 @@ import type {
   WorkspacePermissions,
   WorkspaceResources,
 } from "@picone/protocol";
-import { appendMessage, loadTranscript, truncateTranscript } from "../db.ts";
+import { appendMessage, loadTranscriptTail, nextSeq, truncateTranscript } from "../db.ts";
 import { memoryContextFiles } from "../memory/context.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import { PermissionGate } from "../permissions/gate.ts";
@@ -77,6 +77,12 @@ function formatExtensionError(error: unknown): string {
 /** What a session is called before anything has named it. */
 export const DEFAULT_TITLE = "New session";
 
+/**
+ * How much of a session is held in memory and sent on connect. Larger than the
+ * browser's own window so scrolling back a page usually costs nothing.
+ */
+const TAIL = 120;
+
 export interface SessionRuntimeOptions {
   id: string;
   title: string;
@@ -127,7 +133,14 @@ export class SessionRuntime {
    */
   private discovered: ResourceReport = { extensions: [], skills: [], prompts: [] };
 
+  /**
+   * The tail of the transcript, not all of it (DESIGN §14). Older pages live in
+   * the database and are fetched when the browser scrolls back to them.
+   */
   private transcript: ChatItem[] = [];
+  /** `seq` of `transcript[0]`, so a row's number survives not holding the rest. */
+  private baseSeq = 0;
+  /** Next free `seq`, read from the table rather than counted from memory. */
   private seq = 0;
   private readonly pending = new Map<
     string,
@@ -158,8 +171,10 @@ export class SessionRuntime {
     // A memory directory is readable, but it is not where work happens.
     const cwd = workspace.roots.find((r) => r.exists && r.kind === "directory")?.path ?? process.cwd();
 
-    this.transcript = loadTranscript(this.id);
-    this.seq = this.transcript.length;
+    const tail = loadTranscriptTail(this.id, TAIL);
+    this.transcript = tail.items;
+    this.baseSeq = tail.firstSeq;
+    this.seq = nextSeq(this.id);
 
     this.translator = new EventTranslator({
       emit: (event) => this.options.emit(this.id, event),
@@ -427,7 +442,7 @@ ${pointers}` : text;
     const item = this.transcript.find((i) => i.id === entry.itemId);
     if (item?.kind === "permission") {
       item.decision = decision;
-      appendMessage(this.id, this.transcript.indexOf(item), item);
+      appendMessage(this.id, this.seqOf(item), item);
     }
 
     this.options.emit(this.id, { type: "permission.resolved", requestId, decision });
@@ -515,15 +530,21 @@ ${pointers}` : text;
     const items = this.transcript.filter((i) => i.kind === "user");
     let changed = false;
 
-    for (let i = 0; i < Math.min(entries.length, items.length); i++) {
-      const entry = entries[i];
-      const item = items[i];
+    /*
+     * Walked from the end backwards, which matters now that the transcript in
+     * memory is only the tail (§14): the two sequences share a *suffix*, not a
+     * prefix, so pairing them from the start would line the oldest entry up
+     * against a message from the middle of the conversation.
+     */
+    for (let offset = 1; offset <= Math.min(entries.length, items.length); offset++) {
+      const entry = entries[entries.length - offset];
+      const item = items[items.length - offset];
       if (!entry || !item || item.kind !== "user") break;
       if (item.entryId === entry.id) continue;
       if (!entryStartsWith(entry.message.content, item.text)) break;
 
       item.entryId = entry.id;
-      appendMessage(this.id, this.transcript.indexOf(item), item);
+      appendMessage(this.id, this.seqOf(item), item);
       changed = true;
     }
 
@@ -718,15 +739,22 @@ ${pointers}` : text;
    */
   seedTranscript(items: ChatItem[]): void {
     this.transcript = items;
+    this.baseSeq = 0;
     this.seq = items.length;
     items.forEach((item, index) => appendMessage(this.id, index, item));
   }
 
+  /** Where a held item sits in the table. */
+  private seqOf(item: ChatItem): number {
+    return this.baseSeq + this.transcript.indexOf(item);
+  }
+
   /** Forget the transcript from `index` on, in memory and on disk. */
   private truncateTo(index: number): void {
+    const seq = this.baseSeq + index;
     this.transcript.length = index;
-    this.seq = index;
-    truncateTranscript(this.id, index);
+    this.seq = seq;
+    truncateTranscript(this.id, seq);
   }
 
   private commit(item: ChatItem): void {

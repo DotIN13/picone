@@ -637,8 +637,27 @@ as the control that shows it.
 rejected: layout is already cheap (0.3ms for a full pass over 155 rows), and it
 collapsed `scrollHeight` from 36 187 to 19 605 as unmeasured rows fall back to
 their intrinsic-size estimate — which breaks both the scrollbar and sticking to
-the bottom. The remaining limit is that opening a session still loads its whole
-transcript from SQLite into memory.
+the bottom.
+
+**The transcript is paged out of SQLite too**, so opening a session no longer
+reads all of it. The runtime holds the last 120 rows and the browser renders 60
+of those; scrolling back widens the window first, because those messages are
+already here, and only then asks the server — `GET /sessions/:id/messages`,
+cursored on a *message id* rather than a row number so the browser never learns
+how the transcript is stored. An id that no longer exists (rewound away) answers
+"nothing before this" rather than failing.
+
+Holding only the tail costs two assumptions that used to be free. A row's `seq`
+was its index in the array, and is now `baseSeq + index` with `baseSeq` the seq
+of the first row held — the next free number is read from the table rather than
+counted. And `syncEntryIds` (§53) paired Pi's branch with the transcript from
+the *start*; the two now share a suffix rather than a prefix, so it walks
+backwards from the end, which is the more robust direction anyway.
+
+A snapshot carries only the tail, so the browser keeps any older pages it has
+already fetched in front of it instead of discarding them — a snapshot arrives
+mid-turn, and losing the history you just scrolled back to read would be worse
+than never having fetched it.
 
 **Time is marked when the conversation resumed, not on every message.** A stamp
 per line is a column nobody reads. One appears after half an hour of silence,

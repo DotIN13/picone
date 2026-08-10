@@ -216,11 +216,75 @@ export function truncateTranscript(sessionId: string, seq: number): void {
   openDb().prepare(`DELETE FROM messages WHERE session_id = ? AND seq >= ?`).run(sessionId, seq);
 }
 
-export function loadTranscript(sessionId: string): ChatItem[] {
+/**
+ * A page of transcript, newest first in the file but returned in reading order
+ * (DESIGN §14).
+ *
+ * Sessions are append-only and long-lived, so a year-old one should not have to
+ * be read whole to be opened. `seq` is the cursor: rows are dense and ordered,
+ * and the first one loaded says where the page begins.
+ */
+export interface TranscriptPage {
+  items: ChatItem[];
+  /** `seq` of the first item, or the next free seq when the page is empty. */
+  firstSeq: number;
+  /** There is history before `firstSeq`. */
+  hasMore: boolean;
+}
+
+function parse(rows: Array<Record<string, unknown>>): Array<{ seq: number; item: ChatItem }> {
+  const out: Array<{ seq: number; item: ChatItem }> = [];
+  for (const row of rows) {
+    try {
+      out.push({ seq: Number(row.seq), item: JSON.parse(String(row.payload)) as ChatItem });
+    } catch {
+      // A row we cannot read is a row we skip; one bad payload must not stop a
+      // session from opening.
+    }
+  }
+  return out;
+}
+
+/** The end of the transcript — what a session opens showing. */
+export function loadTranscriptTail(sessionId: string, limit: number): TranscriptPage {
   const rows = openDb()
-    .prepare(`SELECT payload FROM messages WHERE session_id = ? ORDER BY seq ASC`)
-    .all(sessionId) as Array<Record<string, unknown>>;
-  return rows.map((r) => JSON.parse(String(r.payload)) as ChatItem);
+    .prepare(`SELECT seq, payload FROM messages WHERE session_id = ? ORDER BY seq DESC LIMIT ?`)
+    .all(sessionId, limit) as Array<Record<string, unknown>>;
+
+  const page = parse(rows).reverse();
+  const next = nextSeq(sessionId);
+  const firstSeq = page[0]?.seq ?? next;
+  return { items: page.map((p) => p.item), firstSeq, hasMore: firstSeq > 0 };
+}
+
+/** The page before `seq`, for scrolling back through a long session. */
+export function loadTranscriptBefore(sessionId: string, seq: number, limit: number): TranscriptPage {
+  const rows = openDb()
+    .prepare(`SELECT seq, payload FROM messages WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?`)
+    .all(sessionId, seq, limit) as Array<Record<string, unknown>>;
+
+  const page = parse(rows).reverse();
+  const firstSeq = page[0]?.seq ?? seq;
+  return { items: page.map((p) => p.item), firstSeq, hasMore: firstSeq > 0 };
+}
+
+/** Where a message's row sits, so the browser can ask for what precedes it. */
+export function seqOfMessage(sessionId: string, itemId: string): number | null {
+  const row = openDb()
+    .prepare(`SELECT seq FROM messages WHERE id = ?`)
+    .get(`${sessionId}:${itemId}`) as Record<string, unknown> | undefined;
+  return row ? Number(row.seq) : null;
+}
+
+/**
+ * The next free sequence number. Read from the table rather than counted from
+ * what is in memory, which is now only the tail.
+ */
+export function nextSeq(sessionId: string): number {
+  const row = openDb()
+    .prepare(`SELECT MAX(seq) AS top FROM messages WHERE session_id = ?`)
+    .get(sessionId) as Record<string, unknown> | undefined;
+  return row?.top == null ? 0 : Number(row.top) + 1;
 }
 
 // --- comments --------------------------------------------------------------

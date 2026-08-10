@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
-import { forkAt, openFile, rewindTo, state, transcriptOf } from "../store.ts";
+import { forkAt, loadEarlier, openFile, rewindTo, state, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
@@ -77,18 +77,47 @@ export function ChatTab(props: { sessionId: string }) {
     return list.map((item, index) => ({ item, stamp: separatorFor(list[index - 1], item) }));
   });
 
+  /** True while a page is on its way from the server, so we ask once. */
+  let fetching = false;
+
+  /** Anything older to reach for, in memory or in the database. */
+  const hasEarlier = () => hidden() > 0 || state.moreHistory[props.sessionId] !== false;
+
   /**
    * Show another page, keeping what the reader is looking at exactly where it
-   * is. Solid applies the change synchronously, so the height it added can be
-   * measured and given straight back to `scrollTop`.
+   * is: measure, grow, and hand the added height straight back to `scrollTop`.
+   *
+   * Two sources, in order. The window is widened first, because those messages
+   * are already here; only when it has caught up with what was loaded does this
+   * go to the database, which holds everything older (§14).
    */
   const showEarlier = () => {
-    if (!scroller || hidden() === 0) return;
+    if (!scroller) return;
+
+    if (hidden() > 0) {
+      const before = scroller.scrollHeight;
+      setWindowed((size) => size + WINDOW);
+      scroller.scrollTop += scroller.scrollHeight - before;
+      ownTop = scroller.scrollTop;
+      return;
+    }
+
+    if (fetching || state.moreHistory[props.sessionId] === false) return;
+    fetching = true;
     const before = scroller.scrollHeight;
-    setWindowed((size) => size + WINDOW);
-    const grew = scroller.scrollHeight - before;
-    scroller.scrollTop += grew;
-    ownTop = scroller.scrollTop;
+
+    void loadEarlier(props.sessionId)
+      .then((added) => {
+        if (!scroller || added === 0) return;
+        // The window has to grow with the fetch, or the new page is loaded and
+        // immediately hidden again.
+        setWindowed((size) => size + added);
+        scroller.scrollTop += scroller.scrollHeight - before;
+        ownTop = scroller.scrollTop;
+      })
+      .finally(() => {
+        fetching = false;
+      });
   };
   const agentState = () => state.agentStates[props.sessionId] ?? "idle";
   const working = () => agentState() !== "idle" && agentState() !== "waiting_permission";
@@ -220,7 +249,7 @@ export function ChatTab(props: { sessionId: string }) {
         const top = scroller.scrollTop;
         const distance = scroller.scrollHeight - scroller.clientHeight - top;
 
-        if (top < LOAD_MORE_AT && hidden() > 0) showEarlier();
+        if (top < LOAD_MORE_AT && hasEarlier()) showEarlier();
 
         if (top < ownTop - 1 && distance > 1) {
           release();
@@ -246,9 +275,9 @@ export function ChatTab(props: { sessionId: string }) {
         </Show>
 
         {/* Everything older than the window, in one line rather than in the DOM. */}
-        <Show when={hidden() > 0}>
+        <Show when={hasEarlier()}>
           <button type="button" data-slot="chat-earlier" onClick={showEarlier}>
-            {hidden()} earlier {hidden() === 1 ? "message" : "messages"} — show more
+            {hidden() > 0 ? `${hidden()} earlier ${hidden() === 1 ? "message" : "messages"}` : "Earlier messages"}
           </button>
         </Show>
 

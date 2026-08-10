@@ -79,6 +79,8 @@ interface State {
   commands: Record<string, SlashCommand[]>;
   /** Everything `@` can name, from the enabled memory directories (§52). */
   memorySubjects: MemorySubject[];
+  /** Sessions with transcript older than what has been fetched (§14). */
+  moreHistory: Record<string, boolean>;
   comments: FileComment[];
   mcp: McpServerState[];
   models: ModelOption[];
@@ -141,6 +143,7 @@ const [state, setState] = createStore<State>({
   mcp: [],
   models: [],
   memorySubjects: [],
+  moreHistory: {},
   voice: { input: true, output: true },
   settings: { mcp: {}, skills: [], memory: {} },
   settingsErrors: [],
@@ -642,6 +645,29 @@ export async function forkAt(itemId: string): Promise<void> {
   }
 }
 
+/**
+ * Fetch the page of transcript before what is held, for a session being read
+ * backwards (DESIGN §14). Returns how many messages arrived, so the caller can
+ * keep the reader's position.
+ */
+export async function loadEarlier(sessionId: string): Promise<number> {
+  const held = state.transcripts[sessionId] ?? [];
+  const oldest = held[0]?.id;
+  if (!oldest || state.moreHistory[sessionId] === false) return 0;
+
+  try {
+    const { items, hasMore } = await api.earlierMessages(sessionId, oldest);
+    setState("moreHistory", sessionId, hasMore);
+    if (items.length === 0) return 0;
+    setState("transcripts", sessionId, (current) => [...items, ...(current ?? [])]);
+    return items.length;
+  } catch {
+    // Leave the flag alone: a failed fetch is worth retrying, unlike an
+    // authoritative "there is nothing older".
+    return 0;
+  }
+}
+
 export function abort(): void {
   if (!state.activeSessionId) return;
   socket.send({ type: "abort", sessionId: state.activeSessionId });
@@ -787,11 +813,19 @@ function applyFrame(frame: ServerFrame): void {
        * turn tore down 152 rows and built 154, because a snapshot is emitted
        * mid-turn (§53). Diffing by id touches only what actually changed.
        */
-      setState(
-        "transcripts",
-        event.sessionId,
-        state.transcripts[event.sessionId] ? reconcile(event.items, { key: "id" }) : event.items,
-      );
+      {
+        /*
+         * A snapshot carries the tail (§14), so anything older that has already
+         * been paged in is kept in front of it rather than thrown away — a
+         * snapshot arrives mid-turn, and losing the history you just scrolled
+         * back to read would be worse than not having fetched it.
+         */
+        const held = state.transcripts[event.sessionId];
+        const firstId = event.items[0]?.id;
+        const overlap = held && firstId ? held.findIndex((item) => item.id === firstId) : -1;
+        const merged = overlap > 0 ? [...held!.slice(0, overlap), ...event.items] : event.items;
+        setState("transcripts", event.sessionId, held ? reconcile(merged, { key: "id" }) : merged);
+      }
       setState("agentStates", event.sessionId, event.state);
       break;
 

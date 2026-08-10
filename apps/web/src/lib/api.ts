@@ -14,6 +14,7 @@ import type {
   ResolvedPath,
   SessionSummary,
   SlashCommand,
+  TranscriptPageResponse,
   Workspace,
   WorkspaceFile,
   WorkspaceStateResponse,
@@ -98,6 +99,10 @@ export const api = {
       body: JSON.stringify({ provider, model, thinking }),
     }),
   sessionCommands: (id: string) => request<{ commands: SlashCommand[] }>(`/sessions/${id}/commands`),
+  earlierMessages: (id: string, before: string, limit = 60) =>
+    request<TranscriptPageResponse>(
+      `/sessions/${id}/messages?before=${encodeURIComponent(before)}&limit=${limit}`,
+    ),
 
   models: () => request<{ models: ModelOption[] }>("/models"),
 
