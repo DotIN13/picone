@@ -394,28 +394,65 @@ export function Composer() {
       </div>
 
       <div data-slot="composer-hint">
-        <Show
-          when={listening()}
-          fallback={
-            <Show
-              when={openMenu() !== null}
-              fallback={
+        {/*
+          Each hint is its own element, ranked (DESIGN §47).
+
+          Two reasons. The row is a flex container, so as bare text every word
+          and every `<kbd>` was a separate flex item with a gap between it and
+          the next — the sentence came apart at "Enter | to | send" and then
+          wrapped inside those items when space ran short. And whole phrases are
+          what should disappear when the composer narrows: half a hint is worse
+          than no hint. The ranks say which goes first, and the separators are
+          drawn in CSS so hiding one leaves no orphaned dot.
+        */}
+        <span data-slot="hint-list">
+          <Show
+            when={listening()}
+            fallback={
+              <Show
+                when={openMenu() !== null}
+                fallback={
+                  <>
+                    <span data-slot="hint" data-rank="1">
+                      <kbd>Enter</kbd> to send
+                    </span>
+                    <span data-slot="hint" data-rank="2">
+                      <kbd>/</kbd> for commands
+                    </span>
+                    <Show
+                      when={state.memorySubjects.length > 0}
+                      fallback={
+                        <span data-slot="hint" data-rank="3">
+                          <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line
+                        </span>
+                      }
+                    >
+                      <span data-slot="hint" data-rank="3">
+                        <kbd>@</kbd> for memory
+                      </span>
+                    </Show>
+                  </>
+                }
+              >
                 <>
-                  <kbd>Enter</kbd> to send · <kbd>/</kbd> for commands ·{" "}
-                  <Show when={state.memorySubjects.length > 0} fallback={<><kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</>}>
-                    <kbd>@</kbd> for memory
-                  </Show>
+                  <span data-slot="hint" data-rank="1">
+                    <kbd>↑</kbd> <kbd>↓</kbd> to choose
+                  </span>
+                  <span data-slot="hint" data-rank="2">
+                    <kbd>Tab</kbd> to complete
+                  </span>
+                  <span data-slot="hint" data-rank="3">
+                    <kbd>Esc</kbd> to dismiss
+                  </span>
                 </>
-              }
-            >
-              <>
-                <kbd>↑</kbd> <kbd>↓</kbd> to choose · <kbd>Tab</kbd> to complete · <kbd>Esc</kbd> to dismiss
-              </>
-            </Show>
-          }
-        >
-          Listening… speak, then press <kbd>Enter</kbd> to send.
-        </Show>
+              </Show>
+            }
+          >
+            <span data-slot="hint" data-rank="1">
+              Listening… speak, then press <kbd>Enter</kbd> to send.
+            </span>
+          </Show>
+        </span>
 
         <ContextMeter />
       </div>

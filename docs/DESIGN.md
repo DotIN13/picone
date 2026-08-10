@@ -1736,6 +1736,21 @@ with the desktop popover. Four lines and two controls do not: the context panel
 (§54) stays a popup at every size and is simply held inside the viewport. A
 drawer for that is more ceremony than content.
 
+**The hints below the input drop a phrase at a time, by container.** They were
+bare text inside a flex row, which made every word and every `<kbd>` a separate
+flex item with a gap beside it — so the sentence came apart between the words
+and then wrapped inside them once space ran short, at around 968px on a screen
+with the sidebar open. Each hint is its own element now, ranked, with the
+separator drawn as a `::before` on the phrase that follows so hiding the last
+one takes its dot with it.
+
+The queries are on the *composer*, not the viewport, because the viewport is not
+what constrains them: the room here is the window minus the sidebar, divided by
+the interface zoom, and both of those move on their own. A container query reads
+the space that actually exists. The order is least-useful-first — the third hint
+goes at 430px of composer, the second at 270px — and below the compact
+breakpoint the row is gone entirely (§47).
+
 **A drawer ignores clicks that came from its own portaled popups.** Choosing
 from a select inside the settings drawer closed the drawer. Both libraries were
 behaving correctly and that was the problem: Kobalte renders the option list

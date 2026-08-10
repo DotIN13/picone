@@ -1149,6 +1149,13 @@
 
 /* ── Composer ── */
 [data-slot="composer"] {
+  /*
+   * A query container, so the hints below the input can drop by how much room
+   * they actually have. A viewport query would be the wrong instrument: the
+   * space here is the window *minus the sidebar*, divided by the interface
+   * zoom, and both move independently of the window.
+   */
+  container: composer / inline-size;
   flex: none;
   padding: 10px 24px 12px;
   background: var(--v2-background-bg-base);
@@ -1292,6 +1299,47 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
+}
+
+/*
+ * The hints themselves.
+ *
+ * One element per phrase, so a phrase is what disappears when room runs out.
+ * They used to be bare text in the flex row above, which made every word and
+ * every `<kbd>` its own flex item with a gap beside it — the sentence came
+ * apart between the words and then wrapped inside them.
+ */
+[data-slot="hint-list"] {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+[data-slot="hint"] {
+  white-space: nowrap;
+}
+
+/* The separator belongs to the phrase that follows it, so hiding the last one
+   takes its dot with it and never leaves the sentence trailing off. */
+[data-slot="hint"] + [data-slot="hint"]::before {
+  content: "·";
+  margin: 0 8px;
+}
+
+/*
+ * What goes, and in what order: the least-used hint first. The widths are the
+ * space the phrases need plus the dial, measured rather than guessed.
+ */
+@container composer (max-width: 430px) {
+  [data-slot="hint"][data-rank="3"] {
+    display: none;
+  }
+}
+
+@container composer (max-width: 270px) {
+  [data-slot="hint"][data-rank="2"] {
+    display: none;
+  }
 }
 
 [data-slot="composer-hint"] [data-slot="context-meter"] {
