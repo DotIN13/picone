@@ -15,12 +15,19 @@ export function ChatTab(props: { sessionId: string }) {
   /*
    * Following the bottom, and the rules for stopping and starting again.
    *
-   * Following is off the moment you scroll up, and comes back only when you
-   * send something — not when you happen to reach the bottom again. A view that
-   * re-attaches on its own takes the page away from a reader who was still
-   * reading, and there is no way to ask it not to.
+   * Off the moment you scroll up. Back on when you scroll all the way down
+   * again, or when you send something from near the bottom. What it never does
+   * is re-attach on its own while you are reading part-way up.
    */
   const REARM_WITHIN = 120;
+  /**
+   * How close counts as "back at the bottom".
+   *
+   * Tighter than `REARM_WITHIN`, because re-attaching has to be something you
+   * did on purpose. Small enough to be meaningful only because it is checked
+   * once a frame during a turn rather than from the `scroll` event — see below.
+   */
+  const AT_BOTTOM = 16;
   let pinned = true;
   /** Last position we set ourselves, so a scroll we did not cause is visible. */
   let ownTop = 0;
@@ -72,12 +79,36 @@ export function ChatTab(props: { sessionId: string }) {
     onCleanup(() => observer.disconnect());
   });
 
+  /*
+   * One loop per turn, doing both halves of the job.
+   *
+   * Pinned, it follows. Released, it watches for the reader arriving back at
+   * the bottom — and that check has to happen here rather than in the `scroll`
+   * handler, because a scroll event is dispatched at the end of the frame and
+   * by then a streaming transcript has grown underneath it. Measured: a scroll
+   * that landed exactly on the bottom was already ~100px above it by the time
+   * the handler ran, so no event-time threshold small enough to mean "at the
+   * bottom" ever matched. A frame is the shortest interval available, and at
+   * one frame of growth 16px is plenty.
+   */
   createEffect(() => {
     if (!working()) return;
+    let previousTop = scroller?.scrollTop ?? 0;
+
     let frame = requestAnimationFrame(function follow() {
-      stick();
+      if (scroller) {
+        if (pinned) {
+          stick();
+        } else {
+          const top = scroller.scrollTop;
+          const distance = scroller.scrollHeight - scroller.clientHeight - top;
+          if (top > previousTop && distance <= AT_BOTTOM) pinned = true;
+          previousTop = top;
+        }
+      }
       frame = requestAnimationFrame(follow);
     });
+
     onCleanup(() => cancelAnimationFrame(frame));
   });
 
@@ -130,8 +161,15 @@ export function ChatTab(props: { sessionId: string }) {
       onScroll={() => {
         if (!scroller) return;
         const top = scroller.scrollTop;
-        const bottom = scroller.scrollHeight - scroller.clientHeight;
-        if (top < ownTop - 1 && top < bottom - 1) release();
+        const distance = scroller.scrollHeight - scroller.clientHeight - top;
+
+        if (top < ownTop - 1 && distance > 1) {
+          release();
+        } else if (!pinned && top > ownTop && distance <= AT_BOTTOM) {
+          // Back at the bottom while nothing is streaming, so the measurement
+          // is trustworthy. During a turn the frame loop above does this.
+          pinned = true;
+        }
         ownTop = top;
       }}
     >

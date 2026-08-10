@@ -567,12 +567,19 @@ long run is the one call that failed, so only failures take a colour. File-shape
 calls offer **Open**, which appears on hover and opens a tab without navigating
 away from the conversation.
 
-**The view follows the bottom, lets go the instant you scroll up, and only
-starts again when you send.** Reaching the bottom again does *not* re-attach it:
-a view that grabs the page back on its own takes it away from someone who was
-still reading, and there is no way to ask it to stop. Sending re-arms it, and
-only from within 120px of the bottom — send from halfway up a long transcript
-and you stay where you were.
+**The view follows the bottom and lets go the instant you scroll up.** It takes
+up again two ways: scrolling all the way back down, or sending — the latter only
+from within 120px of the bottom, so sending from halfway up a long transcript
+leaves you where you were reading. What it never does is re-attach while you sit
+part-way up: coming back has to be something you did.
+
+Returning to the bottom is detected **once a frame, not from the `scroll`
+event**. A scroll event is dispatched at the end of the frame, and mid-turn the
+transcript has grown underneath it by then: a scroll that landed exactly on the
+bottom measured ~100px above it by the time the handler ran, so no event-time
+threshold small enough to mean "at the bottom" ever matched. A frame is the
+shortest interval available, and at one frame of growth 16px is plenty. While
+nothing is streaming there is no growth, so the scroll handler does it.
 
 Following takes two mechanisms because neither is enough alone. Watching the
 number of items only fires when a message is *added*, and a streaming message
