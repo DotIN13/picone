@@ -6,6 +6,8 @@ export interface TranslatorHooks {
   emit(event: AgentEvent): void;
   /** Called when a transcript item reaches its final form and can be persisted. */
   commit(item: ChatItem): void;
+  /** Pi's session name changed — from `/name`, an extension, or from us. */
+  renamed?(name: string | undefined): void;
 }
 
 /**
@@ -33,6 +35,10 @@ export class EventTranslator {
 
   handle(event: AgentSessionEvent): void {
     switch (event.type) {
+      case "session_info_changed":
+        this.hooks.renamed?.(event.name);
+        break;
+
       case "agent_start":
         this.setState("thinking");
         break;

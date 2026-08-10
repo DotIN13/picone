@@ -210,7 +210,10 @@ export class App {
     const workspace = this.workspace;
     return {
       workspace,
-      sessions: [...this.sessions.values()].map((s) => s.summary()),
+      // Every session in the workspace, not just the loaded ones. Idle sessions
+      // are evicted (§38), so the loaded set is a cache, and a sidebar built
+      // from it silently lost rows the longer the app stayed open.
+      sessions: this.allSessions(),
       activeSessionId: this.activeSessionId,
       model: workspace?.file.model
         ? {
@@ -336,10 +339,19 @@ export class App {
     this.publishSessionList();
   }
 
+  /**
+   * Rename, in both directions (DESIGN §26).
+   *
+   * A loaded session goes through Pi, so the name lands in the session file and
+   * is there for the CLI too — and Pi sanitizes, so the stored title is what Pi
+   * made of it rather than what was typed. A session that is not loaded has no
+   * Pi to tell; it gets the name when it next opens, from `reconcileName`.
+   */
   renameSession(id: string, title: string): void {
     const runtime = this.sessions.get(id);
-    if (runtime) runtime.title = title;
-    updateSession(id, { title });
+    const stored = runtime ? runtime.rename(title) : title;
+    if (runtime) runtime.title = stored;
+    updateSession(id, { title: stored });
     this.publishSessionList();
   }
 
@@ -348,7 +360,14 @@ export class App {
     const workspace = this.workspace;
     if (!workspace) return [];
     const loaded = new Map([...this.sessions.values()].map((s) => [s.id, s.summary()]));
-    return listSessions(workspace.path).map((s) => loaded.get(s.id) ?? s);
+    // The row is the base and the live runtime overlays it: only the runtime
+    // knows the model, and only the row carries the excerpt, which is read from
+    // the transcript rather than held in memory.
+    return listSessions(workspace.path).map((row) => {
+      const live = loaded.get(row.id);
+      if (!live) return row;
+      return { ...row, ...live, excerpt: row.excerpt, forkedFrom: live.forkedFrom ?? row.forkedFrom };
+    });
   }
 
   private async activateSession(id: string, title: string, sessionFile?: string): Promise<void> {
@@ -395,6 +414,11 @@ export class App {
         openComments: () => listComments(workspace.path).filter((c) => c.status === "open"),
       },
       onSessionFile: (sessionId, file) => updateSession(sessionId, { sessionFile: file }),
+      // Pi renamed the session — from `/name` in a terminal, or an extension.
+      onTitle: (sessionId, title) => {
+        updateSession(sessionId, { title });
+        this.publishSessionList();
+      },
     });
   }
 
@@ -477,6 +501,7 @@ export class App {
     const workspace = this.requireWorkspace();
     const id = randomUUID();
     const runtime = await this.buildSession(id, forkTitle(source.title), sessionFile ?? undefined);
+    runtime.forkedFrom = source.id;
     runtime.seedTranscript(history);
 
     insertSession(workspace.path, runtime.summary());

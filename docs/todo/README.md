@@ -9,6 +9,7 @@ filename — so finishing one never renumbers the rest.
 | [Web bundle is one 870 kB chunk](bundle-size.md) | CodeMirror loads whether or not a file is opened |
 | [MCP streamable-HTTP is unverified](mcp-http-transport.md) | written from the spec, exercised only over stdio |
 | [Server logs go nowhere](server-logging.md) | stdout only, lost when the terminal closes |
+| [Sessions are all called "New session"](session-titles.md) | Pi exposes the name slot but never fills it; nothing derives a title |
 | [Branches are invisible](branch-switching.md) | rewinding keeps the old path, but nothing can navigate back to it |
 | [Smaller things](smaller-things.md) | the ones too small to deserve a page each |
 

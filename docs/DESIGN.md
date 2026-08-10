@@ -782,16 +782,55 @@ background session's events accumulate in its own tab rather than being dropped.
 
 Server-side, the four most recently used idle sessions stay loaded. Beyond that,
 idle sessions are disposed and rebuilt from their Pi session file on demand. A
-streaming session is never evicted.
+streaming session is never evicted. The loaded set is a *cache*, so anything
+that lists sessions reads the table and overlays the live ones — a list built
+from the loaded set silently loses rows the longer the app stays open.
+
+**Names are shared with Pi, in both directions.** Pi has a session name and
+never invents one: `setSessionName` is all it offers, and Pi's own interface
+falls back to showing your first message. Picone keeps its own title, so the two
+are kept in step — renaming here calls `setSessionName`, so the name lands in
+the session file and is there for `/name` in a terminal; and a session adopts
+the file's name when it loads, or pushes its own if the file has none.
+
+The file wins when it has an opinion, because it is the shared artifact: Pi can
+be pointed at the same session from a terminal between runs, and whatever it was
+called there is what the session is called. Pi also sanitizes — newlines become
+spaces, and it is trimmed — so the stored title is read back from Pi rather than
+kept as typed, and the two cannot drift apart on a technicality.
+
+Nothing generates a title. Every session is still called "New session" until
+somebody names it; see [todo/session-titles.md](todo/session-titles.md).
 
 ---
 
 ## 27. Sidebar sections
 
 The sidebar has two modes, **Files** and **Sessions**, plus always-visible
-comment and MCP sections beneath the tree. The session list shows title, last
-activity, current model, and a spinner while running; it renames, deletes, and
+comment and MCP sections beneath the tree. Both modes open with the same filter
+box — a heading that says "Sessions" above a list of sessions is a line of
+furniture, and the list is the thing people arrive wanting to search.
+
+A session row answers *which conversation was this?*: the name, up to two lines
+of the most recent message, how long ago it moved, a `fork` tag when it came
+from one (§53), and a spinner while it is running. It renames, deletes, and
 opens sessions as tabs.
+
+The **model is deliberately not there**. It is the same for nearly every
+session, it changes under you, and it is already on the composer where it can
+also be changed — three reasons for a column that never distinguishes one row
+from another.
+
+The excerpt is the newest message rather than the newest *user* message: what a
+session is about right now is usually the answer, not the question. It is read
+one row per session straight from the transcript table, so the list costs one
+extra query and no memory. Filtering matches the name *and* the excerpt, since
+a conversation is often remembered by what was said in it rather than by what
+it was called.
+
+Times are relative — "2m ago", "3d ago", then a date. A column of full
+timestamps is near-identical text, and what a reader wants from a list is which
+one is recent.
 
 ---
 

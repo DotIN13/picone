@@ -21,7 +21,8 @@ export function openDb(): DatabaseSync {
       title         TEXT NOT NULL,
       session_file  TEXT,
       created_at    TEXT NOT NULL,
-      updated_at    TEXT NOT NULL
+      updated_at    TEXT NOT NULL,
+      forked_from   TEXT
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -57,6 +58,14 @@ export function openDb(): DatabaseSync {
       value  TEXT NOT NULL
     );
   `);
+  // `CREATE TABLE IF NOT EXISTS` leaves an existing table alone, so a column
+  // added later has to be added by hand. Failing means it is already there.
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN forked_from TEXT`);
+  } catch {
+    /* already migrated */
+  }
+
   return db;
 }
 
@@ -65,10 +74,10 @@ export function openDb(): DatabaseSync {
 export function insertSession(workspaceId: string, s: SessionSummary): void {
   openDb()
     .prepare(
-      `INSERT INTO sessions (id, workspace_id, title, session_file, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, workspace_id, title, session_file, created_at, updated_at, forked_from)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(s.id, workspaceId, s.title, s.sessionFile ?? null, s.createdAt, s.updatedAt);
+    .run(s.id, workspaceId, s.title, s.sessionFile ?? null, s.createdAt, s.updatedAt, s.forkedFrom ?? null);
 }
 
 export function updateSession(id: string, patch: { title?: string; sessionFile?: string }): void {
@@ -88,7 +97,7 @@ export function touchSession(id: string): void {
 export function listSessions(workspaceId: string): SessionSummary[] {
   const rows = openDb()
     .prepare(
-      `SELECT id, title, session_file, created_at, updated_at
+      `SELECT id, title, session_file, created_at, updated_at, forked_from
        FROM sessions WHERE workspace_id = ? ORDER BY updated_at DESC`,
     )
     .all(workspaceId) as Array<Record<string, unknown>>;
@@ -98,7 +107,38 @@ export function listSessions(workspaceId: string): SessionSummary[] {
     sessionFile: r.session_file == null ? undefined : String(r.session_file),
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
+    forkedFrom: r.forked_from == null ? undefined : String(r.forked_from),
+    excerpt: lastExcerpt(String(r.id)),
   }));
+}
+
+/**
+ * One line from the newest message, for the session list (DESIGN §27).
+ *
+ * The newest row rather than the newest *user* row: what a session is "about"
+ * right now is usually the answer, not the question. Read one row per session,
+ * which is why the list stays cheap with a hundred of them.
+ */
+function lastExcerpt(sessionId: string): string | undefined {
+  const row = openDb()
+    .prepare(`SELECT payload FROM messages WHERE session_id = ? ORDER BY seq DESC LIMIT 1`)
+    .get(sessionId) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+
+  try {
+    const item = JSON.parse(String(row.payload)) as ChatItem;
+    const text =
+      item.kind === "user" || item.kind === "assistant" || item.kind === "notice" || item.kind === "extension"
+        ? item.text
+        : item.kind === "tool"
+          ? item.toolCall.title
+          : "";
+    const flat = text.replace(/\s+/g, " ").trim();
+    if (!flat) return undefined;
+    return flat.length > 120 ? `${flat.slice(0, 119)}…` : flat;
+  } catch {
+    return undefined;
+  }
 }
 
 export function deleteSession(id: string): void {

@@ -74,6 +74,9 @@ function formatExtensionError(error: unknown): string {
   return `Extension error: ${String(error)}`;
 }
 
+/** What a session is called before anything has named it. */
+export const DEFAULT_TITLE = "New session";
+
 export interface SessionRuntimeOptions {
   id: string;
   title: string;
@@ -86,6 +89,8 @@ export interface SessionRuntimeOptions {
   globalSkillPaths: string[];
   toolHooks: Omit<PiconeToolHooks, "speak">;
   onSessionFile: (sessionId: string, file: string) => void;
+  /** The session's name changed, from either side of the Pi boundary (§26). */
+  onTitle: (sessionId: string, title: string) => void;
 }
 
 /**
@@ -157,6 +162,7 @@ export class SessionRuntime {
     this.translator = new EventTranslator({
       emit: (event) => this.options.emit(this.id, event),
       commit: (item) => this.commit(item),
+      renamed: (name) => this.adoptName(name),
     });
 
     this.gate = new PermissionGate(
@@ -325,6 +331,7 @@ export class SessionRuntime {
     });
 
     if (session.sessionFile) this.options.onSessionFile(this.id, session.sessionFile);
+    this.reconcileName();
   }
 
   // --- extension UI ----------------------------------------------------------
@@ -433,6 +440,51 @@ ${pointers}` : text;
   async injectComment(modelText: string, displayText: string): Promise<void> {
     if (this.session.isStreaming) await this.steer(modelText, "comment", displayText);
     else await this.prompt(modelText, "comment", displayText);
+  }
+
+  // --- the session name (DESIGN §26) -----------------------------------------
+
+  /**
+   * Pi has a session name and never invents one — `setSessionName` is all it
+   * offers, and its own interface falls back to showing your first message.
+   * Picone keeps its own title, so the two have to be kept in step or a `/name`
+   * from the CLI is invisible here and a rename here never reaches the file.
+   *
+   * The file wins when it has an opinion. It is the shared artifact: Pi can be
+   * pointed at the same session from a terminal between runs, and whatever it
+   * was called there is what the session is called. When the file has no name
+   * and we have a real one, ours goes in, so the two converge either way.
+   */
+  private reconcileName(): void {
+    const piName = this.session.sessionManager.getSessionName();
+    if (piName) {
+      if (piName !== this.title) this.applyTitle(piName);
+      return;
+    }
+    if (this.title && this.title !== DEFAULT_TITLE) this.session.setSessionName(this.title);
+  }
+
+  /** Pi's name changed — from `/name`, an extension, or our own rename. */
+  private adoptName(name: string | undefined): void {
+    // An empty name clears the title in Pi. Ours has to say something, so it
+    // falls back to the placeholder rather than becoming blank.
+    this.applyTitle(name || DEFAULT_TITLE);
+  }
+
+  private applyTitle(title: string): void {
+    if (this.title === title) return;
+    this.title = title;
+    this.options.onTitle(this.id, title);
+  }
+
+  /**
+   * Rename from Picone. Pi sanitizes — newlines become spaces and it is
+   * trimmed — so the stored title comes back from Pi rather than from the
+   * caller, and the two cannot drift apart on a technicality.
+   */
+  rename(title: string): string {
+    this.session.setSessionName(title);
+    return this.session.sessionManager.getSessionName() || DEFAULT_TITLE;
   }
 
   // --- the session tree (DESIGN §53) -----------------------------------------
@@ -630,6 +682,9 @@ ${pointers}` : text;
     return { type: "session.snapshot", sessionId: this.id, items: this.transcript, state: this.state };
   }
 
+  /** Set once, when this session was forked from another (DESIGN §53). */
+  forkedFrom?: string;
+
   summary(): SessionSummary {
     return {
       id: this.id,
@@ -638,6 +693,7 @@ ${pointers}` : text;
       updatedAt: this.updatedAt,
       sessionFile: this.sessionFile,
       model: this.currentModel(),
+      forkedFrom: this.forkedFrom,
     };
   }
 

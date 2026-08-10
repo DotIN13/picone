@@ -309,6 +309,10 @@ export interface SessionSummary {
   sessionFile?: string;
   /** Model this session is actually running, once it has been created. */
   model?: SessionModel;
+  /** One line of the most recent message, for the session list (DESIGN §27). */
+  excerpt?: string;
+  /** The session this one was forked from (§53), when it was. */
+  forkedFrom?: string;
 }
 
 /** Pi's thinking levels, lowest effort first. */

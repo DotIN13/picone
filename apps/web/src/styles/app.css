@@ -419,6 +419,52 @@
   cursor: pointer;
 }
 
+/* Name, fork tag and the working spinner, on one line that never wraps. */
+[data-slot="session-head"] {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+
+[data-slot="session-title"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* The tag never shrinks; the title yields to it, because a fork with a long
+   name is still a fork and that is the part you cannot recover from the row. */
+[data-slot="session-fork"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--v2-state-bg-magic);
+  color: var(--v2-state-fg-magic);
+  font-size: calc(9.5px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Two lines of the last message: enough to recognise a conversation, little
+   enough that a list of ten still fits on a screen. */
+[data-slot="session-excerpt"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  width: 100%;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11.5px * var(--font-scale));
+  line-height: 1.35;
+}
+
 [data-slot="session-time"] {
   font-size: calc(11px * var(--font-scale));
   color: var(--v2-text-text-faint);
