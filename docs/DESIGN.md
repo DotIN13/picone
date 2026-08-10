@@ -548,6 +548,13 @@ file mutation, which keeps the collaboration model simple.
 
 > **Diverged from plan.** The plan specified one fixed, unclosable Chat tab.
 
+**A vertical wheel scrolls the tab strip sideways.** Its scrollbar is hidden and
+a mouse has no horizontal axis, so without translating the wheel the only ways
+to reach an off-screen tab are a trackpad swipe or shift-wheel, and neither is
+discoverable. The strip animates its own programmatic scrolls — it slides the
+active tab into view when that changes from elsewhere — but wheel scrolling is
+instant, because animating every tick lags behind the hand.
+
 ---
 
 ## 14. Chat surface
@@ -632,6 +639,12 @@ collapsed `scrollHeight` from 36 187 to 19 605 as unmeasured rows fall back to
 their intrinsic-size estimate — which breaks both the scrollbar and sticking to
 the bottom. The remaining limit is that opening a session still loads its whole
 transcript from SQLite into memory.
+
+**Time is marked when the conversation resumed, not on every message.** A stamp
+per line is a column nobody reads. One appears after half an hour of silence,
+one when the day changes, and one at the top of the rendered window — which with
+a windowed transcript is an arbitrary point in history and ought to say when it
+is. Today shows a bare time, yesterday and older carry the date.
 
 **The working indicator sits in a slot that keeps its height.** It used to be a
 row in its own right, so finishing a turn removed it and slid the whole

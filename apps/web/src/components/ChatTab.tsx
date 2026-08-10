@@ -65,6 +65,19 @@ export function ChatTab(props: { sessionId: string }) {
   const hidden = () => Math.max(0, items().length - shown().length);
 
   /**
+   * Each rendered item, with the time marker that belongs above it.
+   *
+   * Not one per message: a stamp on every line is a column of noise nobody
+   * reads. One when the conversation resumes after a gap, one when the day
+   * changes, and one at the top of what is rendered so the window always says
+   * where it starts.
+   */
+  const rows = createMemo(() => {
+    const list = shown();
+    return list.map((item, index) => ({ item, stamp: separatorFor(list[index - 1], item) }));
+  });
+
+  /**
    * Show another page, keeping what the reader is looking at exactly where it
    * is. Solid applies the change synchronously, so the height it added can be
    * measured and given straight back to `scrollTop`.
@@ -239,7 +252,14 @@ export function ChatTab(props: { sessionId: string }) {
           </button>
         </Show>
 
-        <For each={shown()}>{(item) => <ChatRow item={item} />}</For>
+        <For each={rows()}>
+          {(row) => (
+            <>
+              <Show when={row.stamp}>{(stamp) => <div data-slot="chat-time">{stamp()}</div>}</Show>
+              <ChatRow item={row.item} />
+            </>
+          )}
+        </For>
 
         {/*
           The tail keeps its height whether or not the agent is working. It used
@@ -371,4 +391,44 @@ function ChatRow(props: { item: ChatItem }) {
       </Match>
     </Switch>
   );
+}
+
+/**
+ * When the conversation resumed, shown above the message that resumed it
+ * (DESIGN §14).
+ *
+ * A separator earns its place by marking a *gap* — half an hour of silence, or
+ * a new day. The first rendered message always gets one, because with a
+ * windowed transcript the top of the view is an arbitrary point in history and
+ * should say when it is.
+ */
+const RESUMED_AFTER_MS = 30 * 60_000;
+
+function separatorFor(previous: ChatItem | undefined, item: ChatItem): string | null {
+  const at = new Date(item.at);
+  if (Number.isNaN(at.getTime())) return null;
+  if (!previous) return whenLabel(at);
+
+  const before = new Date(previous.at);
+  if (Number.isNaN(before.getTime())) return null;
+  if (at.toDateString() !== before.toDateString()) return whenLabel(at);
+  return at.getTime() - before.getTime() >= RESUMED_AFTER_MS ? whenLabel(at) : null;
+}
+
+function whenLabel(at: Date): string {
+  const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const today = new Date();
+  if (at.toDateString() === today.toDateString()) return time;
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (at.toDateString() === yesterday.toDateString()) return `Yesterday · ${time}`;
+
+  const sameYear = at.getFullYear() === today.getFullYear();
+  const date = at.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  return `${date} · ${time}`;
 }

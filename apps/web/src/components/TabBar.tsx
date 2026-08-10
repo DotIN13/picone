@@ -116,7 +116,25 @@ export function TabBar() {
         </button>
       </Show>
 
-      <div data-slot="tabstrip" ref={strip} role="tablist">
+      <div
+        data-slot="tabstrip"
+        ref={strip}
+        role="tablist"
+        /*
+         * A vertical wheel scrolls the strip sideways. The scrollbar is hidden
+         * and a mouse has no horizontal axis, so without this the only ways to
+         * reach an off-screen tab are a trackpad swipe or shift-wheel — and
+         * neither is discoverable. `instant` because the strip animates its
+         * programmatic scrolls, and animating every wheel tick lags behind the
+         * hand.
+         */
+        onWheel={(event) => {
+          if (!strip || event.deltaX !== 0) return;
+          if (strip.scrollWidth <= strip.clientWidth) return;
+          event.preventDefault();
+          strip.scrollBy({ left: event.deltaY, behavior: "instant" });
+        }}
+      >
         <For each={state.tabs}>
           {(tab) => (
             <div

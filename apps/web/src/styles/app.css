@@ -2615,3 +2615,13 @@
 [data-slot="chat-earlier"]:hover {
   color: var(--v2-text-text-base);
 }
+
+/* When the conversation resumed (DESIGN §14). Quiet enough to skip over. */
+[data-slot="chat-time"] {
+  align-self: center;
+  margin: 2px 0;
+  color: var(--v2-text-text-faint);
+  font-size: calc(11px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
