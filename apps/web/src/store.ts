@@ -36,6 +36,7 @@ import {
 } from "./lib/app-settings.ts";
 import { clearResolutions } from "./lib/resolver.ts";
 import { socket } from "./lib/socket.ts";
+import { upsertItem } from "./lib/transcript.ts";
 import { speak } from "./voice/speech.ts";
 
 export interface SessionTab {
@@ -1095,9 +1096,9 @@ function upsert(sessionId: string, item: ChatItem): void {
   setState(
     produce((s) => {
       const items = s.transcripts[sessionId] ?? (s.transcripts[sessionId] = []);
-      const index = items.findIndex((i) => i.id === item.id);
-      if (index === -1) items.push(item);
-      else items[index] = item;
+      // Merges rather than replaces, so a row keeps its identity across the
+      // many updates a running tool sends. See the note in transcript.ts.
+      upsertItem(items, item);
     }),
   );
 }

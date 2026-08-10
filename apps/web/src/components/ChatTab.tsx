@@ -71,11 +71,15 @@ export function ChatTab(props: { sessionId: string }) {
    * reads. One when the conversation resumes after a gap, one when the day
    * changes, and one at the top of what is rendered so the window always says
    * where it starts.
+   *
+   * Computed per row rather than into a list of `{item, stamp}` pairs, which is
+   * what this used to be. `<For>` keys on reference, so a list of fresh wrapper
+   * objects made every row new on every recompute — and a recompute happens on
+   * every streamed delta. Each row was torn down and rebuilt several times a
+   * second, which took any state inside it with it: an open tool-call dropdown
+   * closed itself the moment the agent did anything.
    */
-  const rows = createMemo(() => {
-    const list = shown();
-    return list.map((item, index) => ({ item, stamp: separatorFor(list[index - 1], item) }));
-  });
+  const stampFor = (item: ChatItem, index: number) => separatorFor(shown()[index - 1], item);
 
   /** True while a page is on its way from the server, so we ask once. */
   let fetching = false;
@@ -281,13 +285,19 @@ export function ChatTab(props: { sessionId: string }) {
           </button>
         </Show>
 
-        <For each={rows()}>
-          {(row) => (
-            <>
-              <Show when={row.stamp}>{(stamp) => <div data-slot="chat-time">{stamp()}</div>}</Show>
-              <ChatRow item={row.item} />
-            </>
-          )}
+        {/* Keyed on the item itself, so a row survives everything but its own
+            removal. `index` is a signal here — the stamp follows a message that
+            shifts position as history pages in. */}
+        <For each={shown()}>
+          {(item, index) => {
+            const stamp = createMemo(() => stampFor(item, index()));
+            return (
+              <>
+                <Show when={stamp()}>{(text) => <div data-slot="chat-time">{text()}</div>}</Show>
+                <ChatRow item={item} />
+              </>
+            );
+          }}
         </For>
 
         {/*

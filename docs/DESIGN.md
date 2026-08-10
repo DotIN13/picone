@@ -619,6 +619,21 @@ transcript, one short turn tore down 152 rows and built 154 — because a snapsh
 is emitted mid-turn (§53). Reconciling by `id` took the same turn to 2 nodes
 added and none removed.
 
+**And nothing between the store and `<For>` may re-wrap the items.** Reconciling
+the store is only half of it: the list handed to `<For>` has to be the store's
+own objects. Two things quietly broke that. The timestamp separators were built
+by mapping the items into `{item, stamp}` pairs, which are new objects on every
+recompute — so every row was rebuilt on every streamed delta, several times a
+second, despite the reconcile. And an update merged by `upsert` replaced the
+item at its index, which is a new reference for exactly the row that is
+changing. Both are invisible until something inside a row holds state, and then
+they are very visible: an expanded tool call collapsed itself while the tool was
+still running. The stamp is computed per row from the index instead, and
+`upsertItem` merges changed fields into the existing object.
+
+A row is state, in other words, not just output — the identity of the object it
+is keyed on is a contract with anything inside it.
+
 **Only the tail of a long transcript is in the DOM.** 60 items are rendered from
 the end; scrolling towards the top of what is rendered pulls in another page and
 holds the reader's position, and returning to the bottom throws the extra away,
