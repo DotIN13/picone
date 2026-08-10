@@ -460,6 +460,33 @@ export async function toggleDirectory(path: string): Promise<void> {
   if (!wasExpanded && !state.tree[path]) await loadDirectory(path);
 }
 
+/**
+ * Show a directory in the tree, opening every ancestor on the way down
+ * (DESIGN §51). Used when a directory pill in the transcript is clicked: the
+ * useful response to "here is a folder" is to be looking at it.
+ *
+ * Loads each level before descending, because a directory's children are not
+ * known until it has been listed, and the separator is whichever the roots use.
+ */
+export async function revealInTree(target: string): Promise<void> {
+  const root = state.workspace?.roots.find((r) => target === r.path || target.startsWith(`${r.path}/`) || target.startsWith(`${r.path}\\`));
+  if (!root) return;
+
+  setState("sidebarMode", "files");
+  if (state.compact) setState("sidebarOverlayOpen", true);
+
+  const separator = root.path.includes("\\") ? "\\" : "/";
+  const rest = target.slice(root.path.length).split(/[\\/]+/).filter(Boolean);
+
+  let at = root.path;
+  for (const segment of [...rest, ""]) {
+    if (!state.tree[at]) await loadDirectory(at);
+    setState("expanded", at, true);
+    if (!segment) break;
+    at = `${at}${separator}${segment}`;
+  }
+}
+
 export async function loadDirectory(path: string): Promise<void> {
   if (state.treeLoading[path]) return;
   setState("treeLoading", path, true);

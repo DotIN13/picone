@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
@@ -27,11 +28,13 @@
     "dompurify": "^3.2.7",
     "lucide-solid": "^1.30.0",
     "marked": "^15.0.12",
+    "mermaid": "^11.16.1",
     "solid-js": "^1.9.14"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.11",
     "tailwindcss": "4.1.11",
+    "tsx": "^4.20.7",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
     "vite-plugin-solid": "2.11.10"

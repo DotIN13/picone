@@ -5,9 +5,8 @@ filename — so finishing one never renumbers the rest.
 
 | | |
 |---|---|
-| [Rich previews for media in the flow](media-previews.md) | show images, diagrams and files the agent mentions, instead of leaving a bare string |
-| [No automated tests](automated-tests.md) | everything so far was verified by hand against a live model |
-| [Web bundle is one 837 kB chunk](bundle-size.md) | CodeMirror and Mermaid load whether or not they are used |
+| [Thin test coverage](automated-tests.md) | only the reference detector has tests; the rest is verified by hand |
+| [Web bundle is one 870 kB chunk](bundle-size.md) | CodeMirror loads whether or not a file is opened |
 | [MCP streamable-HTTP is unverified](mcp-http-transport.md) | written from the spec, exercised only over stdio |
 | [Server logs go nowhere](server-logging.md) | stdout only, lost when the terminal closes |
 | [Smaller things](smaller-things.md) | the ones too small to deserve a page each |

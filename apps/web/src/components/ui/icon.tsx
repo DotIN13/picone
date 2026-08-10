@@ -10,8 +10,13 @@ import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import Ellipsis from "lucide-solid/icons/ellipsis";
+import ExternalLink from "lucide-solid/icons/external-link";
 import FileText from "lucide-solid/icons/file-text";
+import FileAudio from "lucide-solid/icons/file-audio";
+import Film from "lucide-solid/icons/film";
 import Folder from "lucide-solid/icons/folder";
+import Globe from "lucide-solid/icons/globe";
+import ImageIcon from "lucide-solid/icons/image";
 import GitBranch from "lucide-solid/icons/git-branch";
 import MessageSquare from "lucide-solid/icons/message-square";
 import Mic from "lucide-solid/icons/mic";
@@ -29,6 +34,7 @@ import Sparkles from "lucide-solid/icons/sparkles";
 import Square from "lucide-solid/icons/square";
 import Sun from "lucide-solid/icons/sun";
 import Terminal from "lucide-solid/icons/terminal";
+import Workflow from "lucide-solid/icons/workflow";
 import TriangleAlert from "lucide-solid/icons/triangle-alert";
 import X from "lucide-solid/icons/x";
 
@@ -47,10 +53,14 @@ const ICONS = {
   "chevron-left": ChevronLeft,
   "chevron-right": ChevronRight,
   "chevron-up": ChevronUp,
+  "external-link": ExternalLink,
   close: X,
   comment: MessageSquare,
   file: FileText,
+  film: Film,
   folder: Folder,
+  globe: Globe,
+  image: ImageIcon,
   "git-branch": GitBranch,
   mic: Mic,
   minus: Minus,
@@ -68,6 +78,8 @@ const ICONS = {
   stop: Square,
   sun: Sun,
   terminal: Terminal,
+  waveform: FileAudio,
+  workflow: Workflow,
 } as const;
 
 export type IconName = keyof typeof ICONS;

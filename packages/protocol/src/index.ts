@@ -247,6 +247,27 @@ export interface FileContent {
   mtime: number;
 }
 
+/**
+ * What the server can say about a path a message mentioned (DESIGN §51).
+ *
+ * `exists: false` covers both "no such file" and "outside the workspace" on
+ * purpose. The browser only needs to know whether it may show the thing, and
+ * telling it which of the two applies would confirm the existence of paths
+ * outside the roots — the one fact the root guard is there to withhold.
+ */
+export interface ResolvedPath {
+  /** Echoed exactly as asked, so the client can key its cache by it. */
+  path: string;
+  exists: boolean;
+  /** Absolute, present only when it resolved. */
+  absolute?: string;
+  type?: "file" | "directory";
+  /** The workspace root it belongs to, for display as a relative path. */
+  root?: string;
+  size?: number;
+  mtime?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Sessions (DESIGN §26)
 // ---------------------------------------------------------------------------

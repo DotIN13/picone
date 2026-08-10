@@ -1085,18 +1085,26 @@ Pi in the browser        streaming · tool calls · abort · steering · reconne
 Workspace JSON           schema · open · validate · recents · settings
 File browser             multiple roots · lazy expansion · search · git status
 Tabs                     sessions and files · reordering · read-only viewers
-Permissions              files/shell/git · allow/ask/deny · cards
+Permissions              files/shell/git · allow/ask/deny · cards · path writes
 File comments            selection · matcher · composer · inline display
 Comment → session        steer when active, otherwise next input
 File watching            open tabs only · refresh banner
 MCP and skills           from workspace JSON, scoped to the workspace
+Memory directories       global and per-workspace · read-only enforcement  §50
 Voice                    dictation and the speak tool
 Slash commands           §43
 Extension UI             §44
 Model selection          §45
+App settings             theme · fonts · two size controls · notifications  §49
+Resizable sidebar        dragged, keyboard-reachable, persisted            §11
+Media and references     images · diagrams · path and URL pills            §51
 ```
 
-Remaining work is in [todo/](todo/): no committed tests, a single large web
+Tests cover the pure pieces of §51 — the reference detector, fence completion
+and streaming prefixes. Everything else is still verified by driving the running
+app; see [todo/automated-tests.md](todo/automated-tests.md).
+
+Remaining work is in [todo/](todo/): thin test coverage, a single large web
 bundle, an unexercised MCP HTTP transport, and stdout-only logging.
 
 ---
@@ -1687,3 +1695,116 @@ would change rather than changing it.
 
 … is outside this workspace, and writing outside it is never permitted.
 ```
+
+---
+
+## 51. Media and references in the flow
+
+When the agent mentions something viewable, show it. An image it just wrote, a
+diagram, a file, a directory, a URL — a transcript that renders these as grey
+text makes the reader go and find them, which is work the app is supposed to be
+doing.
+
+Two shapes, split by what is useful to *see* rather than by file type. Small
+things are **pills**: an icon, a name, one line, inline with the prose. You want
+to know a file was touched and be able to open it, not look at it. Substantial
+things are **boxes** that take their own block and show the content: an image, a
+sound, a video, a diagram.
+
+**Detection is liberal; resolution is the filter.** `lib/references.ts` scans
+prose for anything path-shaped and hands the candidates to the server, which
+answers whether each one exists and whether it is a file or a directory
+(`POST /api/files/resolve`). Anything that fails to resolve renders as the plain
+text it always was. That division is the whole design: the scanner is allowed to
+be wrong, because being wrong costs one entry in a batched lookup rather than a
+broken link in the page. It is a pure function with tests, which is what makes
+tuning the heuristics cheap.
+
+It still has to reject the shapes that would otherwise flood every batch, and
+those are more interesting than they sound. `and/or`, `24/7` and `2026/08/09`
+are all path-shaped. So is `/etc/hosts` — *identically* so to `and/or`, two
+lowercase words around a slash — and the only thing separating them is an
+explicit anchor: a leading separator, `./`, `../`, `~/`, or a drive letter.
+Slash commands are the reverse trap: `/new` and `/settings` are anchored and are
+not paths, so an anchored candidate needs at least two segments. This app's own
+transcripts are full of both.
+
+**Batched, cached, one request per render pass.** A single message can mention a
+dozen paths and every re-render re-encounters them; the whole of DESIGN.md — 68
+kB, 199 paragraphs — resolves in one request carrying 40 candidates. The cache
+lives for the life of the page and is thrown away when the workspace changes,
+because a miss under the old roots may well be a hit under the new ones.
+
+Resolution tries each workspace root in order and takes the first hit, since a
+mentioned path is usually written relative to one. A bare `AGENTS.md` therefore
+resolves to whichever root has one — worth knowing when several do.
+
+**The renderer walks marked's tokens rather than setting `innerHTML`.** This is
+the change that made the rest possible. Putting components inside prose that was
+produced as an HTML string means re-parsing markup the sanitizer has already
+approved and grafting nodes back in — two passes that disagree about what the
+document is. Walking tokens has neither problem and removes the XSS surface as a
+side effect: a text token becomes a text node, so there is no markup for model
+output to escape from. DOMPurify survives in exactly one place, the raw-HTML
+token, which is the only construct that is markup on purpose.
+
+Two costs came with it. marked's lexer hands back source verbatim and leaves
+escaping to its HTML renderer, so `&amp;` has to be decoded here or it appears
+spelled out; that is `lib/entities.ts`, and it uses `DOMParser` rather than the
+usual detached-`<textarea>` trick because a parsed document is inert while
+assigning `innerHTML` constructs live elements even off-document. And every
+construct marked can emit now needs a case — headings, task lists, table
+alignment, `~~del~~` — which is a one-time cost with an obvious failure mode.
+
+**Streaming is about prefixes, not about the finished text.** A half-written
+`![alt](pa` must not flicker a broken image, and it does not: marked emits an
+`image` token only when the construct completes. A fence is the opposite — the
+`code` token appears with the *opening* fence and its text grows chunk by chunk,
+so a diagram would be handed an incomplete graph on every tick and would flash
+parse errors all the way down. Mermaid therefore waits for `fenceClosed()`, and
+until then the block renders as ordinary code.
+
+**Nothing loads until it is nearly on screen**, via `IntersectionObserver` with
+a screen of margin. The observer is attached in `onMount` and *not* in the `ref`
+callback: Solid runs a ref before the element is in the document, and observing
+a disconnected element does not report it when it is finally inserted — an image
+in plain view stayed a grey placeholder until an unrelated scroll happened to
+wake the observer.
+
+**Mermaid is loaded the first time a diagram is actually on screen**, never
+otherwise. It is by a wide margin the heaviest thing the app can pull in —
+larger than everything else put together — and most sessions never mention a
+diagram. It is also initialised with `suppressErrorRendering`, because a diagram
+that fails to parse otherwise draws a bomb and the words "Syntax error in text"
+into the document, outside our tree and at whatever size it likes; the parse
+error belongs in the block it came from, with the source one click away. Pi
+bundles `grok-mermaid`, which is not reusable here: it renders Unicode
+box-drawing art for terminals.
+
+**Bytes are served through the same root guard as everything else**
+(`GET /api/files/raw`), with `Content-Type`, `ETag`, `Last-Modified` and byte
+ranges — the last being what lets someone seek in an audio file rather than wait
+for it. `X-Content-Type-Options: nosniff` always, and an SVG additionally gets a
+restrictive `Content-Security-Policy` and is only ever shown in an `<img>`,
+never inlined: an SVG is an image and a script vector at the same time.
+
+### Deliberate restraint
+
+**Nothing is fetched that was not asked for.** A URL pill shows a globe and a
+hostname, not a favicon and not a title card, because either would be an
+outbound request that tells a third party which links appear in a private
+transcript. An explicit `![](https://…)` is different — that is content the
+message asked to display.
+
+**Inline code gets the subtler treatment.** An agent transcript is mostly paths
+in backticks; turning every one into a pill would be a wall of pills. A
+`` `src/auth.ts` `` that resolves stays code and gains a dotted underline and a
+click. Only prose paths and explicit images become pills and boxes.
+
+### Not built
+
+* **csv and json do not expand to a table or a folded tree.** They are pills.
+* **PDFs are pills.** A preview needs a renderer, which is a bigger dependency
+  than the feature is worth.
+* **Preview state is not persisted.** Expanded or collapsed is recomputed from
+  the text, and `messages` stays free of view state.

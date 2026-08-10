@@ -14,7 +14,8 @@
     "dev:web": "node scripts/wait-for-api.mjs && npm run dev --workspace @picone/web",
     "build": "npm run build --workspace @picone/server && npm run build --workspace @picone/web",
     "start": "npm run start --workspace @picone/server",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

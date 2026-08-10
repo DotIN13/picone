@@ -123,3 +123,265 @@
   max-width: 100%;
   border-radius: 6px;
 }
+
+/* ---------------------------------------------------------------------------
+   References (DESIGN §51)
+   --------------------------------------------------------------------------- */
+
+/*
+ * A pill is a noun in a sentence, so it sits on the text baseline and keeps the
+ * line-height it was given. Anything taller makes a paragraph containing three
+ * of them look like a bulleted list.
+ */
+[data-component="reference-pill"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 0 5px;
+  vertical-align: baseline;
+  border: none;
+  border-radius: 4px;
+  background: var(--v2-background-bg-layer-02);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+  color: var(--v2-text-text-base);
+  font: inherit;
+  font-size: calc(12px * var(--font-scale));
+  line-height: 1.5;
+  cursor: pointer;
+  text-align: start;
+}
+
+[data-component="reference-pill"]:hover {
+  background: var(--v2-background-bg-layer-03);
+  color: var(--v2-text-text-accent);
+}
+
+[data-component="reference-pill"] [data-slot="icon-svg"] {
+  flex: none;
+  color: var(--v2-icon-icon-muted);
+}
+
+[data-component="reference-pill"][data-kind="directory"] [data-slot="icon-svg"],
+[data-component="reference-pill"][data-kind="image"] [data-slot="icon-svg"],
+[data-component="reference-pill"][data-kind="audio"] [data-slot="icon-svg"],
+[data-component="reference-pill"][data-kind="video"] [data-slot="icon-svg"] {
+  color: var(--v2-icon-icon-accent, var(--v2-text-text-accent));
+}
+
+[data-slot="reference-label"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11.5px * var(--font-scale));
+  font-weight: 400;
+}
+
+[data-component="reference-pill"][data-kind="webpage"] [data-slot="reference-label"] {
+  font-family: inherit;
+  font-size: calc(12px * var(--font-scale));
+}
+
+/* Inline code that turned out to name a real file. Same code, plus a hint. */
+[data-slot="code-reference"] {
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--v2-border-border-strong);
+}
+
+[data-slot="code-reference"]:hover {
+  color: var(--v2-text-text-accent);
+  text-decoration-color: currentColor;
+}
+
+/* ---------------------------------------------------------------------------
+   Media boxes
+   --------------------------------------------------------------------------- */
+
+/*
+ * Shrink-wrapped, so a 160px thumbnail gets a 160px frame rather than a
+ * full-width box with a picture in the corner. `max-width` keeps a large
+ * screenshot inside the column.
+ */
+[data-component="media-box"] {
+  display: table;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+/* Audio has no intrinsic width worth wrapping to, so it takes the column. */
+[data-component="media-box"][data-kind="audio"] {
+  display: block;
+  width: auto;
+}
+
+[data-component="media-box"] img,
+[data-component="media-box"] video {
+  display: block;
+  /* Bounded so one screenshot cannot push the rest of the answer off screen. */
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 0;
+  background: var(--v2-background-bg-deep);
+}
+
+[data-component="media-box"] audio {
+  display: block;
+  width: 100%;
+  padding: 8px;
+}
+
+/* Holds the space before the real thing arrives, so scrolling does not jump. */
+[data-slot="media-placeholder"] {
+  height: 120px;
+  background: linear-gradient(
+    100deg,
+    var(--v2-background-bg-layer-01),
+    var(--v2-background-bg-layer-02),
+    var(--v2-background-bg-layer-01)
+  );
+}
+
+[data-slot="media-caption"] {
+  padding: 6px 10px;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11.5px * var(--font-scale));
+}
+
+[data-slot="media-failed"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  color: var(--v2-text-text-muted);
+  font-size: calc(12px * var(--font-scale));
+}
+
+/* ---------------------------------------------------------------------------
+   Mermaid
+   --------------------------------------------------------------------------- */
+
+[data-component="mermaid"] {
+  margin: 0 0 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+[data-slot="mermaid-bar"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 5px 10px;
+  box-shadow: inset 0 -1px 0 0 var(--v2-border-border-muted);
+}
+
+[data-slot="mermaid-label"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+[data-slot="mermaid-toggle"] {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--v2-text-text-muted);
+  font: inherit;
+  font-size: calc(11.5px * var(--font-scale));
+  cursor: pointer;
+}
+
+[data-slot="mermaid-toggle"]:hover {
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="mermaid-canvas"] {
+  padding: 12px;
+  overflow-x: auto;
+  text-align: center;
+}
+
+/* A generated diagram has no sense of proportion; cap it like an image so one
+   flowchart cannot push the rest of the answer off the screen. */
+[data-slot="mermaid-canvas"] svg {
+  max-width: 100%;
+  max-height: 460px;
+  height: auto;
+}
+
+[data-slot="mermaid-source"],
+[data-slot="mermaid-pending"] {
+  margin: 0;
+  padding: 12px;
+  color: var(--v2-text-text-muted);
+  font-size: calc(12px * var(--font-scale));
+}
+
+[data-slot="mermaid-source"] {
+  overflow: auto;
+  color: var(--v2-text-text-base);
+  font-family: var(--v2-font-family-mono);
+}
+
+[data-slot="mermaid-error"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: var(--v2-text-text-warning, var(--v2-text-text-muted));
+  font-size: calc(11.5px * var(--font-scale));
+}
+
+/* ---------------------------------------------------------------------------
+   Fenced diffs — the same colours a tool call's patch already uses
+   --------------------------------------------------------------------------- */
+
+[data-component="diff-block"] {
+  margin: 0 0 12px;
+  padding: 8px 0;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--v2-background-bg-deep);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(12px * var(--font-scale));
+  line-height: 1.6;
+}
+
+[data-component="diff-block"] > div {
+  padding: 0 12px;
+  white-space: pre;
+}
+
+[data-component="diff-block"] > div[data-tone="add"] {
+  background: color-mix(in srgb, var(--v2-background-bg-success, #16a34a) 14%, transparent);
+  color: var(--v2-text-text-success, inherit);
+}
+
+[data-component="diff-block"] > div[data-tone="del"] {
+  background: color-mix(in srgb, var(--v2-background-bg-danger, #dc2626) 14%, transparent);
+  color: var(--v2-text-text-danger, inherit);
+}
+
+[data-component="diff-block"] > div[data-tone="hunk"],
+[data-component="diff-block"] > div[data-tone="meta"] {
+  color: var(--v2-text-text-muted);
+}

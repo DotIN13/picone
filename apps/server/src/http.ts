@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { extname } from "node:path";
 import express, { type Request, type Response, type Router } from "express";
 import type { CommentStatus, GlobalSettings, WorkspaceFile } from "@picone/protocol";
 import type { App } from "./app.ts";
@@ -7,6 +8,7 @@ import { listDirectory, searchFiles } from "./files/browser.ts";
 import { gitChanges } from "./files/git.ts";
 import { completePath, inspectPath } from "./files/paths.ts";
 import { readFileForTab } from "./files/reader.ts";
+import { resolvePaths } from "./files/resolve.ts";
 import { describeModel } from "./pi/models.ts";
 import { expandPath, resolveWithinRoots } from "./util/paths.ts";
 import { loadWorkspace, WorkspaceLoadError } from "./workspace/loader.ts";
@@ -139,6 +141,47 @@ export function createApiRouter(app: App): Router {
     asyncRoute(async (req, res) => {
       const target = resolveReadable(String(req.query.path ?? ""));
       res.json(readFileForTab(target));
+    }),
+  );
+
+  /**
+   * Batch resolution for paths a message mentioned (DESIGN §51). Batch because
+   * one message can name a dozen, and a request each would turn a transcript
+   * into a thundering herd.
+   */
+  router.post(
+    "/files/resolve",
+    asyncRoute(async (req, res) => {
+      const paths = req.body?.paths;
+      if (!Array.isArray(paths)) throw new Error("paths must be an array");
+      const targets = paths.filter((p): p is string => typeof p === "string");
+      res.json({ results: resolvePaths(app.roots, targets) });
+    }),
+  );
+
+  /**
+   * The bytes themselves, so an <img> or a <video> has a URL to point at.
+   *
+   * `sendFile` is doing the interesting work: conditional requests, ETag,
+   * Last-Modified and byte ranges — the last being what lets a user seek in an
+   * audio file rather than wait for the whole thing.
+   */
+  router.get(
+    "/files/raw",
+    asyncRoute(async (req, res) => {
+      const target = resolveReadable(String(req.query.path ?? ""));
+      if (!statSync(target).isFile()) throw new Error(`Not a file: ${target}`);
+
+      // Never let a browser decide a .txt is HTML, and never let an SVG that
+      // reached us from a repository run anything if one is opened directly.
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      if (extname(target).toLowerCase() === ".svg") {
+        res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        res.sendFile(target, { acceptRanges: true, dotfiles: "allow" }, (err) => (err ? reject(err) : resolve()));
+      });
     }),
   );
 

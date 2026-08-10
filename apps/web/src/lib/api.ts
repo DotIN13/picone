@@ -10,6 +10,7 @@ import type {
   PathCompleteResponse,
   PathInspectResponse,
   RecentWorkspace,
+  ResolvedPath,
   SessionSummary,
   SlashCommand,
   Workspace,
@@ -58,6 +59,10 @@ export const api = {
     request<{ path: string; entries: DirEntry[] }>(`/files/list?path=${encodeURIComponent(path)}`),
   readFile: (path: string) => request<FileContent>(`/files/read?path=${encodeURIComponent(path)}`),
   searchFiles: (q: string) => request<{ results: DirEntry[] }>(`/files/search?q=${encodeURIComponent(q)}`),
+  resolvePaths: (paths: string[]) =>
+    request<{ results: ResolvedPath[] }>("/files/resolve", { method: "POST", body: JSON.stringify({ paths }) }),
+  /** Not a request: the URL an <img> or <video> points at. */
+  rawUrl: (path: string) => `/api/files/raw?path=${encodeURIComponent(path)}`,
   gitChanges: () =>
     request<{ roots: Array<{ root: string; changes: Array<{ path: string; status: GitStatus }> }> }>("/git/changes"),
 
