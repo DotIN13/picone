@@ -40,25 +40,20 @@ export function listDirectory(absPath: string, options: ListOptions = {}): DirEn
 
     const full = path.join(absPath, name);
     let isDir = dirent.isDirectory();
-    let size: number | undefined;
 
+    // Only a symlink needs a stat, to find out what it points at. Everything
+    // else is answered by the readdir itself: asking the filesystem about each
+    // entry individually is the whole cost of a listing, and on a network or
+    // cloud-synced folder it is the difference between instant and painful.
     if (dirent.isSymbolicLink()) {
       try {
-        const st = statSync(full);
-        isDir = st.isDirectory();
-        if (!isDir) size = st.size;
+        isDir = statSync(full).isDirectory();
       } catch {
         continue; // broken symlink
       }
-    } else if (!isDir) {
-      try {
-        size = statSync(full).size;
-      } catch {
-        size = undefined;
-      }
     }
 
-    entries.push({ name, path: full, type: isDir ? "directory" : "file", size });
+    entries.push({ name, path: full, type: isDir ? "directory" : "file" });
     if (entries.length >= MAX_DIR_ENTRIES) break;
   }
 

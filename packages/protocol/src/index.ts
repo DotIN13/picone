@@ -226,8 +226,6 @@ export interface DirEntry {
   /** Absolute path. */
   path: string;
   type: "file" | "directory";
-  /** Present for files. */
-  size?: number;
   /** Git status short code relative to the containing root, when known. */
   gitStatus?: GitStatus;
 }
