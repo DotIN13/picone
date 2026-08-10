@@ -11,31 +11,58 @@ import { Spinner, Tag } from "./ui/primitives.tsx";
 export function ChatTab(props: { sessionId: string }) {
   let scroller: HTMLDivElement | undefined;
   let inner: HTMLDivElement | undefined;
-  /** Following the bottom, until the reader scrolls away from it. */
+
+  /*
+   * Following the bottom, and the rules for stopping and starting again.
+   *
+   * Following is off the moment you scroll up, and comes back only when you
+   * send something — not when you happen to reach the bottom again. A view that
+   * re-attaches on its own takes the page away from a reader who was still
+   * reading, and there is no way to ask it not to.
+   */
+  const REARM_WITHIN = 120;
   let pinned = true;
+  /** Last position we set ourselves, so a scroll we did not cause is visible. */
+  let ownTop = 0;
+  /** Where a touch drag started, to tell scrolling up from scrolling down. */
+  let touchY: number | null = null;
 
   const items = () => transcriptOf(props.sessionId);
   const agentState = () => state.agentStates[props.sessionId] ?? "idle";
   const working = () => agentState() !== "idle" && agentState() !== "waiting_permission";
 
+  const gap = () => (scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight : 0);
+
   const stick = () => {
-    if (pinned && scroller) scroller.scrollTop = scroller.scrollHeight;
+    if (!pinned || !scroller) return;
+    scroller.scrollTop = scroller.scrollHeight;
+    ownTop = scroller.scrollTop;
+  };
+
+  /**
+   * Let go, immediately.
+   *
+   * Called from the gestures themselves rather than from `scroll`, because the
+   * frame loop below writes `scrollTop` every frame: a wheel tick would be
+   * undone before the scroll event it produced had been handled, and the view
+   * would refuse to move at all.
+   */
+  const release = () => {
+    pinned = false;
   };
 
   /*
-   * Following the bottom is two mechanisms, because one is not enough.
+   * Following the bottom takes two mechanisms, because neither is enough.
    *
-   * Watching `items().length` — what this used to do — only fires when a
-   * message is *added*, and a streaming message does not change the count, so
-   * the view stopped following the moment an answer began and caught up only at
-   * the next item. A resize observer is the obvious replacement and turned out
-   * to be too coarse on its own: during a fast stream it delivered a couple of
-   * callbacks for a whole turn, and the bottom drifted 140px away between them.
+   * Watching `items().length` only fires when a message is *added*, and a
+   * streaming message does not change the count — so the view stopped following
+   * the moment an answer began. A resize observer is the obvious replacement
+   * and is too coarse on its own: during a fast stream it delivered two
+   * callbacks for an entire turn while the bottom drifted 140px away.
    *
    * So: a frame loop while the agent is working, which is exactly when the
-   * transcript is growing and following matters; and the observer for
-   * everything else — an image finishing, a tool call expanding, the window
-   * changing shape — which happens while nothing is streaming.
+   * transcript grows; and the observer for everything else — an image
+   * finishing, a tool call expanding, the window changing shape.
    */
   onMount(() => {
     stick();
@@ -54,13 +81,58 @@ export function ChatTab(props: { sessionId: string }) {
     onCleanup(() => cancelAnimationFrame(frame));
   });
 
+  /*
+   * Sending is the only thing that starts following again, and only from near
+   * the bottom: send from halfway up a long transcript and you stay where you
+   * were reading. Keyed on the newest user message rather than on a callback
+   * from the composer, so a comment (§19) or a voice turn re-arms it too.
+   */
+  createEffect((previous: string | undefined) => {
+    const list = items();
+    const latest = [...list].reverse().find((item) => item.kind === "user")?.id;
+    if (latest && latest !== previous && gap() <= REARM_WITHIN) {
+      pinned = true;
+      queueMicrotask(stick);
+    }
+    return latest;
+  });
+
   return (
     <div
       data-slot="chat"
       ref={scroller}
+      /* Wheel and trackpad: any upward tick is a decision to stop following. */
+      onWheel={(event) => {
+        if (event.deltaY < 0) release();
+      }}
+      /* Touch: dragging the content down is scrolling up. */
+      onTouchStart={(event) => {
+        touchY = event.touches[0]?.clientY ?? null;
+      }}
+      onTouchMove={(event) => {
+        const y = event.touches[0]?.clientY ?? null;
+        if (touchY !== null && y !== null && y > touchY + 2) release();
+        touchY = y;
+      }}
+      onKeyDown={(event) => {
+        if (["ArrowUp", "PageUp", "Home"].includes(event.key)) release();
+      }}
+      /*
+       * The backstop, for a scrollbar drag — which produces no wheel, no touch
+       * and no key.
+       *
+       * A drop in `scrollTop` is only the reader if it also moved us off the
+       * bottom. Content shrinking mid-turn — a tool call collapsing, a
+       * streaming block re-rendering shorter — makes the browser clamp
+       * `scrollTop` down all by itself, and reading that as a gesture unpinned
+       * the view in the middle of its own answer.
+       */
       onScroll={() => {
         if (!scroller) return;
-        pinned = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+        const top = scroller.scrollTop;
+        const bottom = scroller.scrollHeight - scroller.clientHeight;
+        if (top < ownTop - 1 && top < bottom - 1) release();
+        ownTop = top;
       }}
     >
       <div data-slot="chat-inner" ref={inner}>

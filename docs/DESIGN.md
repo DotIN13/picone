@@ -567,17 +567,30 @@ long run is the one call that failed, so only failures take a colour. File-shape
 calls offer **Open**, which appears on hover and opens a tab without navigating
 away from the conversation.
 
-**The view follows the bottom, and lets go when you scroll away.** Following
-takes two mechanisms because neither is enough alone. Watching the number of
-items only fires when a message is *added*, and a streaming message does not
-change the count — so the view stopped following the moment an answer began. A
-resize observer is the obvious replacement and is too coarse on its own: during
-a fast stream it delivered two callbacks for an entire turn while the bottom
-drifted 140px away. So a frame loop runs while the agent is working, which is
-exactly when the transcript is growing, and the observer covers everything else
-— an image finishing, a tool call expanding, the window changing shape. Both
-respect the same latch: scroll more than 80px from the bottom and following
-stops until you come back.
+**The view follows the bottom, lets go the instant you scroll up, and only
+starts again when you send.** Reaching the bottom again does *not* re-attach it:
+a view that grabs the page back on its own takes it away from someone who was
+still reading, and there is no way to ask it to stop. Sending re-arms it, and
+only from within 120px of the bottom — send from halfway up a long transcript
+and you stay where you were.
+
+Following takes two mechanisms because neither is enough alone. Watching the
+number of items only fires when a message is *added*, and a streaming message
+does not change the count, so the view stopped following the moment an answer
+began. A resize observer is the obvious replacement and is too coarse on its
+own: during a fast stream it delivered two callbacks for an entire turn while
+the bottom drifted 140px away. So a frame loop runs while the agent is working,
+and the observer covers everything else — an image finishing, a tool call
+expanding, the window changing shape.
+
+**Letting go is driven by the gesture, not by the scroll event**, and that is
+forced by the frame loop: it writes `scrollTop` every frame, so a wheel tick
+would be undone before the `scroll` event it produced had been handled and the
+view would refuse to move at all. Wheel, touch drag and the arrow/page/home keys
+each release directly. A scrollbar drag produces none of those, so `scroll` is
+kept as a backstop — but only when the view also moved *off* the bottom, because
+content shrinking mid-turn makes the browser clamp `scrollTop` down by itself,
+and reading that as a gesture unpinned the view in the middle of its own answer.
 
 **The working indicator sits in a slot that keeps its height.** It used to be a
 row in its own right, so finishing a turn removed it and slid the whole
