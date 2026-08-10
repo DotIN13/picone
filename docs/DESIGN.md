@@ -1098,6 +1098,7 @@ Model selection          §45
 App settings             theme · fonts · two size controls · notifications  §49
 Resizable sidebar        dragged, keyboard-reachable, persisted            §11
 Media and references     images · diagrams · path and URL pills            §51
+Memory mentions          `@` a subject; the agent gets a pointer, not a page  §52
 ```
 
 Tests cover the pure pieces of §51 — the reference detector, fence completion
@@ -1808,3 +1809,73 @@ click. Only prose paths and explicit images become pills and boxes.
   than the feature is worth.
 * **Preview state is not persisted.** Expanded or collapsed is recomputed from
   the text, and `messages` stays free of view state.
+
+---
+
+## 52. Mentioning someone from memory
+
+Memory directories (§50) are mounted, readable and in the file tree. `@` points
+at somebody in them mid-sentence.
+
+**What the agent receives is a pointer, not a page.** A mention appends a short
+block to the model-facing copy of the turn — who was meant, where their page
+lives, and an instruction to look past it:
+
+```
+The user named someone from memory in that message.
+
+**Gio Choi** (person) — start here: `…/memory/people/gio-choi.md`
+
+These are starting points, not the record. Whoever was named may also appear in
+journal entries, in meeting notes, and in other pages' `related` lists. Search
+the memory directories before concluding something is not there, and read only
+what you need.
+```
+
+Three reasons it is not the contents. The agent has file tools and §50 has
+already told it how to use this store — a mention does not need to re-teach
+that, only to say *which subject*. Memory is scattered: a person's page is the
+one filed under their name, not everything the store knows about them, and
+pasting it in implies otherwise. And the pages run to thousands of words, so
+attaching a few would crowd out the conversation while still being less than the
+agent could have fetched for itself.
+
+The wording carries the weight. *Here is where to start* leaves an agent free to
+search; anything that reads as *here is the relevant material* is how a capable
+agent gets talked out of searching.
+
+A name with no page still gets a line — *no page is filed under that name* —
+because a missing page is not a missing person, and that is exactly when looking
+around is worth more than a pointer would have been.
+
+**The index is for the menu.** `memory/subjects.ts` walks the enabled roots and
+reads only the first 4 kB of each page: frontmatter, first heading, first
+paragraph. Cached against every file's mtime, so an edit invalidates and nothing
+else does. A page that declares `type:` keeps it; one that does not is typed by
+the folder it is filed in, which is not a guess — a store that puts notes in
+`journal/` has said what they are. `path` is the only field the agent ever sees.
+
+Nothing here invents a schema. A memory store is somebody's notes: a store with
+no frontmatter still yields subjects, they just have no type.
+
+**`@` is the same gesture as `/` (§43)** — type a sigil, narrow a list, complete
+a token — so it reuses the shape and the keyboard. One difference drives the
+implementation: a slash command is the whole message, while a mention happens
+inside a sentence. The menu is therefore anchored to the **caret** rather than
+to the field, the sigil must follow whitespace or an opening bracket so an email
+address never opens it, and Escape closes the menu without clearing what has
+been typed. Exactly one menu is open at a time and the keyboard belongs to it.
+
+**What lands in the message is literal text — `@gio-choi`.** Same reasoning as
+comment matchers (§17): text survives editing, copy-paste, reload, and being
+read by something that is not this app. The server re-resolves mentions when the
+turn is sent, and one that no longer resolves degrades to the words the user
+typed. In the transcript a resolved mention renders as a pill (purple, like the
+memory tag in the tree) that opens the page in a tab.
+
+### Not built
+
+* **No mode where the agent answers *as* the mentioned person.** The pointer is
+  the useful part; that is a much larger feature with its own problems.
+* **`@` names memory subjects only**, not files or sessions. §51 already
+  resolves paths in prose, and mixing the two would make the menu a grab bag.

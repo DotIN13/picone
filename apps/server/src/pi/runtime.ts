@@ -26,6 +26,7 @@ import type {
 } from "@picone/protocol";
 import { appendMessage, loadTranscript } from "../db.ts";
 import { memoryContextFiles } from "../memory/context.ts";
+import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import { PermissionGate } from "../permissions/gate.ts";
 import { resolvedPermissions, resolvedVoice } from "../workspace/schema.ts";
 import { resolveSkillPaths, workspaceContext } from "../workspace/loader.ts";
@@ -349,11 +350,13 @@ export class SessionRuntime {
     this.commit(item);
     this.options.emit(this.id, { type: "user.message", id: item.id, text: shown, source, at: item.at });
 
+    const sent = this.withMentions(text);
+
     try {
       if (this.session.isStreaming) {
-        await this.session.prompt(text, { streamingBehavior: "steer" });
+        await this.session.prompt(sent, { streamingBehavior: "steer" });
       } else {
-        await this.session.prompt(text);
+        await this.session.prompt(sent);
       }
     } catch (err) {
       this.translator.notice(`Prompt failed: ${(err as Error).message}`, "error");
@@ -372,10 +375,26 @@ export class SessionRuntime {
     this.commit(item);
     this.options.emit(this.id, { type: "user.message", id: item.id, text: shown, source, at: item.at });
     try {
-      await this.session.steer(text);
+      await this.session.steer(this.withMentions(text));
     } catch (err) {
       this.translator.notice(`Steering failed: ${(err as Error).message}`, "error");
     }
+  }
+
+  /**
+   * Append pointers for any `@subject` the message named (DESIGN §52).
+   *
+   * The transcript keeps what the user typed; only the model-facing copy grows,
+   * and only by a path and an instruction to look wider. A message that mentions
+   * nobody is returned untouched, which is almost every message.
+   */
+  private withMentions(text: string): string {
+    const pointers = mentionContext(text, memorySubjects(this.workspace.memory));
+    return pointers ? `${text}
+
+---
+
+${pointers}` : text;
   }
 
   async abort(): Promise<void> {

@@ -9,6 +9,7 @@ import { gitChanges } from "./files/git.ts";
 import { completePath, inspectPath } from "./files/paths.ts";
 import { readFileForTab } from "./files/reader.ts";
 import { resolvePaths } from "./files/resolve.ts";
+import { memorySubjects } from "./memory/subjects.ts";
 import { describeModel } from "./pi/models.ts";
 import { expandPath, resolveWithinRoots } from "./util/paths.ts";
 import { loadWorkspace, WorkspaceLoadError } from "./workspace/loader.ts";
@@ -226,6 +227,20 @@ export function createApiRouter(app: App): Router {
     "/paths/inspect",
     asyncRoute(async (req, res) => {
       res.json(inspectPath(String(req.query.path ?? "")));
+    }),
+  );
+
+  // --- memory ----------------------------------------------------------------
+
+  /**
+   * Everything in the enabled memory directories that `@` can name (DESIGN §52).
+   * For the composer's menu — the agent is handed paths, not this.
+   */
+  router.get(
+    "/memory/subjects",
+    asyncRoute(async (_req, res) => {
+      const workspace = app.getWorkspace();
+      res.json({ subjects: workspace ? memorySubjects(workspace.memory) : [] });
     }),
   );
 

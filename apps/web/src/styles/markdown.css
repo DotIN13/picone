@@ -385,3 +385,14 @@
 [data-component="diff-block"] > div[data-tone="meta"] {
   color: var(--v2-text-text-muted);
 }
+
+/* A memory subject named with `@`. Purple, like the memory tag in the tree. */
+[data-component="reference-pill"][data-kind="memory"] [data-slot="icon-svg"] {
+  color: var(--v2-state-fg-magic);
+}
+
+[data-component="reference-pill"][data-kind="memory"] [data-slot="reference-label"] {
+  font-family: inherit;
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 500;
+}

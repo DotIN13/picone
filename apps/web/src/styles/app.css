@@ -2378,3 +2378,76 @@
   color: var(--v2-text-text-faint);
 }
 
+
+/* ---------------------------------------------------------------------------
+   The `@` menu (DESIGN §52) — same furniture as the slash menu
+   --------------------------------------------------------------------------- */
+
+[data-component="mention-menu"] {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  margin-bottom: 6px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow:
+    0 0 0 0.5px var(--v2-border-border-base),
+    0 8px 24px -8px rgb(0 0 0 / 0.28);
+}
+
+[data-slot="mention-item"] {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-height: max(28px, calc(28px * var(--font-scale)));
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  color: var(--v2-text-text-base);
+  font: inherit;
+  font-size: calc(12.5px * var(--font-scale));
+  text-align: start;
+  cursor: pointer;
+}
+
+[data-slot="mention-item"][data-active] {
+  background: var(--v2-background-bg-layer-02);
+}
+
+[data-slot="mention-item"] [data-slot="icon-svg"] {
+  flex: none;
+  align-self: center;
+  color: var(--v2-icon-icon-muted);
+}
+
+[data-slot="mention-name"] {
+  flex: none;
+  font-weight: 520;
+}
+
+[data-slot="mention-type"] {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-muted);
+  font-size: calc(10.5px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* The summary yields all the space it has to; a name must never be clipped. */
+[data-slot="mention-summary"] {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11.5px * var(--font-scale));
+}
+
+[data-slot="mention-item"][data-active] [data-slot="mention-type"] {
+  background: var(--v2-background-bg-layer-03);
+}

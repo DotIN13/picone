@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import type { SlashCommand } from "@picone/protocol";
+import type { MemorySubject, SlashCommand } from "@picone/protocol";
 import {
   abort,
   activeSessionState,
@@ -18,6 +18,7 @@ import { Dictation, isSpeechInputSupported, stopSpeaking } from "../voice/speech
 import { Icon } from "./ui/icon.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import { SlashMenu, filterCommands } from "./SlashMenu.tsx";
+import { MentionMenu, filterSubjects, mentionQueryAt } from "./MentionMenu.tsx";
 
 /** Line blocks an extension pushed via `setWidget`, rendered as monospace. */
 function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
@@ -49,6 +50,10 @@ export function Composer() {
   const [listening, setListening] = createSignal(false);
   const [voiceError, setVoiceError] = createSignal<string | null>(null);
   const [menuIndex, setMenuIndex] = createSignal(0);
+  /** Mentions happen mid-sentence, so the menu keys off the caret, not the field. */
+  const [caret, setCaret] = createSignal(0);
+  /** Offset of an `@` whose menu was dismissed with Escape. */
+  const [dismissed, setDismissed] = createSignal<number | null>(null);
 
   const dictation = new Dictation();
   let baseText = "";
@@ -76,9 +81,29 @@ export function Composer() {
     return query === null ? [] : filterCommands(commands(), query);
   });
 
+  /** `@token` under the caret (DESIGN §52). Suppressed while `/` owns the menu. */
+  const mention = createMemo(() => {
+    if (slashQuery() !== null) return null;
+    const found = mentionQueryAt(text(), caret());
+    // Dismissal is remembered per `@`, so Escape closes this one and typing a
+    // different mention later still opens the menu.
+    return found && found.start === dismissed() ? null : found;
+  });
+
+  const mentionMatches = createMemo(() => {
+    const active = mention();
+    return active === null ? [] : filterSubjects(state.memorySubjects, active.query);
+  });
+
+  /** Exactly one menu is ever open, and the keyboard belongs to whichever it is. */
+  const openMenu = createMemo<"slash" | "mention" | null>(() =>
+    matches().length > 0 ? "slash" : mentionMatches().length > 0 ? "mention" : null,
+  );
+
   createEffect(() => {
-    // Reset the highlight whenever the candidate list changes.
+    // Reset the highlight whenever either candidate list changes.
     matches();
+    mentionMatches();
     setMenuIndex(0);
   });
 
@@ -141,6 +166,25 @@ export function Composer() {
     textarea?.focus();
   };
 
+  /**
+   * Complete the token in place. Only text goes in — the pointer the agent
+   * receives is assembled server-side when the turn is sent, so a mention
+   * survives being edited, copied, or reloaded (§52).
+   */
+  const pickSubject = (subject: MemorySubject) => {
+    const active = mention();
+    if (!active) return;
+    const value = text();
+    const inserted = `@${subject.slug} `;
+    const next = value.slice(0, active.start) + inserted + value.slice(caret());
+    const at = active.start + inserted.length;
+    setText(next);
+    setCaret(at);
+    textarea?.focus();
+    // The caret has to be placed after Solid has written the new value.
+    queueMicrotask(() => textarea?.setSelectionRange(at, at));
+  };
+
   const submit = (source: "chat" | "voice" = "chat") => {
     const value = text().trim();
     if (!value) return;
@@ -174,29 +218,44 @@ export function Composer() {
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const list = matches();
-    if (list.length > 0) {
+    const menu = openMenu();
+    if (menu) {
+      const length = menu === "slash" ? matches().length : mentionMatches().length;
+
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setMenuIndex((i) => (i + 1) % list.length);
+        setMenuIndex((i) => (i + 1) % length);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setMenuIndex((i) => (i - 1 + list.length) % list.length);
+        setMenuIndex((i) => (i - 1 + length) % length);
         return;
       }
       if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
-        const command = list[menuIndex()];
-        if (command) {
-          event.preventDefault();
-          pickCommand(command);
-          return;
+        if (menu === "slash") {
+          const command = matches()[menuIndex()];
+          if (command) {
+            event.preventDefault();
+            pickCommand(command);
+            return;
+          }
+        } else {
+          const subject = mentionMatches()[menuIndex()];
+          if (subject) {
+            event.preventDefault();
+            pickSubject(subject);
+            return;
+          }
         }
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        setText("");
+        // A slash command is the whole message, so dismissing it clears the
+        // field. A mention is one word inside a sentence — closing the menu
+        // must not throw the sentence away, so the caret steps past the token.
+        if (menu === "slash") setText("");
+        else setDismissed(mention()?.start ?? null);
         return;
       }
     }
@@ -222,6 +281,16 @@ export function Composer() {
           onPick={pickCommand}
         />
 
+        <Show when={openMenu() === "mention"}>
+          <MentionMenu
+            subjects={mentionMatches()}
+            query={mention()?.query ?? ""}
+            activeIndex={menuIndex()}
+            onHover={setMenuIndex}
+            onPick={pickSubject}
+          />
+        </Show>
+
         <div data-slot="composer-box" data-listening={listening() ? "" : undefined}>
           <textarea
             ref={textarea}
@@ -232,7 +301,12 @@ export function Composer() {
             placeholder={
               disabled() ? "Open a session to start" : busy() ? "Steer the agent…" : "Ask anything, or / for commands"
             }
-            onInput={(event) => setText(event.currentTarget.value)}
+            onInput={(event) => {
+              setText(event.currentTarget.value);
+              setCaret(event.currentTarget.selectionStart ?? event.currentTarget.value.length);
+            }}
+            onKeyUp={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
+            onClick={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
             onKeyDown={onKeyDown}
           />
 
@@ -285,10 +359,13 @@ export function Composer() {
           when={listening()}
           fallback={
             <Show
-              when={matches().length > 0}
+              when={openMenu() !== null}
               fallback={
                 <>
-                  <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line · <kbd>/</kbd> for commands
+                  <kbd>Enter</kbd> to send · <kbd>/</kbd> for commands ·{" "}
+                  <Show when={state.memorySubjects.length > 0} fallback={<><kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</>}>
+                    <kbd>@</kbd> for memory
+                  </Show>
                 </>
               }
             >

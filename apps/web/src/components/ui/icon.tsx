@@ -3,6 +3,8 @@ import { splitProps, type ComponentProps } from "solid-js";
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import Bell from "lucide-solid/icons/bell";
+import Box from "lucide-solid/icons/box";
+import Calendar from "lucide-solid/icons/calendar";
 import Check from "lucide-solid/icons/check";
 import CaseSensitive from "lucide-solid/icons/case-sensitive";
 import ChevronDown from "lucide-solid/icons/chevron-down";
@@ -33,7 +35,9 @@ import Shield from "lucide-solid/icons/shield";
 import Sparkles from "lucide-solid/icons/sparkles";
 import Square from "lucide-solid/icons/square";
 import Sun from "lucide-solid/icons/sun";
+import Target from "lucide-solid/icons/target";
 import Terminal from "lucide-solid/icons/terminal";
+import User from "lucide-solid/icons/user";
 import Workflow from "lucide-solid/icons/workflow";
 import TriangleAlert from "lucide-solid/icons/triangle-alert";
 import X from "lucide-solid/icons/x";
@@ -47,6 +51,8 @@ const ICONS = {
   "arrow-up": ArrowUp,
   alert: TriangleAlert,
   bell: Bell,
+  box: Box,
+  calendar: Calendar,
   "case-sensitive": CaseSensitive,
   check: Check,
   "chevron-down": ChevronDown,
@@ -77,7 +83,9 @@ const ICONS = {
   sparkle: Sparkles,
   stop: Square,
   sun: Sun,
+  target: Target,
   terminal: Terminal,
+  user: User,
   waveform: FileAudio,
   workflow: Workflow,
 } as const;

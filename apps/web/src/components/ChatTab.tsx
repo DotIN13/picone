@@ -2,6 +2,7 @@ import { For, Match, Show, Switch, createEffect, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
 import { openFile, state, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
+import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
 import { PermissionCard } from "./PermissionCard.tsx";
 import { Icon } from "./ui/icon.tsx";
@@ -75,7 +76,9 @@ function ChatRow(props: { item: ChatItem }) {
                 {item().source === "voice" ? "voice" : "file comment"}
               </div>
             </Show>
-            <div data-slot="msg-body">{item().text}</div>
+            <div data-slot="msg-body">
+              <MentionText text={item().text} />
+            </div>
           </div>
         )}
       </Match>

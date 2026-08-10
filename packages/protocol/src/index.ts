@@ -105,6 +105,28 @@ export interface ResolvedMemoryDir {
   entries: number;
 }
 
+/**
+ * Something in a memory directory that can be named with `@` (DESIGN §52).
+ *
+ * Everything but `path` exists for the autocomplete menu. `path` is the only
+ * field the agent ever sees: a mention hands over a pointer, not a page.
+ */
+export interface MemorySubject {
+  /** From the filename, and what the user types after `@`. */
+  slug: string;
+  /** From the page's first heading, falling back to the slug. */
+  name: string;
+  /** Whatever the page declares in its frontmatter; "" when it declares none. */
+  type: string;
+  /** First paragraph, one line, for the menu. */
+  summary: string;
+  /** Absolute path to the page. */
+  path: string;
+  /** Which memory directory it came from. */
+  root: string;
+  tags: string[];
+}
+
 export interface WorkspaceFile {
   version: 1;
   name: string;

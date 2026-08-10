@@ -12,6 +12,7 @@ import type {
   GlobalSettings,
   GitStatus,
   McpServerState,
+  MemorySubject,
   ModelOption,
   PermissionDecision,
   ResourceReport,
@@ -32,6 +33,7 @@ import {
   watchSystemColorScheme,
   type AppSettings,
 } from "./lib/app-settings.ts";
+import { clearResolutions } from "./lib/resolver.ts";
 import { socket } from "./lib/socket.ts";
 import { speak } from "./voice/speech.ts";
 
@@ -75,6 +77,8 @@ interface State {
   transcripts: Record<string, ChatItem[]>;
   agentStates: Record<string, AgentState>;
   commands: Record<string, SlashCommand[]>;
+  /** Everything `@` can name, from the enabled memory directories (§52). */
+  memorySubjects: MemorySubject[];
   comments: FileComment[];
   mcp: McpServerState[];
   models: ModelOption[];
@@ -136,6 +140,7 @@ const [state, setState] = createStore<State>({
   comments: [],
   mcp: [],
   models: [],
+  memorySubjects: [],
   voice: { input: true, output: true },
   settings: { mcp: {}, skills: [], memory: {} },
   settingsErrors: [],
@@ -243,6 +248,11 @@ export async function init(): Promise<void> {
 
 export async function refreshState(): Promise<void> {
   const next = await api.state();
+
+  // A resolved path is only true of the tree it was resolved against, and a
+  // miss under the old roots may be a hit under the new ones (§51).
+  if (next.workspace?.path !== state.workspace?.path) clearResolutions();
+
   setState({
     workspace: next.workspace,
     sessions: next.sessions,
@@ -268,6 +278,13 @@ export async function refreshState(): Promise<void> {
 
   const { comments } = await api.comments();
   setState("comments", comments);
+
+  // Memory subjects feed the composer's `@` menu (§52). Not fatal if a store
+  // is unreadable — the menu is simply empty and `@` stays literal text.
+  void api
+    .memorySubjects()
+    .then(({ subjects }) => setState("memorySubjects", subjects))
+    .catch(() => setState("memorySubjects", []));
 
   // Roots start expanded — one level, lazily (DESIGN §12).
   for (const root of next.workspace.roots.filter((r) => r.exists)) {

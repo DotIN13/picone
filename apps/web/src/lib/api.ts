@@ -6,6 +6,7 @@ import type {
   FileContent,
   GitStatus,
   GlobalSettings,
+  MemorySubject,
   ModelOption,
   PathCompleteResponse,
   PathInspectResponse,
@@ -94,6 +95,8 @@ export const api = {
   sessionCommands: (id: string) => request<{ commands: SlashCommand[] }>(`/sessions/${id}/commands`),
 
   models: () => request<{ models: ModelOption[] }>("/models"),
+
+  memorySubjects: () => request<{ subjects: MemorySubject[] }>("/memory/subjects"),
 
   settings: () => request<{ settings: GlobalSettings; errors: string[] }>("/settings"),
   saveSettings: (settings: GlobalSettings) =>
