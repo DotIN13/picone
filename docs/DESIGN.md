@@ -1637,6 +1637,30 @@ from fighting.
 **Installability.** A web manifest, maskable icon, `standalone` display, and
 scheme-aware `theme-color` so the status bar matches the app in both themes.
 
+**A phone starts one notch larger.** The design is drawn for a pointer at desk
+distance; the same numbers on a handset held closer, and tapped rather than
+clicked, come out small. So `scale` *defaults* to 1.15 on a compact viewport —
+scale rather than a second set of sizes, so one control still governs it and the
+proportions hold — and it is only a default, overridden per browser the moment
+the setting is touched.
+
+**The composer is a different shape on a phone, not the same shape scaled.** The
+text takes a line of its own, the controls become round targets beneath it, and
+the whole thing is a soft capsule: 24px radius, 38px mic, 42px send, and the
+model as a filled pill rather than a bare label. Nothing in the row is under
+36px. The input is at least 16px because that is the size below which iOS zooms
+the page on focus, which is a worse outcome than slightly larger text.
+
+**What becomes a sheet, and what does not.** A long list wants the full width and
+the keyboard: the model picker is a bottom sheet on compact, sharing one body
+with the desktop popover. Four lines and two controls do not: the context panel
+(§54) stays a popup at every size and is simply held inside the viewport. A
+drawer for that is more ceremony than content.
+
+**The keyboard hints go on a phone, and the context dial with them.** There are
+no such keys to name, and the space below the input is worth more than a
+reading — the dial lives in that row, so hiding the row hides both.
+
 ---
 
 ## 48. Global settings

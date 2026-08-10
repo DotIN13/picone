@@ -667,7 +667,13 @@
   flex: none;
   width: 24px;
   height: 24px;
-  margin-block: 5px;
+  /*
+   * Centred by the flexbox, not by matching margins to the bar's height. The
+   * old `margin-block: 5px` only centred a 24px button inside a 34px bar, and
+   * on a phone the bar is 46 — the tabs carry larger touch targets there — so
+   * the plus sat 3.5px high while everything beside it was centred.
+   */
+  align-self: center;
   margin-inline-start: 2px;
   border: none;
   border-radius: 6px;
@@ -1506,7 +1512,14 @@
 /* ── Model picker ── */
 [data-slot="model-trigger"] {
   display: inline-flex;
-  align-items: center;
+  /*
+   * `baseline`, so the model name and the thinking badge sit on one line.
+   * They are 12px and 10px, and centring text of two sizes aligns their line
+   * boxes rather than their letters — the badge ends up riding low, because a
+   * line box carries descender space the uppercase badge never uses. The icons
+   * opt out below: a glyph wants centring, not a baseline.
+   */
+  align-items: baseline;
   gap: 5px;
   max-width: 260px;
   min-height: max(26px, calc(26px * var(--font-scale)));
@@ -1529,6 +1542,11 @@
 [data-slot="model-trigger"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+[data-slot="model-trigger"] > [data-slot="icon-svg"] {
+  align-self: center;
+  flex: none;
 }
 
 [data-slot="model-thinking"] {
@@ -2163,10 +2181,6 @@
     transition: margin-bottom 0.18s ease;
   }
 
-  [data-slot="composer-hint"] {
-    display: none;
-  }
-
   [data-slot="markdown-view"] {
     padding: 16px 14px 48px;
   }
@@ -2735,8 +2749,95 @@
   white-space: normal;
 }
 
+/* Kept inside a narrow viewport: the dial is at the right edge, so the panel
+   grows leftwards and must not run off the other side. */
+@media (max-width: 767px) {
+  [data-slot="context-details"] {
+    width: min(20rem, calc(100vw - 32px));
+  }
+}
+
 [data-slot="context-figure"] {
   color: var(--v2-text-text-base);
   font-size: calc(12.5px * var(--font-scale));
   font-variant-numeric: tabular-nums;
+}
+
+/* As a sheet the picker is the sheet: no floating box of its own (§47). */
+[data-component="model-popover"][data-sheet] {
+  position: static;
+  width: auto;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Phone sizing (DESIGN §47)
+   --------------------------------------------------------------------------- */
+
+/*
+ * The composer is the one control that is used constantly and typed into, so
+ * it gets more than the interface scale gives it: 16px is also the size below
+ * which iOS zooms the page on focus, which is a far worse outcome than a
+ * slightly larger font.
+ */
+/*
+ * A phone composer is a different shape from a desktop one, not the same shape
+ * scaled: the text gets a line of its own, the controls become round targets
+ * under it, and the whole thing is a soft capsule rather than a tight box.
+ * Sizes follow what a thumb needs — nothing here is under 36px.
+ */
+@media (max-width: 767px) {
+  [data-slot="composer-box"] {
+    gap: 10px;
+    padding: 14px 12px 10px;
+    border-radius: 24px;
+  }
+
+  [data-slot="composer-input"] {
+    padding: 0 6px;
+    /* 16px is also the size below which iOS zooms the page on focus, which is
+       a far worse outcome than slightly larger text. */
+    font-size: max(16px, calc(15px * var(--font-scale)));
+    line-height: 1.4;
+  }
+
+  [data-slot="composer-controls"] {
+    gap: 8px;
+    min-height: 0;
+  }
+
+  /* Round, filled, and thumb-sized — the same treatment for every control in
+     the row so none of them reads as more of a button than the others. */
+  [data-slot="composer-mic"] {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: var(--v2-background-bg-layer-02);
+    color: var(--v2-text-text-base);
+  }
+
+  [data-slot="composer-send"],
+  [data-slot="composer-stop"] {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+  }
+
+  /* The model reads as a pill in the row rather than a bare label. */
+  [data-slot="model-trigger"] {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--v2-background-bg-layer-02);
+    font-size: calc(13px * var(--font-scale));
+  }
+
+  /* Keyboard hints mean nothing on a phone, and the context dial goes with
+     them — screen space below the input is worth more than a reading. */
+  [data-slot="composer-hint"] {
+    display: none;
+  }
 }

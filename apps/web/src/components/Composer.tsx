@@ -464,6 +464,9 @@ function ContextMeter() {
             {Math.round(value())}%
           </button>
 
+          {/* Anchored above the dial on every size. It is four lines and two
+              controls — a sheet for that is more ceremony than content — so on
+              a phone it stays a popup and is simply held inside the viewport. */}
           <Show when={open()}>
             <div data-slot="context-details">
               <div data-slot="context-figure">
@@ -491,6 +494,7 @@ function ContextMeter() {
               </Button>
             </div>
           </Show>
+
         </div>
       )}
     </Show>

@@ -3,6 +3,7 @@ import { Popover } from "@kobalte/core/popover";
 import type { ModelOption, ThinkingLevel } from "@picone/protocol";
 import { sessionSummary, setSessionModel, state } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
+import { Dialog } from "./ui/primitives.tsx";
 
 /** Pi's thinking levels, lowest effort first. */
 const THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -57,78 +58,113 @@ export function ModelPicker() {
     setFilter("");
   };
 
-  return (
-    <Popover open={open()} onOpenChange={setOpen} placement="top-start" gutter={6}>
-      <Popover.Trigger data-slot="model-trigger" disabled={!state.activeSessionId}>
-        <Icon name="sparkle" size={12} />
-        <span class="truncate">{label()}</span>
-        <Show when={current()?.thinking && current()!.thinking !== "off" && levels().length > 0}>
-          <span data-slot="model-thinking">{current()!.thinking}</span>
+  /*
+   * One body, two containers. On a phone an anchored popover is squeezed
+   * between the keyboard and the safe area with a search field in it, so the
+   * same content becomes the bottom sheet the Dialog primitive already knows
+   * how to be (§47). The desktop keeps the popover, which belongs beside the
+   * control it came from.
+   */
+  const body = () => (
+    <>
+      <div data-slot="model-search">
+        <Icon name="search" size={13} />
+        <input
+          autofocus
+          placeholder="Search models…"
+          value={filter()}
+          onInput={(event) => setFilter(event.currentTarget.value)}
+        />
+      </div>
+
+      <div data-slot="model-list">
+        <Show when={filtered().length > 0} fallback={<div data-slot="model-empty">No matching models</div>}>
+          <For each={filtered()}>
+            {(model) => (
+              <button
+                type="button"
+                data-slot="model-item"
+                data-selected={
+                  current()?.provider === model.provider && current()?.model === model.id ? "" : undefined
+                }
+                onClick={() => pick(model)}
+              >
+                <span data-slot="model-item-provider">{model.provider}</span>
+                <span class="truncate">{model.id}</span>
+                <Show when={current()?.provider === model.provider && current()?.model === model.id}>
+                  <Icon name="check" size={13} class="ml-auto shrink-0 text-v2-icon-icon-accent" />
+                </Show>
+              </button>
+            )}
+          </For>
         </Show>
-        <Icon name="chevron-down" size={11} class="opacity-60" />
-      </Popover.Trigger>
+      </div>
 
-      <Popover.Portal>
-        <Popover.Content data-component="model-popover">
-          <div data-slot="model-search">
-            <Icon name="search" size={13} />
-            <input
-              autofocus
-              placeholder="Search models…"
-              value={filter()}
-              onInput={(event) => setFilter(event.currentTarget.value)}
-            />
+      {/* Only the levels this model accepts, and nothing at all when it has
+          none — an empty row explaining its own absence is just noise. */}
+      <Show when={levels().length > 0}>
+        <div data-slot="model-thinking-row">
+          <span class="text-v2-text-text-faint">Thinking</span>
+          <div data-slot="model-thinking-options">
+            <For each={levels()}>
+              {(level) => (
+                <button
+                  type="button"
+                  data-slot="model-thinking-option"
+                  data-selected={current()?.thinking === level ? "" : undefined}
+                  onClick={() => {
+                    const model = current();
+                    if (model) void setSessionModel(model.provider, model.model, level);
+                  }}
+                >
+                  {level}
+                </button>
+              )}
+            </For>
           </div>
+        </div>
+      </Show>
+    </>
+  );
 
-          <div data-slot="model-list">
-            <Show when={filtered().length > 0} fallback={<div data-slot="model-empty">No matching models</div>}>
-              <For each={filtered()}>
-                {(model) => (
-                  <button
-                    type="button"
-                    data-slot="model-item"
-                    data-selected={
-                      current()?.provider === model.provider && current()?.model === model.id ? "" : undefined
-                    }
-                    onClick={() => pick(model)}
-                  >
-                    <span data-slot="model-item-provider">{model.provider}</span>
-                    <span class="truncate">{model.id}</span>
-                    <Show when={current()?.provider === model.provider && current()?.model === model.id}>
-                      <Icon name="check" size={13} class="ml-auto shrink-0 text-v2-icon-icon-accent" />
-                    </Show>
-                  </button>
-                )}
-              </For>
-            </Show>
-          </div>
+  const trigger = (
+    <>
+      <Icon name="sparkle" size={12} />
+      <span class="truncate">{label()}</span>
+      <Show when={current()?.thinking && current()!.thinking !== "off" && levels().length > 0}>
+        <span data-slot="model-thinking">{current()!.thinking}</span>
+      </Show>
+      <Icon name="chevron-down" size={11} class="opacity-60" />
+    </>
+  );
 
-          {/* Only the levels this model accepts, and nothing at all when it has
-              none — an empty row explaining its own absence is just noise. */}
-          <Show when={levels().length > 0}>
-            <div data-slot="model-thinking-row">
-              <span class="text-v2-text-text-faint">Thinking</span>
-              <div data-slot="model-thinking-options">
-                <For each={levels()}>
-                  {(level) => (
-                    <button
-                      type="button"
-                      data-slot="model-thinking-option"
-                      data-selected={current()?.thinking === level ? "" : undefined}
-                      onClick={() => {
-                        const model = current();
-                        if (model) void setSessionModel(model.provider, model.model, level);
-                      }}
-                    >
-                      {level}
-                    </button>
-                  )}
-                </For>
-              </div>
-            </div>
-          </Show>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover>
+  return (
+    <Show
+      when={state.compact}
+      fallback={
+        <Popover open={open()} onOpenChange={setOpen} placement="top-start" gutter={6}>
+          <Popover.Trigger data-slot="model-trigger" disabled={!state.activeSessionId}>
+            {trigger}
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content data-component="model-popover">{body()}</Popover.Content>
+          </Popover.Portal>
+        </Popover>
+      }
+    >
+      <button
+        type="button"
+        data-slot="model-trigger"
+        disabled={!state.activeSessionId}
+        onClick={() => setOpen(true)}
+      >
+        {trigger}
+      </button>
+      <Dialog open={open()} onOpenChange={setOpen} title="Model">
+        <div data-component="model-popover" data-sheet="">
+          {body()}
+        </div>
+      </Dialog>
+    </Show>
   );
 }

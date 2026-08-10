@@ -6,6 +6,8 @@
  * workspace JSON, which is shared and checked in.
  */
 
+import { COMPACT_QUERY } from "./media.ts";
+
 export type ColorSchemePreference = "system" | "light" | "dark";
 
 export interface AppearanceSettings {
@@ -60,12 +62,26 @@ export const FONT_SIZES = [11, 12, 13, 14, 15, 16];
 /** The design width, and the bounds a drag is held within. */
 export const SIDEBAR_WIDTH = { default: 264, min: 180, max: 640 };
 
+/**
+ * A phone starts one notch larger (DESIGN §47).
+ *
+ * The design is drawn for a pointer at desk distance; the same numbers on a
+ * handset held closer, and tapped rather than clicked, come out small. Scale
+ * rather than a separate set of sizes, so one control still governs it and the
+ * proportions the design depends on are preserved — and it is only a *default*,
+ * overridden the moment the setting is touched, per browser.
+ */
+function defaultScale(): number {
+  if (typeof window === "undefined" || !window.matchMedia) return 1;
+  return window.matchMedia(COMPACT_QUERY).matches ? 1.15 : 1;
+}
+
 const DEFAULTS: AppSettings = {
   appearance: {
     colorScheme: "system",
     interfaceFont: "",
     codeFont: "",
-    scale: 1,
+    scale: defaultScale(),
     fontSize: BASE_FONT_SIZE,
     sidebarWidth: SIDEBAR_WIDTH.default,
   },
