@@ -5,7 +5,7 @@ filename — so finishing one never renumbers the rest.
 
 | | |
 |---|---|
-| [Mention someone from memory, and talk with them](memory-mentions.md) | `@` a subject from a memory dir; then hear back from them |
+| [Mentioning someone from memory](memory-mentions.md) | `@` a subject and hand the agent a pointer to it, not the file |
 | [Forking and rewinding a session](session-forking.md) | Pi's session file is already a tree; Picone only uses the trunk |
 | [Thin test coverage](automated-tests.md) | only the reference detector has tests; the rest is verified by hand |
 | [Web bundle is one 870 kB chunk](bundle-size.md) | CodeMirror loads whether or not a file is opened |
