@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "concurrently --raw --kill-others-on-fail \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "npm run dev --workspace @picone/server",
-    "dev:web": "npm run dev --workspace @picone/web",
+    "dev:web": "node scripts/wait-for-api.mjs && npm run dev --workspace @picone/web",
     "build": "npm run build --workspace @picone/server && npm run build --workspace @picone/web",
     "start": "npm run start --workspace @picone/server",
     "typecheck": "npm run typecheck --workspaces --if-present"

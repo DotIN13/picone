@@ -199,17 +199,46 @@ export function hasSessionTab(): boolean {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
+/**
+ * Pull everything the app needs from the server, tolerating the server not
+ * being there. Overlapping calls collapse into one: reconnecting and starting
+ * up can both ask at the same moment.
+ */
+let syncing: Promise<void> | null = null;
+
+function sync(): Promise<void> {
+  syncing ??= (async () => {
+    try {
+      await refreshState();
+      const { models } = await api.models();
+      setState("models", models);
+    } catch {
+      // The socket says when the server is back, and this runs again then.
+    } finally {
+      syncing = null;
+    }
+  })();
+  return syncing;
+}
+
 export async function init(): Promise<void> {
   applyAppearanceNow();
   watchSystemColorScheme(applyAppearanceNow);
-  socket.onStatus((connected) => setState("connected", connected));
+
+  socket.onStatus((connected) => {
+    const wasConnected = state.connected;
+    setState("connected", connected);
+
+    // Re-read everything on every (re)connect, not just the first. In
+    // development `tsx watch` restarts the server on every edit, and at startup
+    // the browser is usually served before the API is listening — without this
+    // the app keeps whatever it managed to fetch before the drop, or nothing.
+    if (connected && !wasConnected) void sync();
+  });
+
   socket.onFrame(applyFrame);
   socket.connect();
-  await refreshState();
-  void api
-    .models()
-    .then(({ models }) => setState("models", models))
-    .catch(() => setState("models", []));
+  await sync();
 }
 
 export async function refreshState(): Promise<void> {

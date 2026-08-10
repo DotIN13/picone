@@ -27,11 +27,12 @@ npm run dev
 
 `npm run dev` starts the API/WebSocket server on `http://127.0.0.1:4319` and the
 Vite dev server on `http://127.0.0.1:4318` (which proxies `/api` and `/ws`).
-Open the Vite URL.
+Open the Vite URL. Vite waits for the API before it starts, so the first page
+you are served has a server to talk to; expect a second or two of
+`waiting for the API…` first.
 
-If the browser shows `ECONNREFUSED 127.0.0.1:4319`, the API server did not
-start — the log will say why, most often that the port is still held by a
-previous run. `PICONE_PORT=4400 npm run dev` moves it.
+If it says the API never came up, the log above will say why — most often the
+port is still held by a previous run. `PICONE_PORT=4400 npm run dev` moves it.
 
 For a single-origin production run:
 

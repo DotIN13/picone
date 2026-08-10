@@ -862,6 +862,19 @@ The socket reconnects with backoff and queues anything sent while down. On
 connect the server replays session list, workspace, MCP state, the active
 session's snapshot, and its slash commands.
 
+**The client re-reads everything on every connect, not only the first.** The
+socket coming up is the one reliable signal that a server exists, and it is not
+only a network blip that brings it down: `tsx watch` restarts the server on
+every edit, and at startup Vite serves the page before the API is listening.
+Treating the first fetch as the only one left the app holding whatever it
+managed to get before the drop, or nothing at all, until a manual reload. The
+resync collapses overlapping calls, so starting up and reconnecting at the same
+moment asks once.
+
+In development Vite also waits for the API before it starts
+(`scripts/wait-for-api.mjs`), so the first page served has a server behind it
+rather than a screenful of proxy errors.
+
 > **Diverged from plan.** The plan proposed `WS /sessions/:id/events`. A single
 > socket with session-tagged frames turned out simpler once several sessions can
 > be open at once.
