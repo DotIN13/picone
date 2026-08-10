@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, onCleanup, onMount } from "solid-js";
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
 import { forkAt, openFile, rewindTo, state, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
@@ -29,13 +29,54 @@ export function ChatTab(props: { sessionId: string }) {
    * you moved, and moving down is unambiguous.
    */
   const NEAR_BOTTOM = 120;
+
+  /*
+   * How much of a long transcript is in the DOM (DESIGN §14).
+   *
+   * Rows are rendered from the end. Scrolling towards the top of what is
+   * rendered pulls in another page and holds the reader's position; coming back
+   * to the bottom throws the extra away again, so a session that has been open
+   * all day costs the same as one just opened.
+   *
+   * Windowing from the tail rather than around the viewport, deliberately: a
+   * true virtual list has to guess the height of what it is not showing, and
+   * every one of those guesses lands on the scrollbar. Growing downwards from a
+   * fixed end means no estimates, no spacers, and no jitter — the price is that
+   * reaching far-back history takes a moment of scrolling rather than a drag of
+   * the scrollbar.
+   */
+  const WINDOW = 60;
+  const LOAD_MORE_AT = 800;
+
   let pinned = true;
   /** Last position we set ourselves, so a scroll we did not cause is visible. */
   let ownTop = 0;
   /** Where a touch drag started, to tell scrolling up from scrolling down. */
   let touchY: number | null = null;
 
+  const [windowed, setWindowed] = createSignal(WINDOW);
   const items = () => transcriptOf(props.sessionId);
+  /** The tail of the transcript that is actually rendered. */
+  const shown = createMemo(() => {
+    const all = items();
+    const size = windowed();
+    return all.length <= size ? all : all.slice(all.length - size);
+  });
+  const hidden = () => Math.max(0, items().length - shown().length);
+
+  /**
+   * Show another page, keeping what the reader is looking at exactly where it
+   * is. Solid applies the change synchronously, so the height it added can be
+   * measured and given straight back to `scrollTop`.
+   */
+  const showEarlier = () => {
+    if (!scroller || hidden() === 0) return;
+    const before = scroller.scrollHeight;
+    setWindowed((size) => size + WINDOW);
+    const grew = scroller.scrollHeight - before;
+    scroller.scrollTop += grew;
+    ownTop = scroller.scrollTop;
+  };
   const agentState = () => state.agentStates[props.sessionId] ?? "idle";
   const working = () => agentState() !== "idle" && agentState() !== "waiting_permission";
 
@@ -123,6 +164,9 @@ export function ChatTab(props: { sessionId: string }) {
     const latest = [...list].reverse().find((item) => item.kind === "user")?.id;
     if (latest && latest !== previous && gap() <= NEAR_BOTTOM) {
       pinned = true;
+      // Back at the end, so the pages pulled in earlier are far off screen and
+      // can go. Without this a long-lived session only ever grows.
+      setWindowed(WINDOW);
       queueMicrotask(stick);
     }
     return latest;
@@ -163,6 +207,8 @@ export function ChatTab(props: { sessionId: string }) {
         const top = scroller.scrollTop;
         const distance = scroller.scrollHeight - scroller.clientHeight - top;
 
+        if (top < LOAD_MORE_AT && hidden() > 0) showEarlier();
+
         if (top < ownTop - 1 && distance > 1) {
           release();
         } else if (!pinned && top > ownTop && distance <= NEAR_BOTTOM) {
@@ -186,7 +232,14 @@ export function ChatTab(props: { sessionId: string }) {
           </div>
         </Show>
 
-        <For each={items()}>{(item) => <ChatRow item={item} />}</For>
+        {/* Everything older than the window, in one line rather than in the DOM. */}
+        <Show when={hidden() > 0}>
+          <button type="button" data-slot="chat-earlier" onClick={showEarlier}>
+            {hidden()} earlier {hidden() === 1 ? "message" : "messages"} — show more
+          </button>
+        </Show>
+
+        <For each={shown()}>{(item) => <ChatRow item={item} />}</For>
 
         {/*
           The tail keeps its height whether or not the agent is working. It used

@@ -612,16 +612,26 @@ transcript, one short turn tore down 152 rows and built 154 — because a snapsh
 is emitted mid-turn (§53). Reconciling by `id` took the same turn to 2 nodes
 added and none removed.
 
-That leaves the whole transcript in the DOM, which is fine at this size and
-worth stating with numbers: 155 rows is 2 759 nodes and 45ms to build from
-scratch, against a 51-screen scroll height. `content-visibility: auto` on the
-rows was tried and rejected — layout is already cheap (0.3ms for a full pass),
-and it collapsed `scrollHeight` from 36 187 to 19 605 as unmeasured rows fall
-back to their intrinsic-size estimate, which breaks both the scrollbar and
-sticking to the bottom. Windowing is the answer if transcripts ever reach
-thousands of rows, and it costs text selection across messages, find-in-page,
-and simple height handling — so it wants a real problem first. The nearer limit
-is that opening a session loads its entire transcript from SQLite.
+**Only the tail of a long transcript is in the DOM.** 60 items are rendered from
+the end; scrolling towards the top of what is rendered pulls in another page and
+holds the reader's position, and returning to the bottom throws the extra away,
+so a session open all day costs what a fresh one does. On a 155-row transcript
+that is 1 696 nodes instead of 2 759, and the trim is invisible because it only
+runs while following the bottom, where the dropped rows are screens away.
+
+**Windowed from the tail, not around the viewport.** A true virtual list has to
+guess the height of what it is not showing, and every guess lands on the
+scrollbar; growing downwards from a fixed end needs no estimates, no spacers and
+no jitter. The price is that far-back history takes a moment of scrolling rather
+than a drag of the scrollbar — and a count of what is not shown, which doubles
+as the control that shows it.
+
+`content-visibility: auto` was the other candidate and was measured and
+rejected: layout is already cheap (0.3ms for a full pass over 155 rows), and it
+collapsed `scrollHeight` from 36 187 to 19 605 as unmeasured rows fall back to
+their intrinsic-size estimate — which breaks both the scrollbar and sticking to
+the bottom. The remaining limit is that opening a session still loads its whole
+transcript from SQLite into memory.
 
 **The working indicator sits in a slot that keeps its height.** It used to be a
 row in its own right, so finishing a turn removed it and slid the whole
