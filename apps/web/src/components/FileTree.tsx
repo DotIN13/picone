@@ -97,7 +97,7 @@ function TreeNode(props: {
           everything else is named relative to it.
         */}
         <Show when={props.kind === "context" || props.kind === "memory"}>
-          <span data-slot="tree-tag">{props.kind}</span>
+          <span data-slot="tree-tag" data-kind={props.kind}>{props.kind}</span>
         </Show>
         <Show when={status()}>
           {(mark) => (

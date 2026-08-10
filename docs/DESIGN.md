@@ -145,8 +145,20 @@ data directory, exists for projects that should not carry a Picone file.
 
 **The picker is one path field plus a listing**, and the pair is a component
 of its own (`PathBrowser`) because finding a folder is not only how a workspace
-is opened — a memory directory (§50) is chosen the same way, so it is the same
-browser with a different ending.
+is opened.
+
+Above it sits `DirectoryDialog`: the browser, the line naming the folder that
+will be committed, and the confirm button. Everywhere Picone asks for a
+directory asks the same question, and the answer used to be typed by hand in the
+one place that mattered most — a settings field holding a raw path asks the user
+to be their own file manager. What differs between callers is only the ending,
+so that is all a caller supplies: memory (§50) adds a name and a writable
+switch, the workspace's own directory fields add nothing.
+
+The workspace picker keeps using `PathBrowser` directly rather than the dialog,
+because choosing a workspace *file* — or creating one in a folder — is a
+different question with a different answer, and a folder chooser would fit
+neither ending.
 
 The listing is the completion surface and it always shows a *real folder*: the deepest one on the typed path
 that exists, named above the rows so the field and the listing can never quietly

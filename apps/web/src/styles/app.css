@@ -324,6 +324,13 @@
 /* Says what a root is when it is not project code, e.g. a memory store (§50).
    Purple because it is the agent's own, not the project's — the one place in
    the tree that is not your code. */
+/*
+ * What a root is, when it is not the working directory. Memory keeps `magic`,
+ * the colour used wherever the agent's own knowledge appears; context takes
+ * `info`, which reads as a reference rather than as something the agent
+ * authored — and, more practically, the two are told apart at a glance in a
+ * sidebar that may show several of each.
+ */
 [data-slot="tree-tag"] {
   flex: none;
   margin-inline-start: auto;
@@ -336,6 +343,12 @@
   font-size: calc(10px * var(--font-scale));
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+[data-slot="tree-tag"][data-kind="context"] {
+  background: var(--v2-state-bg-info);
+  box-shadow: 0 0 0 0.5px var(--v2-state-border-info);
+  color: var(--v2-state-fg-info);
 }
 
 [data-slot="git-mark"] {

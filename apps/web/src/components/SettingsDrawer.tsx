@@ -16,6 +16,7 @@ import { Icon } from "./ui/icon.tsx";
 import { Select, Switch, Tag, TextArea, TextInput } from "./ui/primitives.tsx";
 import { AppearancePanel, NotificationsPanel } from "./AppSettings.tsx";
 import { GlobalMemoryPanel, WorkspaceMemoryPanel } from "./MemorySettings.tsx";
+import { DirectoryDialog } from "./DirectoryDialog.tsx";
 
 type Section =
   | "general"
@@ -362,6 +363,7 @@ export function SettingsDrawer() {
                       placeholder="/path/to/repo"
                       values={openedCwd() ? [openedCwd()!] : []}
                       max={1}
+                      browse
                       hint="Where the agent works by default."
                       onChange={(values) => patch({ cwd: values[0], directories: undefined, context: openedContext() })}
                     />
@@ -369,6 +371,7 @@ export function SettingsDrawer() {
                       label="Context directories"
                       placeholder="/path/to/reference"
                       values={openedContext()}
+                      browse
                       hint="Open alongside it, and writable. These may sit inside the working directory, or contain it."
                       onChange={(context) => patch({ context, cwd: openedCwd(), directories: undefined })}
                     />
@@ -529,9 +532,16 @@ function StringListEditor(props: {
   hint?: string;
   /** How many entries the list may hold. Used for the single working directory. */
   max?: number;
+  /**
+   * Offer the folder chooser (§3). A path is still typeable — it is faster when
+   * you know it — but browsing is what makes the field usable when you do not.
+   */
+  browse?: boolean;
   onChange: (values: string[]) => void;
 }) {
   const full = () => props.max !== undefined && props.values.length >= props.max;
+  /** Which row the chooser is editing, or -1 for a new one. Null when closed. */
+  const [browsing, setBrowsing] = createSignal<number | null>(null);
   return (
     <div class="flex flex-col gap-2">
       <div data-slot="section-title">{props.label}</div>
@@ -550,6 +560,9 @@ function StringListEditor(props: {
                 props.onChange(values);
               }}
             />
+            <Show when={props.browse}>
+              <IconButton icon="folder" label={`Browse for ${props.label}`} onClick={() => setBrowsing(index())} />
+            </Show>
             <IconButton
               icon="close"
               label="Remove"
@@ -559,9 +572,29 @@ function StringListEditor(props: {
         )}
       </For>
       <Show when={!full()}>
-        <Button variant="neutral" icon="plus" class="self-start" onClick={() => props.onChange([...props.values, ""])}>
+        <Button
+          variant="neutral"
+          icon={props.browse ? "folder" : "plus"}
+          class="self-start"
+          onClick={() => (props.browse ? setBrowsing(-1) : props.onChange([...props.values, ""]))}
+        >
           Add
         </Button>
+      </Show>
+
+      <Show when={props.browse && browsing() !== null}>
+        <DirectoryDialog
+          open
+          onOpenChange={(open) => !open && setBrowsing(null)}
+          title={props.label}
+          confirmLabel={browsing() === -1 ? "Add" : "Choose"}
+          initialPath={browsing()! >= 0 ? props.values[browsing()!] : undefined}
+          onChoose={(folder) => {
+            const at = browsing()!;
+            props.onChange(at === -1 ? [...props.values, folder] : props.values.map((v, i) => (i === at ? folder : v)));
+            setBrowsing(null);
+          }}
+        />
       </Show>
     </div>
   );
