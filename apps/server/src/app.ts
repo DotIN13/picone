@@ -311,8 +311,20 @@ export class App {
     return runtime;
   }
 
+  /**
+   * Make a session active and send the browser its transcript.
+   *
+   * The snapshot goes out **even when nothing changed**. Selecting a session
+   * that is already active looks like a no-op from the server's side, but the
+   * caller is a browser asking to see it — and a browser that has just
+   * reopened a workspace has thrown its transcripts away and has nothing to
+   * show. Returning early there left the chat permanently blank.
+   */
   async selectSession(id: string): Promise<void> {
-    if (this.activeSessionId === id && this.sessions.has(id)) return;
+    if (this.activeSessionId === id && this.sessions.has(id)) {
+      this.publishSnapshot(id);
+      return;
+    }
 
     if (!this.sessions.has(id)) {
       const workspace = this.requireWorkspace();
@@ -326,7 +338,11 @@ export class App {
     touchSession(id);
     this.publishSessionList();
     this.publishCommands(id);
+    this.publishSnapshot(id);
+  }
 
+  /** Push a session's transcript to every connected browser. */
+  private publishSnapshot(id: string): void {
     const runtime = this.sessions.get(id);
     if (runtime) this.hub.publish(id, runtime.snapshot());
   }
@@ -390,6 +406,9 @@ export class App {
     this.activeSessionId = id;
     this.evictIdleSessions();
     this.publishCommands(id);
+    // Reopening a workspace lands here, and the browser has just cleared its
+    // transcripts — so the session it is about to show needs sending.
+    this.publishSnapshot(id);
   }
 
   /**

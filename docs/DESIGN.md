@@ -947,6 +947,21 @@ The socket reconnects with backoff and queues anything sent while down. On
 connect the server replays session list, workspace, MCP state, the active
 session's snapshot, and its slash commands.
 
+**A transcript is pushed, so the client has to notice when it was not.** Three
+paths deliver a snapshot — connecting, activating a session, and selecting one —
+and reopening a workspace fell through all of them: the server activates the
+session *during* the request whose response then clears the client, so the
+snapshot arrived before there was anywhere to put it and the chat stayed blank
+until something else happened to refresh it. Selecting a session that is already
+active used to return early for the same reason it looks redundant, which meant
+clicking the blank session did not fix it either.
+
+Two rules now. Selecting a session always sends its snapshot, whether or not
+anything changed — the caller is a browser asking to see it, not a request to
+mutate state. And after any state refresh the client asks for the transcript of
+a session it is showing but has never been sent: a missing key means never
+received, where `[]` means received and empty.
+
 **The client re-reads everything on every connect, not only the first.** The
 socket coming up is the one reliable signal that a server exists, and it is not
 only a network blip that brings it down: `tsx watch` restarts the server on

@@ -276,6 +276,20 @@ export async function refreshState(): Promise<void> {
     void ensureCommands(next.activeSessionId);
   }
 
+  /*
+   * Ask for the transcript of any session we are showing but have never been
+   * sent. The server pushes a snapshot when it activates a session, but
+   * reopening a workspace activates it *during* the request whose response then
+   * clears the client — so that snapshot arrives before there is anywhere to
+   * put it, and the chat stays blank until something else happens to refresh
+   * it. A missing key means never received; `[]` means received and empty.
+   */
+  if (next.activeSessionId && !(next.activeSessionId in state.transcripts)) {
+    void api.selectSession(next.activeSessionId).catch(() => {
+      /* the socket will bring it on the next connect */
+    });
+  }
+
   const { comments } = await api.comments();
   setState("comments", comments);
 
