@@ -325,6 +325,18 @@ export interface TranscriptPageResponse {
   hasMore: boolean;
 }
 
+/**
+ * How full the model's context window is (DESIGN §54).
+ *
+ * `tokens` is null when Pi cannot say yet — right after compaction, before the
+ * next reply comes back — so the UI has to handle "unknown" rather than zero.
+ */
+export interface ContextUsage {
+  tokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+}
+
 /** Pi's thinking levels, lowest effort first. */
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -475,6 +487,8 @@ export type AgentEvent =
   | { type: "session.snapshot"; sessionId: string; items: ChatItem[]; state: AgentState }
   /** Put text in the composer — a rewound message, ready to be said differently. */
   | { type: "editor.set"; text: string }
+  /** How full the context is, sampled when it can have changed (§54). */
+  | { type: "context.usage"; usage: ContextUsage | null }
   | { type: "user.message"; id: string; text: string; source: "chat" | "voice" | "comment"; at: string }
   | { type: "assistant.start"; id: string }
   | { type: "assistant.delta"; id: string; text: string }
@@ -568,6 +582,8 @@ export type ClientMessage =
   | { type: "select_session"; sessionId: string }
   /** Move the leaf back to just before a message, in place (DESIGN §53). */
   | { type: "rewind"; itemId: string; sessionId?: string }
+  /** Summarise the conversation so far and drop what it replaces (§54). */
+  | { type: "compact"; sessionId?: string }
   | { type: "new_session"; title?: string }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
   /** Mirrors composer contents so extensions can read and patch the editor. */

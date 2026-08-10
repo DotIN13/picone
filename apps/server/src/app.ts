@@ -533,6 +533,11 @@ export class App {
     await this.target(sessionId).steer(text);
   }
 
+  /** Summarise the conversation so far, freeing context (DESIGN §54). */
+  async compact(sessionId?: string): Promise<void> {
+    await this.target(sessionId).compact();
+  }
+
   /** Go back to just before a message, in place (DESIGN §53). */
   async rewind(itemId: string, sessionId?: string): Promise<void> {
     await this.target(sessionId).rewind(itemId);

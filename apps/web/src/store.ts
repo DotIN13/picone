@@ -2,6 +2,7 @@ import { createStore, produce, reconcile } from "solid-js/store";
 import type {
   AgentState,
   ChatItem,
+  ContextUsage,
   CommentStatus,
   CreateWorkspaceRequest,
   DirEntry,
@@ -81,6 +82,8 @@ interface State {
   memorySubjects: MemorySubject[];
   /** Sessions with transcript older than what has been fetched (§14). */
   moreHistory: Record<string, boolean>;
+  /** How full each session's context is, when Pi can say (§54). */
+  contextUsage: Record<string, ContextUsage | null>;
   comments: FileComment[];
   mcp: McpServerState[];
   models: ModelOption[];
@@ -144,6 +147,7 @@ const [state, setState] = createStore<State>({
   models: [],
   memorySubjects: [],
   moreHistory: {},
+  contextUsage: {},
   voice: { input: true, output: true },
   settings: { mcp: {}, skills: [], memory: {} },
   settingsErrors: [],
@@ -668,6 +672,16 @@ export async function loadEarlier(sessionId: string): Promise<number> {
   }
 }
 
+/**
+ * Summarise the conversation so far and free the context it was using
+ * (DESIGN §54). Pi aborts whatever is running first, so this is safe mid-turn.
+ */
+export function compactSession(): void {
+  const sessionId = state.activeSessionId;
+  if (!sessionId) return;
+  socket.send({ type: "compact", sessionId });
+}
+
 export function abort(): void {
   if (!state.activeSessionId) return;
   socket.send({ type: "abort", sessionId: state.activeSessionId });
@@ -827,6 +841,10 @@ function applyFrame(frame: ServerFrame): void {
         setState("transcripts", event.sessionId, held ? reconcile(merged, { key: "id" }) : merged);
       }
       setState("agentStates", event.sessionId, event.state);
+      break;
+
+    case "context.usage":
+      if (sid) setState("contextUsage", sid, event.usage);
       break;
 
     case "editor.set":

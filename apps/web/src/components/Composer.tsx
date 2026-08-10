@@ -3,6 +3,7 @@ import type { MemorySubject, SlashCommand } from "@picone/protocol";
 import {
   abort,
   activeSessionState,
+  compactSession,
   closeTab,
   consumeEditorPatch,
   newSession,
@@ -43,6 +44,7 @@ const APP_COMMANDS: SlashCommand[] = [
   { name: "settings", description: "Open workspace settings", source: "app" },
   { name: "theme", description: "Toggle light / dark theme", source: "app" },
   { name: "sidebar", description: "Show or hide the sidebar", source: "app" },
+  { name: "compact", description: "Summarise the conversation so far to free context", source: "app" },
 ];
 
 export function Composer() {
@@ -148,6 +150,9 @@ export function Composer() {
         return true;
       case "sidebar":
         toggleSidebar();
+        return true;
+      case "compact":
+        compactSession();
         return true;
       default:
         return false;
@@ -327,6 +332,7 @@ export function Composer() {
             </Show>
 
             <ModelPicker />
+            <ContextMeter />
 
             <div class="flex-1" />
 
@@ -387,5 +393,39 @@ export function Composer() {
         </Show>
       </div>
     </div>
+  );
+}
+
+/**
+ * How full the context is (DESIGN §54).
+ *
+ * Only shown once it is worth knowing. A meter that reads 3% all morning is
+ * furniture; one that appears as the conversation gets long is a warning, and
+ * the point at which it appears is the point at which `/compact` starts to
+ * matter. Nothing is shown while Pi cannot say — the window right after a
+ * compaction, before the next reply.
+ */
+function ContextMeter() {
+  const usage = () => (state.activeSessionId ? state.contextUsage[state.activeSessionId] : null);
+  const percent = () => usage()?.percent ?? null;
+  const shown = () => {
+    const value = percent();
+    return value !== null && value >= 50 ? value : null;
+  };
+
+  return (
+    <Show when={shown()}>
+      {(value) => (
+        <button
+          type="button"
+          data-slot="context-meter"
+          data-level={value() >= 85 ? "high" : value() >= 70 ? "warn" : "normal"}
+          title={`Context ${Math.round(value())}% full — compact the conversation to free it`}
+          onClick={compactSession}
+        >
+          {Math.round(value())}%
+        </button>
+      )}
+    </Show>
   );
 }

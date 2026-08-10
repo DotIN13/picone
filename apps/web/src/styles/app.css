@@ -2625,3 +2625,33 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
+
+/* How full the context is, beside the model (DESIGN §54). */
+[data-slot="context-meter"] {
+  display: inline-flex;
+  align-items: center;
+  min-height: max(22px, calc(22px * var(--font-scale)));
+  padding: 0 6px;
+  border: none;
+  border-radius: 5px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-muted);
+  font: inherit;
+  font-size: calc(11px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+[data-slot="context-meter"]:hover {
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="context-meter"][data-level="warn"] {
+  background: var(--v2-state-bg-warning, var(--v2-background-bg-layer-02));
+  color: var(--v2-state-fg-warning, var(--v2-text-text-base));
+}
+
+[data-slot="context-meter"][data-level="high"] {
+  background: var(--v2-state-bg-danger, var(--v2-background-bg-layer-02));
+  color: var(--v2-state-fg-danger, var(--v2-text-text-base));
+}

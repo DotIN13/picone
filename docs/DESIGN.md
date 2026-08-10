@@ -2162,3 +2162,55 @@ the point it happened.
   an abandoned path still exists and still points at its file. That is
   harmless — comments anchor to files, not to messages — but it means a
   conversation about a comment can end up on a path the agent no longer sees.
+
+---
+
+## 54. Compaction and context
+
+Pi compacts natively and Picone barely acknowledged it: one notice saying
+"Compacting conversation history…" and nothing else. A compaction that failed,
+or was cancelled, left that as the last word on the subject — and one that
+succeeded never said what it had done. Compaction is the one operation that
+*discards history*, so it is the one that most owes an account of itself.
+
+**What Pi provides**, all of it already there:
+
+| call | what it does |
+|---|---|
+| `AgentSession.compact(customInstructions?)` | summarise and drop, aborting the current run first |
+| `abortCompaction()` | cancel one in progress |
+| `setAutoCompactionEnabled(b)` / `autoCompactionEnabled` | the automatic threshold pass |
+| `getContextUsage()` | `{ tokens, contextWindow, percent }` |
+| `compaction_start` / `compaction_end` | with `reason: manual \| threshold \| overflow` |
+
+Automatic compaction runs on a threshold and again on overflow, so it happens
+whether or not anyone asks. That is the reason the *end* matters more than the
+start: most compactions are not something the user set off.
+
+**Both ends are reported now**, and the reason changes the wording — "context is
+full" reads differently from "compacting", and only one of them explains why the
+conversation stopped to do something else. A failure says so, a retry says it is
+retrying, and a cancellation says the conversation is unchanged.
+
+**Context usage is sampled, not subscribed.** Pi offers it as a reading rather
+than an event, so it is taken at the three moments that move it: a turn ending,
+a compaction ending, and a session opening. `tokens` is null until a reply comes
+back — a real state immediately after compaction, not an error — and the meter
+simply disappears rather than showing a zero.
+
+**The meter appears at 50% and not before.** A readout that says 3% all morning
+is furniture; one that appears as a conversation gets long is a warning, and the
+moment it appears is the moment compacting starts to be worth doing. It turns
+amber at 70% and red at 85%, and clicking it compacts. `/compact` does the same
+thing from the composer.
+
+### Not built
+
+* **No custom compaction instructions.** `compact()` takes them; there is
+  nowhere to type them, and a prompt for it would be in the way far more often
+  than it was useful.
+* **No control over auto-compaction.** Pi's default is on, which is the right
+  default; exposing the toggle needs somewhere sensible in settings first.
+* **No `compaction` entry in the transcript.** Pi records one in its session
+  tree; Picone shows the notices instead, which say the same thing in the place
+  the reader is already looking.

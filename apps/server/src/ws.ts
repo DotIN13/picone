@@ -119,6 +119,10 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
       await app.rewind(message.itemId, message.sessionId);
       break;
 
+    case "compact":
+      await app.compact(message.sessionId);
+      break;
+
 
     case "extension_ui_answer":
       app.answerExtensionUi(message.answer);

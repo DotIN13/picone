@@ -335,6 +335,7 @@ export class SessionRuntime {
     this.unsubscribe = session.subscribe((event) => this.translator.handle(event));
     // A restored session has a transcript and a branch but no ids linking them.
     this.syncEntryIds();
+    this.publishContext();
 
     // Extension slash commands talk to the user through Pi's extension UI
     // context. `mode: "rpc"` is the honest label — like RPC mode, we serialise
@@ -391,6 +392,7 @@ export class SessionRuntime {
     }
 
     this.syncEntryIds();
+    this.publishContext();
   }
 
   /** Explicit steering — used by voice and comments during an active run. */
@@ -457,6 +459,38 @@ ${pointers}` : text;
   async injectComment(modelText: string, displayText: string): Promise<void> {
     if (this.session.isStreaming) await this.steer(modelText, "comment", displayText);
     else await this.prompt(modelText, "comment", displayText);
+  }
+
+  // --- context and compaction (DESIGN §54) -----------------------------------
+
+  /**
+   * Summarise the conversation so far and drop what the summary replaces.
+   *
+   * Pi does all of it — including aborting whatever is running first, which is
+   * why this does not check `isStreaming`. Failures arrive as `compaction_end`
+   * on the event stream rather than as a rejection, so the catch here is for
+   * the call itself refusing, not for a summary that went wrong.
+   */
+  async compact(): Promise<void> {
+    try {
+      await this.session.compact();
+    } catch (err) {
+      this.translator.notice(`Could not compact: ${(err as Error).message}`, "error");
+    }
+    this.publishContext();
+  }
+
+  /**
+   * Say how full the context is, whenever it can have changed.
+   *
+   * Pi offers this as a reading rather than an event, so it is sampled at the
+   * three moments that move it: a turn ending, a compaction ending, and a
+   * session being opened. `tokens` is null until a reply has come back, which
+   * is a real state — right after compaction — and not an error.
+   */
+  private publishContext(): void {
+    const usage = this.session.getContextUsage();
+    this.options.emit(this.id, { type: "context.usage", usage: usage ?? null });
   }
 
   // --- the session name (DESIGN §26) -----------------------------------------

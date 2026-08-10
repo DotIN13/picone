@@ -147,8 +147,49 @@ export class EventTranslator {
 
 
       case "compaction_start":
-        this.notice("Compacting conversation history…", "info");
+        this.notice(
+          event.reason === "overflow"
+            ? "Context is full — compacting the conversation so it can continue…"
+            : event.reason === "threshold"
+              ? "Context is nearly full — compacting the conversation…"
+              : "Compacting the conversation…",
+          "info",
+        );
         break;
+
+      /*
+       * Compaction has to say how it ended, not only that it began.
+       *
+       * Only the start was handled before, so a compaction that failed or was
+       * cancelled left "Compacting…" as the last word on the subject — and one
+       * that succeeded never said what it had done. Compaction discards
+       * history, so it is exactly the operation that should account for itself.
+       */
+      case "compaction_end": {
+        if (event.aborted) {
+          this.notice("Compaction cancelled; the conversation is unchanged.", "info");
+          break;
+        }
+        if (event.errorMessage) {
+          this.notice(
+            event.willRetry
+              ? `Compaction failed, retrying: ${event.errorMessage}`
+              : `Compaction failed: ${event.errorMessage}`,
+            event.willRetry ? "warn" : "error",
+          );
+          break;
+        }
+
+        const result = event.result;
+        const before = result?.tokensBefore;
+        const after = result?.estimatedTokensAfter;
+        const saved =
+          before && after !== undefined
+            ? ` — about ${formatTokens(before)} of context down to ${formatTokens(after)}`
+            : "";
+        this.notice(`Conversation compacted${saved}. Earlier turns are summarised from here on.`, "info");
+        break;
+      }
 
       case "auto_retry_start":
         this.notice(`Retrying after error (attempt ${event.attempt}/${event.maxAttempts}): ${event.errorMessage}`, "warn");
@@ -260,4 +301,10 @@ function extractPatch(result: unknown): string | undefined {
   if (!details || typeof details !== "object") return undefined;
   const patch = (details as { patch?: unknown }).patch;
   return typeof patch === "string" ? patch : undefined;
+}
+
+/** Token counts read at a glance rather than counted digit by digit. */
+function formatTokens(tokens: number): string {
+  if (tokens < 1000) return `${tokens}`;
+  return `${(tokens / 1000).toFixed(tokens < 10_000 ? 1 : 0)}k`;
 }
