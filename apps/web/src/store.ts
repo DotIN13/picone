@@ -337,10 +337,23 @@ export async function refreshState(): Promise<void> {
     .then(({ subjects }) => setState("memorySubjects", subjects))
     .catch(() => setState("memorySubjects", []));
 
-  // Roots start expanded — one level, lazily (DESIGN §12).
-  for (const root of next.workspace.roots.filter((r) => r.exists)) {
-    setState("expanded", root.path, true);
-    void loadDirectory(root.path);
+  /*
+   * The working directory opens itself, one level, lazily (DESIGN §12).
+   *
+   * Only that one. Expansion is keyed by path, and a context directory may sit
+   * *inside* the cwd (§3) — so opening it as a root also opened it where it
+   * appears nested, and the tree came up with a few folders inexplicably open
+   * among all the closed ones. The rest are top-level rows already, which was
+   * the point of listing them; a chevron is enough.
+   *
+   * With no cwd, the first root that exists stands in, so the tree is not a
+   * column of closed folders with nothing to look at.
+   */
+  const roots = next.workspace.roots.filter((root) => root.exists);
+  const opening = roots.find((root) => root.kind === "cwd") ?? roots[0];
+  if (opening) {
+    setState("expanded", opening.path, true);
+    void loadDirectory(opening.path);
   }
   void refreshGitStatus();
 }

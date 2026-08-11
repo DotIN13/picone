@@ -559,8 +559,17 @@ see §47.
 
 ## 12. File browser sidebar
 
-Each configured directory is a root node. The tree lazy-loads one level at a
-time; nothing recurses on startup.
+Each configured directory is a root node, in the order of §3: the working
+directory, then context, then memory. The tree lazy-loads one level at a time;
+nothing recurses on startup.
+
+**Only the working directory opens itself.** Expansion is keyed by absolute
+path, and a context directory may sit *inside* the cwd — so opening every root
+on load also opened those where they appear nested, and the tree came up with a
+few folders inexplicably ajar among all the closed ones. The others are
+top-level rows already, which is why they were listed; a chevron is enough. With
+no working directory the first root that exists stands in, so the sidebar is
+never just a column of closed folders.
 
 Features: expand/collapse, open file, refresh, filename filter, git status
 marks. Build and vendor directories (`node_modules`, `.git`, `.next`, …) and
