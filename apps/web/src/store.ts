@@ -352,7 +352,7 @@ export async function refreshState(): Promise<void> {
   const roots = next.workspace.roots.filter((root) => root.exists);
   const opening = roots.find((root) => root.kind === "cwd") ?? roots[0];
   if (opening) {
-    setState("expanded", opening.path, true);
+    setState("expanded", treeKey(opening.path, opening.path), true);
     void loadDirectory(opening.path);
   }
   void refreshGitStatus();
@@ -535,9 +535,29 @@ export function toggleMarkdownSource(path: string): void {
 // File tree
 // ---------------------------------------------------------------------------
 
-export async function toggleDirectory(path: string): Promise<void> {
-  const wasExpanded = state.expanded[path] ?? false;
-  setState("expanded", path, !wasExpanded);
+/**
+ * Which row is open, as opposed to which directory (DESIGN §12).
+ *
+ * A directory can appear more than once in the tree: a context directory is a
+ * root of its own *and* a child of the working directory it sits inside (§3).
+ * Keying open/closed by path alone made those two the same switch, so opening
+ * one opened the other. The key is the root it is being shown under plus the
+ * path, which makes each row its own.
+ *
+ * `tree` stays keyed by path, because the *contents* of a directory are the
+ * same wherever it is shown — only whether you are looking at them is local.
+ *
+ * Encoded as JSON rather than joined with a separator: any character a
+ * separator could use is one a path is allowed to contain, and a key that can
+ * collide is a row that opens the wrong thing.
+ */
+export function treeKey(root: string, path: string): string {
+  return JSON.stringify([root, path]);
+}
+
+export async function toggleDirectory(key: string, path: string): Promise<void> {
+  const wasExpanded = state.expanded[key] ?? false;
+  setState("expanded", key, !wasExpanded);
   if (!wasExpanded && !state.tree[path]) await loadDirectory(path);
 }
 
@@ -550,7 +570,19 @@ export async function toggleDirectory(path: string): Promise<void> {
  * known until it has been listed, and the separator is whichever the roots use.
  */
 export async function revealInTree(target: string): Promise<void> {
-  const root = state.workspace?.roots.find((r) => target === r.path || target.startsWith(`${r.path}/`) || target.startsWith(`${r.path}\\`));
+  /*
+   * The most specific root containing it, not the first.
+   *
+   * Roots nest (§3), so a file under a context directory is also under the
+   * working directory. Revealing it beneath the deeper root is a shorter path
+   * to look at and opens fewer rows on the way — and now that open/closed is
+   * per row (§12), this choice decides where it appears.
+   */
+  const inside = (r: { path: string }) =>
+    target === r.path || target.startsWith(`${r.path}/`) || target.startsWith(`${r.path}\\`);
+  const root = (state.workspace?.roots ?? [])
+    .filter(inside)
+    .sort((a, b) => b.path.length - a.path.length)[0];
   if (!root) return;
 
   setState("sidebarMode", "files");
@@ -559,10 +591,11 @@ export async function revealInTree(target: string): Promise<void> {
   const separator = root.path.includes("\\") ? "\\" : "/";
   const rest = target.slice(root.path.length).split(/[\\/]+/).filter(Boolean);
 
+  // Opened under the root it was found in, since open/closed is per row (§12).
   let at = root.path;
   for (const segment of [...rest, ""]) {
     if (!state.tree[at]) await loadDirectory(at);
-    setState("expanded", at, true);
+    setState("expanded", treeKey(root.path, at), true);
     if (!segment) break;
     at = `${at}${separator}${segment}`;
   }

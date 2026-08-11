@@ -1,6 +1,6 @@
 import { For, Show } from "solid-js";
 import type { DirEntry, GitStatus } from "@picone/protocol";
-import { openFile, state, toggleDirectory } from "../store.ts";
+import { openFile, state, toggleDirectory, treeKey } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
 
 const STATUS_MARK: Record<GitStatus, string> = {
@@ -38,6 +38,7 @@ export function FileTree() {
             missing={!root.exists}
             isRoot
             kind={root.kind}
+            root={root.path}
           />
         )}
       </For>
@@ -52,8 +53,17 @@ function TreeNode(props: {
   isRoot?: boolean;
   /** Only set on roots; children are just files. */
   kind?: "cwd" | "context" | "memory";
+  /**
+   * The root this row is being shown under, carried down the tree.
+   *
+   * Open/closed belongs to the row, not the directory: a context directory
+   * inside the working directory appears twice, and opening one should not
+   * open the other (§12).
+   */
+  root: string;
 }) {
-  const expanded = () => state.expanded[props.entry.path] ?? false;
+  const key = () => treeKey(props.root, props.entry.path);
+  const expanded = () => state.expanded[key()] ?? false;
   const children = () => state.tree[props.entry.path];
   const loading = () => state.treeLoading[props.entry.path] ?? false;
   const status = () => state.gitStatus[props.entry.path];
@@ -78,7 +88,9 @@ function TreeNode(props: {
         data-selected={state.activeTabId === props.entry.path ? "" : undefined}
         style={{ "padding-inline-start": indent() }}
         title={props.entry.path}
-        onClick={() => (isDir() ? void toggleDirectory(props.entry.path) : void openFile(props.entry.path))}
+        onClick={() =>
+          isDir() ? void toggleDirectory(key(), props.entry.path) : void openFile(props.entry.path)
+        }
       >
         <span data-slot="tree-twisty">
           <Show when={isDir()}>
@@ -114,7 +126,9 @@ function TreeNode(props: {
             loading…
           </div>
         </Show>
-        <For each={children()}>{(child) => <TreeNode entry={child} depth={props.depth + 1} />}</For>
+        <For each={children()}>
+          {(child) => <TreeNode entry={child} depth={props.depth + 1} root={props.root} />}
+        </For>
         <Show when={children()?.length === 0}>
           <div data-slot="tree-row" data-muted="" style={{ "padding-inline-start": `${(props.depth + 1) * 12 + 8}px` }}>
             empty

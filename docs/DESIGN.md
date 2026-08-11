@@ -563,13 +563,25 @@ Each configured directory is a root node, in the order of §3: the working
 directory, then context, then memory. The tree lazy-loads one level at a time;
 nothing recurses on startup.
 
-**Only the working directory opens itself.** Expansion is keyed by absolute
-path, and a context directory may sit *inside* the cwd — so opening every root
-on load also opened those where they appear nested, and the tree came up with a
-few folders inexplicably ajar among all the closed ones. The others are
-top-level rows already, which is why they were listed; a chevron is enough. With
-no working directory the first root that exists stands in, so the sidebar is
-never just a column of closed folders.
+**Open and closed belongs to the row, not the directory.** Roots nest (§3), so
+a context directory is both a root of its own and a child of the working
+directory it sits inside — the same folder in two places. Keyed by path, those
+two were one switch: opening either opened both, which made the tree look like
+it was opening folders by itself. The key is the root a row is shown under plus
+its path, encoded as JSON because every character a separator might use is one a
+path is allowed to contain. Directory *contents* stay keyed by path alone: what
+is inside a folder is the same wherever you look at it, and only whether you are
+looking is local.
+
+**Only the working directory opens itself**, one level, lazily. The others are
+top-level rows already, which is why they were listed; a chevron is enough, and
+nothing is fetched that is not looked at. With no working directory the first
+root that exists stands in, so the sidebar is never just a column of closed
+folders.
+
+Revealing a path (§51) picks the *most specific* root containing it, so a file
+under a context directory appears beneath that directory rather than at the end
+of a long chain under the cwd.
 
 Features: expand/collapse, open file, refresh, filename filter, git status
 marks. Build and vendor directories (`node_modules`, `.git`, `.next`, …) and
