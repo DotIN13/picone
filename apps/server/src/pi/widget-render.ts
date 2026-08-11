@@ -15,7 +15,7 @@
  */
 
 /** Text styling, as Pi's `Theme` exposes it — every method a pass-through. */
-export interface PlainTheme {
+interface PlainTheme {
   fg(color: string, text: string): string;
   bg(color: string, text: string): string;
   bold(text: string): string;
@@ -66,7 +66,7 @@ export const plainTheme: PlainTheme = {
 export const WIDGET_WIDTH = 160;
 
 /** What a factory returns. `render` is required; the rest are optional. */
-export interface WidgetComponent {
+interface WidgetComponent {
   render(width: number): string[];
   invalidate?(): void;
   dispose?(): void;

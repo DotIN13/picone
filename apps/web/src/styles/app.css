@@ -2669,7 +2669,7 @@
 }
 
 /* The form under the browser in the add-memory dialog. */
-[data-slot="memory-dialog-form"] {
+[data-slot="picker-form"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2679,7 +2679,7 @@
 
 /* The folder about to be added, spelled out in the footer beside the button
    that adds it — the browser above shows where you are, not what you picked. */
-[data-slot="memory-dialog-target"] {
+[data-slot="picker-target"] {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

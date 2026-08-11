@@ -7,7 +7,7 @@
  * itself*: recognise a shape, or fall back to showing the JSON.
  */
 
-export type TodoStatus = "pending" | "in_progress" | "completed" | "deleted";
+type TodoStatus = "pending" | "in_progress" | "completed" | "deleted";
 
 export interface TodoTask {
   id: number;
@@ -17,7 +17,7 @@ export interface TodoTask {
   blockedBy?: number[];
 }
 
-export interface TodoDetails {
+interface TodoDetails {
   tasks: TodoTask[];
   /** What the call did, when it says — "create", "update", and so on. */
   action?: string;

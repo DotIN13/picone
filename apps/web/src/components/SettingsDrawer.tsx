@@ -358,20 +358,20 @@ export function SettingsDrawer() {
                       how a workspace still on the old flat `directories` list
                       is migrated: the first save moves it across.
                     */}
-                    <StringListEditor
+                    <DirectoryListEditor
                       label="Working directory"
                       placeholder="/path/to/repo"
                       values={openedCwd() ? [openedCwd()!] : []}
+                      resolved={[state.workspace?.cwd ?? undefined]}
                       max={1}
-                      browse
                       hint="Where the agent works by default."
                       onChange={(values) => patch({ cwd: values[0], directories: undefined, context: openedContext() })}
                     />
-                    <StringListEditor
+                    <DirectoryListEditor
                       label="Context directories"
                       placeholder="/path/to/reference"
                       values={openedContext()}
-                      browse
+                      resolved={state.workspace?.roots.filter((r) => r.kind === "context").map((r) => r.path)}
                       hint="Open alongside it, and writable. These may sit inside the working directory, or contain it."
                       onChange={(context) => patch({ context, cwd: openedCwd(), directories: undefined })}
                     />
@@ -524,19 +524,27 @@ export function SettingsDrawer() {
   );
 }
 
-function StringListEditor(props: {
+/**
+ * A list of directories, each typeable or browsable (DESIGN §3).
+ *
+ * A path stays typeable because that is faster when you know it; the chooser is
+ * what makes the field usable when you do not.
+ */
+function DirectoryListEditor(props: {
   label: string;
   values: string[];
   placeholder: string;
   /** A note under the heading, for lists whose purpose is not self-evident. */
   hint?: string;
-  /** How many entries the list may hold. Used for the single working directory. */
+  /** How many entries the list may hold. One, for the working directory. */
   max?: number;
   /**
-   * Offer the folder chooser (§3). A path is still typeable — it is faster when
-   * you know it — but browsing is what makes the field usable when you do not.
+   * The same directories, resolved, positionally. A workspace file may store a
+   * path relative to itself — "." is the common case — and opening the chooser
+   * on "." would start it wherever the *server* happens to be running rather
+   * than at the directory the row names.
    */
-  browse?: boolean;
+  resolved?: (string | undefined)[];
   onChange: (values: string[]) => void;
 }) {
   const full = () => props.max !== undefined && props.values.length >= props.max;
@@ -560,9 +568,7 @@ function StringListEditor(props: {
                 props.onChange(values);
               }}
             />
-            <Show when={props.browse}>
-              <IconButton icon="folder" label={`Browse for ${props.label}`} onClick={() => setBrowsing(index())} />
-            </Show>
+            <IconButton icon="folder" label={`Browse for ${props.label}`} onClick={() => setBrowsing(index())} />
             <IconButton
               icon="close"
               label="Remove"
@@ -572,23 +578,18 @@ function StringListEditor(props: {
         )}
       </For>
       <Show when={!full()}>
-        <Button
-          variant="neutral"
-          icon={props.browse ? "folder" : "plus"}
-          class="self-start"
-          onClick={() => (props.browse ? setBrowsing(-1) : props.onChange([...props.values, ""]))}
-        >
+        <Button variant="neutral" icon="folder" class="self-start" onClick={() => setBrowsing(-1)}>
           Add
         </Button>
       </Show>
 
-      <Show when={props.browse && browsing() !== null}>
+      <Show when={browsing() !== null}>
         <DirectoryDialog
           open
           onOpenChange={(open) => !open && setBrowsing(null)}
           title={props.label}
           confirmLabel={browsing() === -1 ? "Add" : "Choose"}
-          initialPath={browsing()! >= 0 ? props.values[browsing()!] : undefined}
+          initialPath={browsing()! >= 0 ? (props.resolved?.[browsing()!] ?? props.values[browsing()!]) : undefined}
           onChoose={(folder) => {
             const at = browsing()!;
             props.onChange(at === -1 ? [...props.values, folder] : props.values.map((v, i) => (i === at ? folder : v)));

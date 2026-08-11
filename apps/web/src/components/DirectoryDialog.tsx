@@ -83,7 +83,7 @@ export function DirectoryDialog(props: {
         <>
           {/* The folder that will be committed, spelled out — the listing shows
               where you are browsing, which is not always the same thing. */}
-          <span data-slot="memory-dialog-target" title={folder() ?? undefined}>
+          <span data-slot="picker-target" title={folder() ?? undefined}>
             <Show when={folder()} fallback="No folder selected">
               {(dir) => dir()}
             </Show>
@@ -110,7 +110,7 @@ export function DirectoryDialog(props: {
         />
 
         <Show when={props.extra}>
-          <div data-slot="memory-dialog-form">{props.extra}</div>
+          <div data-slot="picker-form">{props.extra}</div>
         </Show>
       </div>
     </Dialog>
