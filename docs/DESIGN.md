@@ -1237,14 +1237,25 @@ moment that knowledge can be used.
 It also collapses. Five edits between two messages arrive as one paragraph
 describing where things now stand, instead of five interruptions.
 
-**Each session carries what it has been told.** The marker is a snapshot of the
-workspace file and the resolved memory list, taken when the session is built —
-which is when the description and the memory stores' own instructions go in —
-and advanced whenever the difference is handed over. A snapshot rather than a
-timestamp because a timestamp can say *that* something changed and not *what*,
-and the whole content of the message is the what. Per session, because two
-sessions edited apart learn different things at different times, and a session
-nobody is using owes nobody an update until it is used.
+**Each session stores what it has been told, in the database.** The record is
+the resolved workspace — the file *and* the merged memory list — written when
+the session is built, which is when the description and the memory stores' own
+instructions go in, and rewritten whenever the difference is handed over. A
+resolved snapshot rather than a timestamp, because a timestamp says *that*
+something changed and not *what*, and the what is the entire message.
+
+Per session rather than per workspace, because two sessions edited apart are
+owed different things. Persisted rather than held in memory, because otherwise
+the record resets every time a session is rebuilt — and a session is rebuilt
+whenever it is evicted (§38) or the server restarts. Measured: with the server
+stopped, a memory directory added to the global settings and the server brought
+back up leaves the session still believing what it was last told, so the change
+is announced on its next message. In memory that difference is lost, and the
+directory arrives in the rebuilt context with nothing to say it is new.
+
+This is the one derived thing Picone stores about a workspace (§37). It is never
+read to decide behaviour — the file is reloaded for that — only to work out what
+a particular session has yet to hear.
 
 **What is announced**: the working directory, directories added or removed,
 permissions, instructions, MCP servers, skill paths, the skill/prompt/extension

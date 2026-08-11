@@ -25,7 +25,14 @@ import type {
   WorkspacePermissions,
   WorkspaceResources,
 } from "@picone/protocol";
-import { appendMessage, loadTranscriptTail, nextSeq, truncateTranscript } from "../db.ts";
+import {
+  appendMessage,
+  loadTranscriptTail,
+  nextSeq,
+  seenWorkspace,
+  setSeenWorkspace,
+  truncateTranscript,
+} from "../db.ts";
 import { memoryContextFiles } from "../memory/context.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import { PermissionGate } from "../permissions/gate.ts";
@@ -125,13 +132,13 @@ export class SessionRuntime {
   /**
    * The workspace as this session last had it described (DESIGN §34).
    *
-   * Set when the session is built, because that is when the description and the
-   * memory stores' own instructions go in, and advanced whenever the difference
-   * is handed over. Per session: two sessions edited apart learn different
-   * things at different times, and a session nobody is using owes no one an
-   * update until it is used.
+   * Held in the database rather than in memory, so the comparison survives the
+   * session being evicted, the server restarting, or the workspace being edited
+   * while nothing was running. Per session, because two sessions edited apart
+   * learn different things at different times, and a session nobody is using
+   * owes nobody an update until it is used.
    */
-  private seenWorkspace!: WorkspaceSnapshot;
+  private seen!: WorkspaceSnapshot;
   private session!: AgentSession;
   private translator!: EventTranslator;
   private gate!: PermissionGate;
@@ -359,9 +366,17 @@ export class SessionRuntime {
 
     this.session = session;
     this.unsubscribe = session.subscribe((event) => this.translator.handle(event));
-    // Everything the session was told about the workspace went in with the
-    // context above, so this is the point it is up to date from.
-    this.seenWorkspace = snapshotOf(workspace);
+    /*
+     * What this session has been told, from the database if it has run before.
+     *
+     * Nothing stored means a session being built for the first time, and its
+     * description went in with the context above — so it starts level. One that
+     * has run keeps whatever it last heard, which is the point of storing it:
+     * the workspace may have moved on while this session was not loaded.
+     */
+    const stored = seenWorkspace(this.id);
+    this.seen = stored ? (JSON.parse(stored) as WorkspaceSnapshot) : snapshotOf(workspace);
+    if (!stored) this.rememberSeen(this.seen);
 
     // A restored session has a transcript and a branch but no ids linking them.
     this.syncEntryIds();
@@ -750,9 +765,15 @@ ${pointers}` : text;
    */
   private withPendingWorkspaceUpdate(text: string): string {
     const now = snapshotOf(this.workspace);
-    const update = describeWorkspaceChange(this.seenWorkspace, now);
-    this.seenWorkspace = now;
-    return update ? [update, "---", text].join("\n\n") : text;
+    const update = describeWorkspaceChange(this.seen, now);
+    this.rememberSeen(now);
+    return withWorkspaceUpdate(update, text);
+  }
+
+  /** Both copies at once, so the stored one and the live one cannot disagree. */
+  private rememberSeen(snapshot: WorkspaceSnapshot): void {
+    this.seen = snapshot;
+    setSeenWorkspace(this.id, JSON.stringify(snapshot));
   }
 
   /**
