@@ -3,11 +3,8 @@ import type { ChatItem, CommentStatus, FileComment, RecentWorkspace, SessionSumm
 import { DB_PATH, ensureDataDir } from "./config.ts";
 
 /**
- * Runtime state (DESIGN §37). The workspace JSON file stays the single source of
- * truth for *configuration* — what is kept here is the resolved result of it, a
- * record of what each workspace looked like once the global settings were
- * merged in, so a session can be told what changed since it last heard (§34).
- * Nothing here is read to decide behaviour; the file is reloaded for that.
+ * Runtime state only (DESIGN §37). Workspace configuration is never mirrored here —
+ * the workspace JSON file stays the single source of truth.
  */
 let db: DatabaseSync;
 
@@ -60,17 +57,11 @@ export function openDb(): DatabaseSync {
       key    TEXT PRIMARY KEY,
       value  TEXT NOT NULL
     );
-
   `);
   // `CREATE TABLE IF NOT EXISTS` leaves an existing table alone, so a column
   // added later has to be added by hand. Failing means it is already there.
   try {
     db.exec(`ALTER TABLE sessions ADD COLUMN forked_from TEXT`);
-  } catch {
-    /* already migrated */
-  }
-  try {
-    db.exec(`ALTER TABLE sessions ADD COLUMN workspace_seen TEXT`);
   } catch {
     /* already migrated */
   }
@@ -390,25 +381,4 @@ export function getUiState<T>(key: string): T | null {
   } catch {
     return null;
   }
-}
-
-// --- what a session has been told about its workspace (DESIGN §34) ----------
-
-/**
- * The resolved workspace a session last heard about, as stored JSON.
- *
- * Per session and persisted, so the comparison survives the session being
- * evicted, the server restarting, or the workspace being edited while nothing
- * was running. Null means the session has never been told — a new session,
- * whose description went in with its context.
- */
-export function seenWorkspace(sessionId: string): string | null {
-  const row = openDb().prepare(`SELECT workspace_seen AS seen FROM sessions WHERE id = ?`).get(sessionId) as
-    | { seen: string | null }
-    | undefined;
-  return row?.seen ?? null;
-}
-
-export function setSeenWorkspace(sessionId: string, resolved: string): void {
-  openDb().prepare(`UPDATE sessions SET workspace_seen = ? WHERE id = ?`).run(resolved, sessionId);
 }

@@ -1205,80 +1205,27 @@ Two things sit on top of that discovery, and only those two:
 
 ## 34. Workspace updates
 
-Editing configuration through the UI writes `workspace.json`, shows a notice in
-the transcript, and tells the agent **with the next message** rather than at the
-moment of the edit:
+Editing configuration through the UI writes `workspace.json` and reloads it. A
+running session is **not** told.
 
-```text
-Workspace update:
+What applies live applies live: permissions and the writable roots are refreshed
+on every open session, MCP servers restart, and a model change applies to the
+session that made it (§45). Everything else — the workspace description, skills,
+prompt templates, extensions, memory stores' instructions — is read when a
+session is built, so it takes effect on the next reload.
 
-Permissions were updated:
-
-shell: allow
-
----
-
-fix the failing test
-```
-
-**The two halves have different audiences and different timing.** The person who
-just changed a setting wants to see it land, so the notice appears at once. The
-agent has nothing to do with it until it is next asked to work — so it rides in
-front of the next message, behind a divider that keeps it from reading as
-something the human typed.
-
-Telling the agent eagerly meant calling `prompt()` with the description, which
-*starts a turn*: switching a permission woke the agent to acknowledge a setting
-nobody had asked it about, burning a request and filling the transcript with a
-reply to a notice. Waiting costs nothing — the change is already in force the
-moment it is written; only the agent's knowledge of it is deferred, to the one
-moment that knowledge can be used.
-
-It also collapses. Five edits between two messages arrive as one paragraph
-describing where things now stand, instead of five interruptions.
-
-**Each session stores what it has been told, in the database.** The record is
-the workspace *as resolved* — written when the session is built, which is when
-the description and the memory stores' own instructions go in, and rewritten
-whenever the difference is handed over. A resolved snapshot rather than a
-timestamp, because a timestamp says *that* something changed and not *what*, and
-the what is the entire message.
-
-Resolved rather than the file, and the distinction is not cosmetic. Three of the
-things a session depends on cannot be read off `workspace.json` at all — memory
-directories, MCP servers and skill directories each merge the workspace's
-entries with the global settings — so a session comparing itself against the
-file would never notice one of them arriving globally. The rest are resolved for
-a plainer reason: the file says `"."` and the agent needs the directory that
-resolves to, and permissions have defaults the file leaves unstated. The stored
-shape is checked on read; one written by an older version is treated as no
-record at all, which loses a single update rather than throwing on the next
-message.
-
-Per session rather than per workspace, because two sessions edited apart are
-owed different things. Persisted rather than held in memory, because otherwise
-the record resets every time a session is rebuilt — and a session is rebuilt
-whenever it is evicted (§38) or the server restarts. Measured: with the server
-stopped, a memory directory added to the global settings and the server brought
-back up leaves the session still believing what it was last told, so the change
-is announced on its next message. In memory that difference is lost, and the
-directory arrives in the rebuilt context with nothing to say it is new.
-
-This is the one derived thing Picone stores about a workspace (§37). It is never
-read to decide behaviour — the file is reloaded for that — only to work out what
-a particular session has yet to hear.
-
-**What is announced**: the working directory, directories added or removed,
-permissions, instructions, MCP servers, skill paths, the skill/prompt/extension
-switches — and memory directories becoming readable or going away. Memory needs
-the resolved list rather than the file, because an entry may come from the
-global settings, and what matters is whether the directory is readable *now*
-(§50); a store's own instructions still only load at session start, so the
-message says so.
-
-**What is not**: the model, which applies live and is the agent rather than news
-for it (§45); and voice, whose `speak` tool is fixed when the session is built —
-announcing a change there would invite a call to a tool that is not present.
+**Announcing the rest was tried and taken back out.** Telling the agent at the
+moment of the edit meant calling `prompt()` with the description, which starts a
+turn: switching a permission woke the agent to acknowledge a setting nobody had
+asked it about. Deferring it to the next message avoided that, but the message
+is a *diff*, and keeping one honest means keeping a record of what each session
+has heard, resolving the halves of the config that merge with the global
+settings, and reconciling with compaction — which rewrites the transcript the
+diff was delivered into while leaving the system prompt untouched. Each piece
+was reasonable; together they were a lot of machinery for something a reload
+already does correctly. Pi rebuilds the whole prompt when a session is built, so
+reopening is the honest way to pick up a change, and it is the one path that
+cannot drift.
 
 ---
 

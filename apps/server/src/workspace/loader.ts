@@ -100,9 +100,7 @@ export function loadWorkspace(filePath: string): Workspace {
 
   // `memory` is filled by the app, which is the only thing that can see the
   // global list this workspace's entries merge with (§50).
-  // `memory`, `mcpServers` and `skillPaths` are filled by the app, which is the
-  // only thing that can see the global settings they merge with (§50, §34).
-  return { path: abs, file, roots, cwd, memory: [], mcpServers: [], skillPaths: [], diagnostics };
+  return { path: abs, file, roots, cwd, memory: [], diagnostics };
 }
 
 /** Stable id for a workspace — the absolute file path is portable enough. */

@@ -25,26 +25,12 @@ import type {
   WorkspacePermissions,
   WorkspaceResources,
 } from "@picone/protocol";
-import {
-  appendMessage,
-  loadTranscriptTail,
-  nextSeq,
-  seenWorkspace,
-  setSeenWorkspace,
-  truncateTranscript,
-} from "../db.ts";
+import { appendMessage, loadTranscriptTail, nextSeq, truncateTranscript } from "../db.ts";
 import { memoryContextFiles } from "../memory/context.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import { PermissionGate } from "../permissions/gate.ts";
 import { resolvedPermissions, resolvedVoice } from "../workspace/schema.ts";
 import { resolveSkillPaths, workspaceContext } from "../workspace/loader.ts";
-import {
-  describeWorkspaceChange,
-  isWorkspaceSnapshot,
-  snapshotOf,
-  withWorkspaceUpdate,
-  type WorkspaceSnapshot,
-} from "../workspace/writer.ts";
 import { EventTranslator } from "./events.ts";
 import { ExtensionUiBridge } from "./extension-ui.ts";
 import { createCommentTools, createSpeakTool, type PiconeToolHooks } from "./tools.ts";
@@ -86,17 +72,6 @@ function formatExtensionError(error: unknown): string {
     return `Extension error${where ? ` (${where})` : ""}: ${message ?? JSON.stringify(detail ?? error)}`;
   }
   return `Extension error: ${String(error)}`;
-}
-
-/** A stored snapshot, if it is one this version understands (§34). */
-function readSnapshot(stored: string | null): WorkspaceSnapshot | null {
-  if (!stored) return null;
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    return isWorkspaceSnapshot(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 /** What a session is called before anything has named it. */
@@ -141,16 +116,6 @@ export class SessionRuntime {
 
   /** Replaced when the workspace file is edited, so roots never go stale. */
   private workspace: Workspace;
-  /**
-   * The workspace as this session last had it described (DESIGN §34).
-   *
-   * Held in the database rather than in memory, so the comparison survives the
-   * session being evicted, the server restarting, or the workspace being edited
-   * while nothing was running. Per session, because two sessions edited apart
-   * learn different things at different times, and a session nobody is using
-   * owes nobody an update until it is used.
-   */
-  private seen!: WorkspaceSnapshot;
   private session!: AgentSession;
   private translator!: EventTranslator;
   private gate!: PermissionGate;
@@ -378,18 +343,6 @@ export class SessionRuntime {
 
     this.session = session;
     this.unsubscribe = session.subscribe((event) => this.translator.handle(event));
-    /*
-     * What this session has been told, from the database if it has run before.
-     *
-     * Nothing stored means a session being built for the first time, and its
-     * description went in with the context above — so it starts level. One that
-     * has run keeps whatever it last heard, which is the point of storing it:
-     * the workspace may have moved on while this session was not loaded.
-     */
-    const stored = readSnapshot(seenWorkspace(this.id));
-    this.seen = stored ?? snapshotOf(workspace);
-    if (!stored) this.rememberSeen(this.seen);
-
     // A restored session has a transcript and a branch but no ids linking them.
     this.syncEntryIds();
     this.publishContext();
@@ -439,7 +392,7 @@ export class SessionRuntime {
     this.commit(item);
     this.options.emit(this.id, { type: "user.message", id: item.id, text: shown, source, at: item.at });
 
-    const sent = this.withPendingWorkspaceUpdate(this.withMentions(text));
+    const sent = this.withMentions(text);
 
     try {
       if (this.session.isStreaming) {
@@ -752,40 +705,10 @@ ${pointers}` : text;
   /**
    * The workspace file changed. Permissions and the writable roots both come
    * from it, so they are refreshed together rather than drifting apart.
-   *
-   * The agent is not told here. What it needs to know rides along with the next
-   * thing the human says (§34) — see `withPendingWorkspaceUpdate`.
    */
   updateWorkspace(workspace: Workspace): void {
     this.workspace = workspace;
     this.gate.updatePermissions(resolvedPermissions(workspace.file));
-  }
-
-  /**
-   * Anything the workspace has done since this session last heard, folded into
-   * the front of the message being sent (DESIGN §34).
-   *
-   * Lazy on purpose. Telling the agent at the moment of the edit meant calling
-   * `prompt()` with it, which starts a turn: switching a permission or adding a
-   * directory woke the agent up to acknowledge a setting nobody had asked it
-   * about, burning a request and filling the transcript. Nothing is lost by
-   * waiting — the change is already in force, and the only moment the agent can
-   * act on knowing is when it is next asked to do something.
-   *
-   * It also collapses: five edits between two messages arrive as one paragraph
-   * describing where things now stand, rather than five interruptions.
-   */
-  private withPendingWorkspaceUpdate(text: string): string {
-    const now = snapshotOf(this.workspace);
-    const update = describeWorkspaceChange(this.seen, now);
-    this.rememberSeen(now);
-    return withWorkspaceUpdate(update, text);
-  }
-
-  /** Both copies at once, so the stored one and the live one cannot disagree. */
-  private rememberSeen(snapshot: WorkspaceSnapshot): void {
-    this.seen = snapshot;
-    setSeenWorkspace(this.id, JSON.stringify(snapshot));
   }
 
   /**
@@ -820,19 +743,6 @@ ${pointers}` : text;
       skills: [...this.discovered.skills].sort(byName),
       prompts: [...this.discovered.prompts].sort(byName),
     };
-  }
-
-  /** Push a short workspace-change note into the conversation (DESIGN §34). */
-  /**
-   * Show a settings change in the transcript, for the human.
-   *
-   * Only the reader is told at this point; the agent hears about it with the
-   * next message (`withPendingWorkspaceUpdate`). The split is deliberate: the
-   * person who just changed a setting wants to see it land immediately, and the
-   * agent has nothing to do with it until it is asked to work again.
-   */
-  noteWorkspaceChange(text: string): void {
-    this.translator.notice(text, "info");
   }
 
   // --- outbound --------------------------------------------------------------

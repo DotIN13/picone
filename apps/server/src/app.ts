@@ -34,14 +34,9 @@ import nodePath from "node:path";
 import { expandPath } from "./util/paths.ts";
 import { SessionRuntime } from "./pi/runtime.ts";
 import { createWorkspace, type CreateWorkspaceOptions } from "./workspace/create.ts";
-import { loadWorkspace, resolveSkillPaths } from "./workspace/loader.ts";
+import { loadWorkspace } from "./workspace/loader.ts";
 import { resolvedPermissions, resolvedVoice } from "./workspace/schema.ts";
-import {
-  describeWorkspaceChange,
-  snapshotOf,
-  writeWorkspaceFile,
-  type WorkspaceSnapshot,
-} from "./workspace/writer.ts";
+import { writeWorkspaceFile } from "./workspace/writer.ts";
 
 const LAST_WORKSPACE_KEY = "lastWorkspace";
 
@@ -109,30 +104,9 @@ export class App {
       if (dir.enabled && !dir.exists) diagnostics.push(`Memory directory does not exist: ${dir.path}`);
     }
 
-    /*
-     * The rest of what only the app can resolve (§34).
-     *
-     * A session's skills and MCP servers are the workspace's *merged with the
-     * global settings*, so neither can be read off the workspace file. They are
-     * resolved here for the same reason memory is: this is the only place that
-     * can see both halves — and a session comparing what it was told against
-     * the raw file would never notice a global one arriving.
-     */
-    const { merged, sources } = mergeMcp(this.settings.mcp, workspace.file.mcp);
-    const mcpServers = Object.entries(merged)
-      .map(([name, config]) => ({ name, enabled: config.enabled !== false, source: sources[name]! }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const skillPaths = [
-      ...resolveSkillPaths(workspace.file, workspace.path),
-      ...this.settings.skills.map((skill) => expandPath(skill.path)),
-    ];
-
     return {
       ...workspace,
       memory,
-      mcpServers,
-      skillPaths,
       // Order is the order the sidebar shows: cwd, then context, then memory.
       roots: [...workspace.roots.filter((root) => root.kind !== "memory"), ...memoryRoots(memory)],
       // Deduplicated because this runs again on an already-resolved workspace
@@ -232,29 +206,27 @@ export class App {
   }
 
   /**
-   * Apply a settings edit: write the JSON file, reload it, and show what
-   * changed (DESIGN §34).
+   * Apply a settings edit: write the JSON file and reload it (DESIGN §34).
    *
-   * The transcript notice is for the human, who wants to see the edit land.
-   * The *agent* is told lazily, with the next message — each session carries
-   * what it has been told and folds in the difference when it is next used.
+   * A running session is not told. What applies live applies live — permissions
+   * and the writable roots are refreshed below, and MCP servers restart — and
+   * everything else is read when a session is built, so it takes effect on the
+   * next reload. Announcing the rest into an open conversation was worse than
+   * silence: it started a turn to acknowledge a setting nobody had asked the
+   * agent about.
    */
   async updateWorkspaceFile(next: WorkspaceFile): Promise<Workspace> {
     const current = this.requireWorkspace();
-    const before = snapshotOf(current);
-    const beforeMcp = JSON.stringify(current.file.mcp ?? {});
+    const before = current.file;
     const workspace = this.adopt(writeWorkspaceFile(current.path, next));
 
     for (const session of this.sessions.values()) session.updateWorkspace(workspace);
 
-    if (beforeMcp !== JSON.stringify(workspace.file.mcp ?? {})) {
+    if (JSON.stringify(before.mcp ?? {}) !== JSON.stringify(workspace.file.mcp ?? {})) {
       await this.startMcp();
     }
 
     this.hub.publish(null, { type: "workspace.updated", workspace });
-
-    this.showWorkspaceChange(before, workspace);
-
     return workspace;
   }
 
@@ -305,31 +277,15 @@ export class App {
     if (this.workspace && JSON.stringify(this.settings.mcp) !== before) await this.startMcp();
 
     // Memory directories are global too, so the open workspace's roots and
-    // context may have just changed under it — and a memory directory arriving
-    // this way is as much news to the agent as one added to the workspace file.
+    // context may have just changed under it.
     if (this.workspace) {
-      const previous = snapshotOf(this.workspace);
       const workspace = this.adopt(this.workspace);
       for (const session of this.sessions.values()) session.updateWorkspace(workspace);
       this.hub.publish(null, { type: "workspace.updated", workspace });
-      this.showWorkspaceChange(previous, workspace);
     }
 
     this.hub.publish(null, { type: "mcp.state", servers: this.mcpState() });
     return { settings: this.settings, errors: this.settingsErrors };
-  }
-
-  /**
-   * Put a settings change in the transcript, once, for the reader.
-   *
-   * The active session only: this is a notice about the workspace, and posting
-   * the same one into every open session would be three copies of the same
-   * news. What each session tells its *agent* is worked out separately, from
-   * its own snapshot, when it is next used.
-   */
-  private showWorkspaceChange(before: WorkspaceSnapshot, after: Workspace): void {
-    const description = describeWorkspaceChange(before, snapshotOf(after));
-    if (description) this.activeSession()?.noteWorkspaceChange(description);
   }
 
   private reloadSettings(): void {
