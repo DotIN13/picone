@@ -174,6 +174,17 @@ export interface Workspace {
   /** The working directory, resolved. Null when the workspace names none. */
   cwd: string | null;
   /**
+   * MCP servers after merging the global list with this workspace's, which is
+   * what actually runs. Like `memory`, empty until the app fills it: the loader
+   * cannot see the global settings.
+   */
+  mcpServers: Array<{ name: string; enabled: boolean; source: "global" | "workspace" }>;
+  /**
+   * Skill directories the session will load from — the workspace's own, made
+   * absolute, plus the global ones. Also filled by the app.
+   */
+  skillPaths: string[];
+  /**
    * Memory directories after merging the global list with this workspace's.
    * Empty until the app fills it, since the loader cannot see global settings.
    */

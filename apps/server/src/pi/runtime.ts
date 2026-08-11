@@ -40,6 +40,7 @@ import { resolvedPermissions, resolvedVoice } from "../workspace/schema.ts";
 import { resolveSkillPaths, workspaceContext } from "../workspace/loader.ts";
 import {
   describeWorkspaceChange,
+  isWorkspaceSnapshot,
   snapshotOf,
   withWorkspaceUpdate,
   type WorkspaceSnapshot,
@@ -85,6 +86,17 @@ function formatExtensionError(error: unknown): string {
     return `Extension error${where ? ` (${where})` : ""}: ${message ?? JSON.stringify(detail ?? error)}`;
   }
   return `Extension error: ${String(error)}`;
+}
+
+/** A stored snapshot, if it is one this version understands (§34). */
+function readSnapshot(stored: string | null): WorkspaceSnapshot | null {
+  if (!stored) return null;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return isWorkspaceSnapshot(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /** What a session is called before anything has named it. */
@@ -374,8 +386,8 @@ export class SessionRuntime {
      * has run keeps whatever it last heard, which is the point of storing it:
      * the workspace may have moved on while this session was not loaded.
      */
-    const stored = seenWorkspace(this.id);
-    this.seen = stored ? (JSON.parse(stored) as WorkspaceSnapshot) : snapshotOf(workspace);
+    const stored = readSnapshot(seenWorkspace(this.id));
+    this.seen = stored ?? snapshotOf(workspace);
     if (!stored) this.rememberSeen(this.seen);
 
     // A restored session has a transcript and a branch but no ids linking them.

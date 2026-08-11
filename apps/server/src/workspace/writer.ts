@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import type { ResolvedMemoryDir, Workspace, WorkspaceFile } from "@picone/protocol";
 import { loadWorkspace } from "./loader.ts";
-import { validateWorkspaceFile } from "./schema.ts";
+import { resolvedPermissions, validateWorkspaceFile } from "./schema.ts";
 
 /**
  * Workspace edits go back to the JSON file (DESIGN §34) — it stays the source of
@@ -30,123 +30,167 @@ function stripUndefined<T>(value: T): T {
 }
 
 /**
- * What a session has already been told about its workspace.
+ * What a session has already been told about its workspace (DESIGN §34).
  *
- * The file *and* the resolved memory list, because memory merges two sources —
- * the workspace file and the global settings — so the file alone cannot say
- * whether a directory became readable (§50).
+ * The *resolved* configuration, not the file. Three of these fields cannot be
+ * read off `workspace.json` at all — memory, MCP servers and skill directories
+ * each merge the workspace's entries with the global settings — so a session
+ * comparing against the file would never notice a globally-added one arriving.
+ * The rest are resolved for a plainer reason: the file says `"."` and the agent
+ * needs the directory that resolves to, and permissions have defaults the file
+ * leaves unstated.
  */
 export interface WorkspaceSnapshot {
-  file: WorkspaceFile;
+  name: string;
+  cwd: string | null;
+  /** Absolute, with what each one is for. Memory is listed separately. */
+  directories: Array<{ path: string; kind: "cwd" | "context"; exists: boolean }>;
   memory: ResolvedMemoryDir[];
+  mcpServers: Array<{ name: string; enabled: boolean }>;
+  skillPaths: string[];
+  permissions: Required<NonNullable<WorkspaceFile["permissions"]>>;
+  instructions: string[];
+  /** Resources switched off for new sessions, by kind. */
+  disabled: Record<"skills" | "prompts" | "extensions", string[]>;
 }
 
+const offNames = (resources: Record<string, { enabled?: boolean }> | undefined): string[] =>
+  Object.entries(resources ?? {})
+    .filter(([, entry]) => entry.enabled === false)
+    .map(([name]) => name)
+    .sort();
+
 export function snapshotOf(workspace: Workspace): WorkspaceSnapshot {
-  return { file: workspace.file, memory: workspace.memory };
+  const file = workspace.file;
+  return {
+    name: file.name,
+    cwd: workspace.cwd,
+    directories: workspace.roots
+      .filter((root) => root.kind !== "memory")
+      .map((root) => ({ path: root.path, kind: root.kind as "cwd" | "context", exists: root.exists })),
+    memory: workspace.memory,
+    mcpServers: workspace.mcpServers.map(({ name, enabled }) => ({ name, enabled })),
+    skillPaths: workspace.skillPaths,
+    permissions: resolvedPermissions(file),
+    instructions: file.instructions ?? [],
+    disabled: {
+      skills: offNames(file.skills),
+      prompts: offNames(file.prompts),
+      extensions: offNames(file.extensions),
+    },
+  };
+}
+
+/**
+ * Is this a snapshot this version can compare against?
+ *
+ * What is stored was written by whatever version last ran, and the shape has
+ * changed once already. A record that does not match is treated as no record at
+ * all — the session starts level, which loses one update at worst, where
+ * comparing against a half-missing shape would throw on the next message.
+ */
+export function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as Partial<WorkspaceSnapshot>;
+  return (
+    Array.isArray(snapshot.directories) &&
+    Array.isArray(snapshot.memory) &&
+    Array.isArray(snapshot.mcpServers) &&
+    Array.isArray(snapshot.skillPaths) &&
+    Array.isArray(snapshot.instructions) &&
+    typeof snapshot.permissions === "object" &&
+    snapshot.permissions !== null &&
+    typeof snapshot.disabled === "object" &&
+    snapshot.disabled !== null
+  );
 }
 
 /**
  * Describes a config change in one short paragraph so the running session can be
  * told what happened without rebuilding its context (DESIGN §34).
  */
-export function describeWorkspaceChange(
-  beforeSnapshot: WorkspaceSnapshot,
-  afterSnapshot: WorkspaceSnapshot,
-): string | null {
-  const before = beforeSnapshot.file;
-  const after = afterSnapshot.file;
+export function describeWorkspaceChange(before: WorkspaceSnapshot, after: WorkspaceSnapshot): string | null {
   const parts: string[] = [];
+  const bullets = (items: string[]) => items.map((item) => `- ${item}`).join("\n");
 
-  // Every directory the workspace opens, whichever field it came from — what
-  // matters to the agent is that one appeared, not which list holds it.
-  const opened = (file: WorkspaceFile) => [
-    ...(file.cwd ? [file.cwd] : []),
-    ...(file.context ?? []),
-    ...(file.directories ?? []),
-  ];
-  const beforeDirs = opened(before);
-  const afterDirs = opened(after);
+  if (before.name !== after.name) parts.push(`The workspace is now called "${after.name}".`);
 
+  /*
+   * Directories, as absolute paths rather than as written. The file may say
+   * "." — true and portable, and no use to an agent deciding where to look.
+   */
   if (before.cwd !== after.cwd && after.cwd) {
     parts.push(`The working directory is now ${after.cwd}.`);
   }
 
-  const added = afterDirs.filter((d) => !beforeDirs.includes(d));
-  const removed = beforeDirs.filter((d) => !afterDirs.includes(d));
-  if (added.length) parts.push(`The following directories were added:\n\n${added.map((d) => `- ${d}`).join("\n")}`);
-  if (removed.length)
-    parts.push(`The following directories were removed:\n\n${removed.map((d) => `- ${d}`).join("\n")}`);
+  const paths = (snapshot: WorkspaceSnapshot) => snapshot.directories.map((dir) => dir.path);
+  const added = paths(after).filter((path) => !paths(before).includes(path));
+  const removed = paths(before).filter((path) => !paths(after).includes(path));
+  if (added.length) parts.push(`The following directories were added:\n\n${bullets(added)}`);
+  if (removed.length) parts.push(`The following directories were removed:\n\n${bullets(removed)}`);
 
+  // Resolved, so a permission the file leaves unstated is compared as the
+  // default it actually behaves as rather than as absent.
   const permKeys = ["files", "shell", "git"] as const;
   const permChanges = permKeys
-    .filter((k) => (before.permissions?.[k] ?? null) !== (after.permissions?.[k] ?? null))
-    .map((k) => `${k}: ${after.permissions?.[k] ?? "default"}`);
+    .filter((key) => before.permissions[key] !== after.permissions[key])
+    .map((key) => `${key}: ${after.permissions[key]}`);
   if (permChanges.length) parts.push(`Permissions were updated:\n\n${permChanges.join("\n")}`);
 
-  const beforeInstructions = (before.instructions ?? []).join("\n");
-  const afterInstructions = (after.instructions ?? []).join("\n");
-  if (beforeInstructions !== afterInstructions) {
+  if (before.instructions.join("\n") !== after.instructions.join("\n")) {
     parts.push(
-      after.instructions?.length
-        ? `Workspace instructions are now:\n\n${after.instructions.map((i) => `- ${i}`).join("\n")}`
+      after.instructions.length
+        ? `Workspace instructions are now:\n\n${bullets(after.instructions)}`
         : "Workspace instructions were cleared.",
     );
   }
 
-  const beforeMcp = Object.entries(before.mcp ?? {})
-    .filter(([, c]) => c.enabled !== false)
-    .map(([n]) => n);
-  const afterMcp = Object.entries(after.mcp ?? {})
-    .filter(([, c]) => c.enabled !== false)
-    .map(([n]) => n);
-  const mcpAdded = afterMcp.filter((n) => !beforeMcp.includes(n));
-  const mcpRemoved = beforeMcp.filter((n) => !afterMcp.includes(n));
+  // Merged with the global list, so a server added globally is news here too.
+  const running = (snapshot: WorkspaceSnapshot) =>
+    snapshot.mcpServers.filter((server) => server.enabled).map((server) => server.name);
+  const mcpAdded = running(after).filter((name) => !running(before).includes(name));
+  const mcpRemoved = running(before).filter((name) => !running(after).includes(name));
   if (mcpAdded.length) parts.push(`MCP servers enabled: ${mcpAdded.join(", ")}`);
   if (mcpRemoved.length) parts.push(`MCP servers disabled: ${mcpRemoved.join(", ")}`);
 
-  const beforePaths = (before.skillPaths ?? []).join(",");
-  const afterPaths = (after.skillPaths ?? []).join(",");
-  if (beforePaths !== afterPaths) parts.push(`Skill directories are now: ${afterPaths || "(none)"}`);
+  // Also merged: some of these come from the global settings.
+  if (before.skillPaths.join(",") !== after.skillPaths.join(",")) {
+    parts.push(`Skill directories are now: ${after.skillPaths.join(", ") || "(none)"}`);
+  }
 
   // Resources are loaded when a session is built, so say plainly that this one
   // is not affected — otherwise the agent would look for a skill it still has.
   for (const kind of ["skills", "prompts", "extensions"] as const) {
-    const wasOff = (name: string) => before[kind]?.[name]?.enabled === false;
-    const isOff = (name: string) => after[kind]?.[name]?.enabled === false;
-    const names = new Set([...Object.keys(before[kind] ?? {}), ...Object.keys(after[kind] ?? {})]);
-
-    const turnedOff = [...names].filter((n) => isOff(n) && !wasOff(n));
-    const turnedOn = [...names].filter((n) => wasOff(n) && !isOff(n));
+    const turnedOff = after.disabled[kind].filter((name) => !before.disabled[kind].includes(name));
+    const turnedOn = before.disabled[kind].filter((name) => !after.disabled[kind].includes(name));
     if (turnedOff.length) parts.push(`${kind} switched off for new sessions: ${turnedOff.join(", ")}`);
     if (turnedOn.length) parts.push(`${kind} switched back on for new sessions: ${turnedOn.join(", ")}`);
   }
 
   /*
-   * Memory (§50), which the file alone cannot describe: an entry may come from
-   * the global list, and what matters is whether the directory is *readable*
-   * now — enabled and actually on disk — not which of the two lists names it.
+   * Memory (§50). What matters is whether a directory is *readable* now —
+   * enabled and actually on disk — not which of the two lists names it.
    *
-   * Keyed by name and compared by path, so a directory that was repointed
-   * somewhere else reads as one arriving and one leaving rather than as no
-   * change at all.
+   * Keyed by name and compared by path, so a directory repointed somewhere else
+   * reads as one arriving and one leaving rather than as no change at all.
    */
   const readable = (dirs: ResolvedMemoryDir[]) =>
     new Map(dirs.filter((dir) => dir.enabled && dir.exists).map((dir) => [dir.name, dir.path]));
-  const beforeMemory = readable(beforeSnapshot.memory);
-  const afterMemory = readable(afterSnapshot.memory);
+  const beforeMemory = readable(before.memory);
+  const afterMemory = readable(after.memory);
 
   const memoryAdded = [...afterMemory].filter(([name, path]) => beforeMemory.get(name) !== path);
   const memoryGone = [...beforeMemory].filter(([name, path]) => afterMemory.get(name) !== path);
 
   if (memoryAdded.length) {
-    const list = memoryAdded.map(([name, path]) => `- ${name}: ${path}`).join("\n");
+    const list = bullets(memoryAdded.map(([name, path]) => `${name}: ${path}`));
     parts.push(
       `Memory directories you can now read:\n\n${list}\n\n` +
         "A memory store's own instructions are loaded when a session starts, so for this session, look inside before relying on it.",
     );
   }
   if (memoryGone.length) {
-    const list = memoryGone.map(([name, path]) => `- ${name}: ${path}`).join("\n");
+    const list = bullets(memoryGone.map(([name, path]) => `${name}: ${path}`));
     parts.push(`Memory directories no longer available:\n\n${list}`);
   }
 

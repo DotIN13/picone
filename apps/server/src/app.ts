@@ -34,7 +34,7 @@ import nodePath from "node:path";
 import { expandPath } from "./util/paths.ts";
 import { SessionRuntime } from "./pi/runtime.ts";
 import { createWorkspace, type CreateWorkspaceOptions } from "./workspace/create.ts";
-import { loadWorkspace } from "./workspace/loader.ts";
+import { loadWorkspace, resolveSkillPaths } from "./workspace/loader.ts";
 import { resolvedPermissions, resolvedVoice } from "./workspace/schema.ts";
 import {
   describeWorkspaceChange,
@@ -109,9 +109,30 @@ export class App {
       if (dir.enabled && !dir.exists) diagnostics.push(`Memory directory does not exist: ${dir.path}`);
     }
 
+    /*
+     * The rest of what only the app can resolve (§34).
+     *
+     * A session's skills and MCP servers are the workspace's *merged with the
+     * global settings*, so neither can be read off the workspace file. They are
+     * resolved here for the same reason memory is: this is the only place that
+     * can see both halves — and a session comparing what it was told against
+     * the raw file would never notice a global one arriving.
+     */
+    const { merged, sources } = mergeMcp(this.settings.mcp, workspace.file.mcp);
+    const mcpServers = Object.entries(merged)
+      .map(([name, config]) => ({ name, enabled: config.enabled !== false, source: sources[name]! }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const skillPaths = [
+      ...resolveSkillPaths(workspace.file, workspace.path),
+      ...this.settings.skills.map((skill) => expandPath(skill.path)),
+    ];
+
     return {
       ...workspace,
       memory,
+      mcpServers,
+      skillPaths,
       // Order is the order the sidebar shows: cwd, then context, then memory.
       roots: [...workspace.roots.filter((root) => root.kind !== "memory"), ...memoryRoots(memory)],
       // Deduplicated because this runs again on an already-resolved workspace
@@ -221,11 +242,12 @@ export class App {
   async updateWorkspaceFile(next: WorkspaceFile): Promise<Workspace> {
     const current = this.requireWorkspace();
     const before = snapshotOf(current);
+    const beforeMcp = JSON.stringify(current.file.mcp ?? {});
     const workspace = this.adopt(writeWorkspaceFile(current.path, next));
 
     for (const session of this.sessions.values()) session.updateWorkspace(workspace);
 
-    if (JSON.stringify(before.file.mcp ?? {}) !== JSON.stringify(workspace.file.mcp ?? {})) {
+    if (beforeMcp !== JSON.stringify(workspace.file.mcp ?? {})) {
       await this.startMcp();
     }
 

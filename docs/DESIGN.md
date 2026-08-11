@@ -1238,11 +1238,22 @@ It also collapses. Five edits between two messages arrive as one paragraph
 describing where things now stand, instead of five interruptions.
 
 **Each session stores what it has been told, in the database.** The record is
-the resolved workspace — the file *and* the merged memory list — written when
-the session is built, which is when the description and the memory stores' own
-instructions go in, and rewritten whenever the difference is handed over. A
-resolved snapshot rather than a timestamp, because a timestamp says *that*
-something changed and not *what*, and the what is the entire message.
+the workspace *as resolved* — written when the session is built, which is when
+the description and the memory stores' own instructions go in, and rewritten
+whenever the difference is handed over. A resolved snapshot rather than a
+timestamp, because a timestamp says *that* something changed and not *what*, and
+the what is the entire message.
+
+Resolved rather than the file, and the distinction is not cosmetic. Three of the
+things a session depends on cannot be read off `workspace.json` at all — memory
+directories, MCP servers and skill directories each merge the workspace's
+entries with the global settings — so a session comparing itself against the
+file would never notice one of them arriving globally. The rest are resolved for
+a plainer reason: the file says `"."` and the agent needs the directory that
+resolves to, and permissions have defaults the file leaves unstated. The stored
+shape is checked on read; one written by an older version is treated as no
+record at all, which loses a single update rather than throwing on the next
+message.
 
 Per session rather than per workspace, because two sessions edited apart are
 owed different things. Persisted rather than held in memory, because otherwise
