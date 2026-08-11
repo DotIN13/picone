@@ -31,6 +31,12 @@ import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import { PermissionGate } from "../permissions/gate.ts";
 import { resolvedPermissions, resolvedVoice } from "../workspace/schema.ts";
 import { resolveSkillPaths, workspaceContext } from "../workspace/loader.ts";
+import {
+  describeWorkspaceChange,
+  snapshotOf,
+  withWorkspaceUpdate,
+  type WorkspaceSnapshot,
+} from "../workspace/writer.ts";
 import { EventTranslator } from "./events.ts";
 import { ExtensionUiBridge } from "./extension-ui.ts";
 import { createCommentTools, createSpeakTool, type PiconeToolHooks } from "./tools.ts";
@@ -116,6 +122,16 @@ export class SessionRuntime {
 
   /** Replaced when the workspace file is edited, so roots never go stale. */
   private workspace: Workspace;
+  /**
+   * The workspace as this session last had it described (DESIGN §34).
+   *
+   * Set when the session is built, because that is when the description and the
+   * memory stores' own instructions go in, and advanced whenever the difference
+   * is handed over. Per session: two sessions edited apart learn different
+   * things at different times, and a session nobody is using owes no one an
+   * update until it is used.
+   */
+  private seenWorkspace!: WorkspaceSnapshot;
   private session!: AgentSession;
   private translator!: EventTranslator;
   private gate!: PermissionGate;
@@ -343,6 +359,10 @@ export class SessionRuntime {
 
     this.session = session;
     this.unsubscribe = session.subscribe((event) => this.translator.handle(event));
+    // Everything the session was told about the workspace went in with the
+    // context above, so this is the point it is up to date from.
+    this.seenWorkspace = snapshotOf(workspace);
+
     // A restored session has a transcript and a branch but no ids linking them.
     this.syncEntryIds();
     this.publishContext();
@@ -392,7 +412,7 @@ export class SessionRuntime {
     this.commit(item);
     this.options.emit(this.id, { type: "user.message", id: item.id, text: shown, source, at: item.at });
 
-    const sent = this.withMentions(text);
+    const sent = this.withPendingWorkspaceUpdate(this.withMentions(text));
 
     try {
       if (this.session.isStreaming) {
@@ -705,10 +725,34 @@ ${pointers}` : text;
   /**
    * The workspace file changed. Permissions and the writable roots both come
    * from it, so they are refreshed together rather than drifting apart.
+   *
+   * The agent is not told here. What it needs to know rides along with the next
+   * thing the human says (§34) — see `withPendingWorkspaceUpdate`.
    */
   updateWorkspace(workspace: Workspace): void {
     this.workspace = workspace;
     this.gate.updatePermissions(resolvedPermissions(workspace.file));
+  }
+
+  /**
+   * Anything the workspace has done since this session last heard, folded into
+   * the front of the message being sent (DESIGN §34).
+   *
+   * Lazy on purpose. Telling the agent at the moment of the edit meant calling
+   * `prompt()` with it, which starts a turn: switching a permission or adding a
+   * directory woke the agent up to acknowledge a setting nobody had asked it
+   * about, burning a request and filling the transcript. Nothing is lost by
+   * waiting — the change is already in force, and the only moment the agent can
+   * act on knowing is when it is next asked to do something.
+   *
+   * It also collapses: five edits between two messages arrive as one paragraph
+   * describing where things now stand, rather than five interruptions.
+   */
+  private withPendingWorkspaceUpdate(text: string): string {
+    const now = snapshotOf(this.workspace);
+    const update = describeWorkspaceChange(this.seenWorkspace, now);
+    this.seenWorkspace = now;
+    return update ? [update, "---", text].join("\n\n") : text;
   }
 
   /**
@@ -746,15 +790,16 @@ ${pointers}` : text;
   }
 
   /** Push a short workspace-change note into the conversation (DESIGN §34). */
-  async notifyWorkspaceChange(text: string): Promise<void> {
-    // Shown as a notice rather than a user message: the human changed a setting,
-    // they did not say this to the agent.
+  /**
+   * Show a settings change in the transcript, for the human.
+   *
+   * Only the reader is told at this point; the agent hears about it with the
+   * next message (`withPendingWorkspaceUpdate`). The split is deliberate: the
+   * person who just changed a setting wants to see it land immediately, and the
+   * agent has nothing to do with it until it is asked to work again.
+   */
+  noteWorkspaceChange(text: string): void {
     this.translator.notice(text, "info");
-    if (this.session.isStreaming) {
-      await this.session.followUp(text);
-    } else {
-      await this.session.prompt(text);
-    }
   }
 
   // --- outbound --------------------------------------------------------------

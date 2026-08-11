@@ -1205,8 +1205,9 @@ Two things sit on top of that discovery, and only those two:
 
 ## 34. Workspace updates
 
-Editing configuration through the UI writes `workspace.json` and then tells the
-running session what changed:
+Editing configuration through the UI writes `workspace.json`, shows a notice in
+the transcript, and tells the agent **with the next message** rather than at the
+moment of the edit:
 
 ```text
 Workspace update:
@@ -1214,14 +1215,48 @@ Workspace update:
 Permissions were updated:
 
 shell: allow
+
+---
+
+fix the failing test
 ```
 
-The message is also shown in the transcript as a notice, so the agent's reply to
-it does not look unprompted.
+**The two halves have different audiences and different timing.** The person who
+just changed a setting wants to see it land, so the notice appears at once. The
+agent has nothing to do with it until it is next asked to work — so it rides in
+front of the next message, behind a divider that keeps it from reading as
+something the human typed.
 
-Permission changes apply to live sessions immediately. Directory, instruction,
-MCP, and skill changes are announced; MCP servers restart. Model changes apply
-immediately to the session that made them (§45).
+Telling the agent eagerly meant calling `prompt()` with the description, which
+*starts a turn*: switching a permission woke the agent to acknowledge a setting
+nobody had asked it about, burning a request and filling the transcript with a
+reply to a notice. Waiting costs nothing — the change is already in force the
+moment it is written; only the agent's knowledge of it is deferred, to the one
+moment that knowledge can be used.
+
+It also collapses. Five edits between two messages arrive as one paragraph
+describing where things now stand, instead of five interruptions.
+
+**Each session carries what it has been told.** The marker is a snapshot of the
+workspace file and the resolved memory list, taken when the session is built —
+which is when the description and the memory stores' own instructions go in —
+and advanced whenever the difference is handed over. A snapshot rather than a
+timestamp because a timestamp can say *that* something changed and not *what*,
+and the whole content of the message is the what. Per session, because two
+sessions edited apart learn different things at different times, and a session
+nobody is using owes nobody an update until it is used.
+
+**What is announced**: the working directory, directories added or removed,
+permissions, instructions, MCP servers, skill paths, the skill/prompt/extension
+switches — and memory directories becoming readable or going away. Memory needs
+the resolved list rather than the file, because an entry may come from the
+global settings, and what matters is whether the directory is readable *now*
+(§50); a store's own instructions still only load at session start, so the
+message says so.
+
+**What is not**: the model, which applies live and is the agent rather than news
+for it (§45); and voice, whose `speak` tool is fixed when the session is built —
+announcing a change there would invite a call to a tool that is not present.
 
 ---
 
