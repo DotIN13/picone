@@ -645,6 +645,12 @@ export type ClientMessage =
   | { type: "rewind"; itemId: string; sessionId?: string }
   /** Summarise the conversation so far and drop what it replaces (§54). */
   | { type: "compact"; sessionId?: string }
+  /** Rebuild a session's resources and system prompt from the current settings. */
+  | { type: "reload_session"; sessionId?: string }
+  /** Pi's own tally for the session — messages, tokens, cost. */
+  | { type: "session_stats"; sessionId?: string }
+  /** Write the session out as HTML, through Pi's exporter. */
+  | { type: "session_export"; sessionId?: string }
   | { type: "new_session"; title?: string }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
   /** A keystroke for an open `custom` component, already in terminal form. */

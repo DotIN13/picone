@@ -123,6 +123,18 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
       await app.compact(message.sessionId);
       break;
 
+    case "reload_session":
+      await app.reloadSession(message.sessionId);
+      break;
+
+    case "session_stats":
+      app.reportStats(message.sessionId);
+      break;
+
+    case "session_export":
+      await app.exportSession(message.sessionId);
+      break;
+
 
     case "extension_ui_answer":
       app.answerExtensionUi(message.answer);

@@ -253,9 +253,15 @@ export class SessionRuntime {
         .map(([name]) => name);
       return new Set(names);
     };
-    const offExtensions = off(workspace.file.extensions);
-    const offSkills = off(workspace.file.skills);
-    const offPrompts = off(workspace.file.prompts);
+    /*
+     * Read through `this.workspace`, not the `workspace` captured here: these
+     * closures run again on every `reloadResources()`, and rebuilding from the
+     * workspace as it was when the session started is the one thing a reload
+     * exists to avoid.
+     */
+    const offExtensions = () => off(this.workspace.file.extensions);
+    const offSkills = () => off(this.workspace.file.skills);
+    const offPrompts = () => off(this.workspace.file.prompts);
 
     const loader = new DefaultResourceLoader({
       cwd,
@@ -263,7 +269,7 @@ export class SessionRuntime {
       // Pi finds global skills under ~/.pi/agent and ~/.agents itself; these are
       // the extra directories configured in the workspace and global settings.
       additionalSkillPaths: [
-        ...resolveSkillPaths(workspace.file, workspace.path),
+        ...resolveSkillPaths(this.workspace.file, this.workspace.path),
         ...this.options.globalSkillPaths,
       ],
       extensionFactories: [permissionExtension],
@@ -279,7 +285,7 @@ export class SessionRuntime {
         return {
           ...base,
           extensions: base.extensions.filter(
-            (e) => isInternalExtension(e) || !offExtensions.has(extensionName(e)),
+            (e) => isInternalExtension(e) || !offExtensions().has(extensionName(e)),
           ),
         };
       },
@@ -289,7 +295,7 @@ export class SessionRuntime {
           description: skill.description,
           source: skill.filePath,
         }));
-        return { ...base, skills: base.skills.filter((skill) => !offSkills.has(skill.name)) };
+        return { ...base, skills: base.skills.filter((skill) => !offSkills().has(skill.name)) };
       },
       promptsOverride: (base) => {
         this.discovered.prompts = base.prompts.map((prompt) => ({
@@ -297,17 +303,17 @@ export class SessionRuntime {
           description: prompt.description,
           source: prompt.filePath,
         }));
-        return { ...base, prompts: base.prompts.filter((prompt) => !offPrompts.has(prompt.name)) };
+        return { ...base, prompts: base.prompts.filter((prompt) => !offPrompts().has(prompt.name)) };
       },
       // The workspace description is injected once, as a context file. Pi owns
       // it from there — we never re-inject it (DESIGN §6).
       agentsFilesOverride: (base) => ({
         agentsFiles: [
           ...base.agentsFiles,
-          { path: `${workspace.path} (workspace)`, content: workspaceContext(workspace) },
+          { path: `${this.workspace.path} (workspace)`, content: workspaceContext(this.workspace) },
           // Each memory directory explains itself, so what goes in is its own
           // AGENTS.md rather than a description we invented (§50).
-          ...memoryContextFiles(workspace.memory),
+          ...memoryContextFiles(this.workspace.memory),
         ],
       }),
     });
@@ -485,6 +491,57 @@ ${pointers}` : text;
    * on the event stream rather than as a rejection, so the catch here is for
    * the call itself refusing, not for a summary that went wrong.
    */
+  /**
+   * Re-read everything a session was built with (DESIGN §34).
+   *
+   * Pi assembles the system prompt once — the workspace description, the
+   * skills, the memory stores' instructions — and caches it, so an edit made
+   * afterwards is invisible to a running session. `session.reload()` reloads
+   * the resource loader, which re-runs our overrides against the workspace as
+   * it now is, restarts the extensions, and rebuilds the prompt from the
+   * result.
+   */
+  async reloadResources(): Promise<void> {
+    await this.session.reload();
+    this.translator.notice("Reloaded: skills, extensions and the workspace description are current again.", "info");
+    this.publishContext();
+  }
+
+  /**
+   * What the session has cost so far, from Pi's own tally (DESIGN §36).
+   *
+   * Pi aggregates over every entry in the session file, including history that
+   * compaction has since dropped, so this is what was actually billed rather
+   * than what the transcript still shows. It goes in as a notice: it is an
+   * answer to a question the human asked, and no business of the agent's.
+   */
+  reportStats(): void {
+    const stats = this.session.getSessionStats();
+    const tokens = stats.tokens;
+    const lines = [
+      `${stats.userMessages} sent · ${stats.assistantMessages} replies · ${stats.toolCalls} tool calls`,
+      `Tokens: ${tokens.total.toLocaleString()} (${tokens.input.toLocaleString()} in, ${tokens.output.toLocaleString()} out, ${tokens.cacheRead.toLocaleString()} cached)`,
+      `Cost: $${stats.cost.toFixed(4)}`,
+    ];
+    this.translator.notice(lines.join("\n"), "info");
+  }
+
+  /**
+   * Write the session out as HTML, through Pi's own exporter.
+   *
+   * Pi decides the format and the location — its session directory — because it
+   * owns the session file this is rendered from, and a second renderer here
+   * would drift from it. We only say where it landed.
+   */
+  async exportHtml(): Promise<void> {
+    try {
+      const path = await this.session.exportToHtml();
+      this.translator.notice(`Exported to ${path}`, "info");
+    } catch (err) {
+      this.translator.notice(`Could not export: ${(err as Error).message}`, "error");
+    }
+  }
+
   async compact(): Promise<void> {
     try {
       await this.session.compact();

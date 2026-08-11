@@ -573,6 +573,31 @@ export class App {
     await this.target(sessionId).compact();
   }
 
+  /**
+   * Rebuild a session against the settings as they now stand (DESIGN §34).
+   *
+   * Most of the workspace is read when a session is built — the description,
+   * skills, prompt templates, extensions, the memory stores' instructions — so
+   * a reload is how a live session picks up an edit. It is deliberately a thing
+   * you ask for rather than something that happens under you.
+   */
+  async reloadSession(sessionId?: string): Promise<void> {
+    const session = this.target(sessionId);
+    await session.reloadResources();
+    this.publishCommands(session.id);
+    this.hub.publish(null, { type: "workspace.updated", workspace: this.requireWorkspace() });
+  }
+
+  /** Pi's own tally for the session, as a transcript notice (DESIGN §36). */
+  reportStats(sessionId?: string): void {
+    this.target(sessionId).reportStats();
+  }
+
+  /** Write the session out as HTML, through Pi's own exporter. */
+  async exportSession(sessionId?: string): Promise<void> {
+    await this.target(sessionId).exportHtml();
+  }
+
   /** Go back to just before a message, in place (DESIGN §53). */
   async rewind(itemId: string, sessionId?: string): Promise<void> {
     await this.target(sessionId).rewind(itemId);

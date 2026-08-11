@@ -1236,6 +1236,17 @@ Permissions, Voice, Model. Every edit writes back to `workspace.json`, which
 stays the source of truth. **Open workspace JSON** opens the file itself as a
 read-only tab.
 
+**Edits save themselves.** There was a draft and a Save button, and the button
+is what people miss — adding a directory through the folder chooser reads as an
+action that *happened*, because it happened in a dialog with its own confirm,
+but it only touched a draft that closing the drawer threw away. The app settings
+next to it had always applied instantly. Writes are coalesced on a 400ms timer,
+because a text field patches on every keystroke and each save rewrites the file
+and reloads the workspace behind it; the draft survives only as that one
+keystroke of slack, and a rejected edit stays in it to be corrected rather than
+silently reverting. The footer says where the writing went, since the file
+travels with the project and it should not be a surprise that one was touched.
+
 Load diagnostics — missing directories, missing skill paths, problems in
 `~/.picone/settings.json` — surface in General.
 
@@ -1511,10 +1522,25 @@ Two sources:
   `pi.getCommands()` on the extension API and pushed per session, because
   extensions and skills differ between sessions. Picone only completes the
   token; Pi expands templates and executes extension commands itself.
-* **App commands** — handled in the browser and never sent: `/new`, `/close`,
-  `/settings`, `/theme`, `/sidebar`.
+* **App commands** — handled in the browser and never sent to the model:
+  `/new`, `/close`, `/settings`, `/theme`, `/sidebar`, `/compact`, `/reload`,
+  `/stats`, `/export`.
 
 Each entry shows its source, so it is clear what will happen.
+
+The last three exist because Pi's own equivalents are TUI commands with no
+route through the extension API — but the *capability* is on `AgentSession`, so
+Picone offers its own command over the same call. `/reload` re-reads the
+resources and rebuilds the system prompt (§34), which is how a running session
+picks up a settings change. `/stats` reports Pi's tally — messages, tokens,
+cost — aggregated over the whole session file including history compaction has
+dropped, so it is what was billed rather than what the transcript still shows.
+`/export` writes the session out as HTML through Pi's own exporter, into Pi's
+session directory: it owns the file being rendered, and a second renderer here
+would drift from it.
+
+All three answer as transcript notices rather than as messages. They are
+answers to a question the human asked, and no business of the agent's.
 
 ---
 

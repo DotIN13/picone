@@ -4,6 +4,9 @@ import {
   abort,
   activeSessionState,
   compactSession,
+  exportSession,
+  reloadSession,
+  sessionStats,
   setAutoCompaction,
   closeTab,
   consumeEditorPatch,
@@ -69,6 +72,13 @@ const APP_COMMANDS: SlashCommand[] = [
   { name: "theme", description: "Toggle light / dark theme", source: "app" },
   { name: "sidebar", description: "Show or hide the sidebar", source: "app" },
   { name: "compact", description: "Summarise the conversation so far to free context", source: "app" },
+  {
+    name: "reload",
+    description: "Re-read skills, extensions and workspace settings into this session",
+    source: "app",
+  },
+  { name: "stats", description: "Messages, tokens and cost for this session", source: "app" },
+  { name: "export", description: "Write this session out as an HTML file", source: "app" },
 ];
 
 export function Composer() {
@@ -177,6 +187,15 @@ export function Composer() {
         return true;
       case "compact":
         compactSession();
+        return true;
+      case "reload":
+        reloadSession();
+        return true;
+      case "stats":
+        sessionStats();
+        return true;
+      case "export":
+        exportSession();
         return true;
       default:
         return false;

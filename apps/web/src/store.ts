@@ -719,6 +719,26 @@ export async function setAutoCompaction(enabled: boolean): Promise<void> {
   }
 }
 
+/**
+ * Rebuild the session from the settings as they now stand (DESIGN §34).
+ *
+ * Most of the workspace is read when a session is built, so this is how a live
+ * session picks up an edit to skills, extensions, or the workspace description.
+ */
+export function reloadSession(sessionId?: string): void {
+  socket.send({ type: "reload_session", sessionId: sessionId ?? state.activeSessionId ?? undefined });
+}
+
+/** Ask Pi for its tally of the session — messages, tokens, cost (§36). */
+export function sessionStats(sessionId?: string): void {
+  socket.send({ type: "session_stats", sessionId: sessionId ?? state.activeSessionId ?? undefined });
+}
+
+/** Write the session out as HTML, through Pi's exporter. */
+export function exportSession(sessionId?: string): void {
+  socket.send({ type: "session_export", sessionId: sessionId ?? state.activeSessionId ?? undefined });
+}
+
 export function compactSession(): void {
   const sessionId = state.activeSessionId;
   if (!sessionId) return;

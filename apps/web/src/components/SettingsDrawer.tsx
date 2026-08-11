@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { unwrap } from "solid-js/store";
 import type {
   ModelOption,
@@ -111,13 +111,65 @@ export function SettingsDrawer() {
   const snapshot = (): WorkspaceFile | null =>
     state.workspace ? structuredClone(unwrap(state.workspace.file)) : null;
 
-  createEffect(() => setDraft(snapshot()));
+  /*
+   * Edits save themselves (DESIGN §35).
+   *
+   * There was a draft with a Save button, and the button is what people miss:
+   * adding a directory through the chooser looks like an action that happened,
+   * because it happened in a dialog with its own confirm — but it only touched
+   * a draft, and closing the drawer threw it away. Everything the app settings
+   * do already applied instantly; the workspace panel is the same kind of
+   * surface and now behaves the same way.
+   *
+   * The draft still exists, one keystroke ahead of the file, so a text field
+   * does not fight the round trip.
+   */
+  const [pending, setPending] = createSignal(false);
+  let timer: number | undefined;
 
-  const dirty = createMemo(() => JSON.stringify(draft()) !== JSON.stringify(state.workspace?.file ?? null));
+  createEffect(() => {
+    const incoming = snapshot();
+    // Not while an edit of ours is in flight: adopting the server's copy
+    // mid-write would undo whatever has been typed since.
+    if (pending() || saving()) return;
+    setDraft(incoming);
+  });
+
+  onCleanup(() => {
+    if (timer) window.clearTimeout(timer);
+  });
 
   const patch = (changes: Partial<WorkspaceFile>) => {
     const current = draft();
-    if (current) setDraft({ ...current, ...changes });
+    if (!current) return;
+    const next = { ...current, ...changes };
+    setDraft(next);
+
+    /*
+     * Coalesced, because a text field patches on every keystroke and each save
+     * rewrites workspace.json and reloads the workspace behind it. Short enough
+     * to feel immediate, long enough that typing a path is one write.
+     */
+    setPending(true);
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(() => void commit(next), 400);
+  };
+
+  const commit = async (file: WorkspaceFile) => {
+    timer = undefined;
+    setSaving(true);
+    setPending(false);
+    setError(null);
+    try {
+      await api.saveWorkspace(file);
+      await refreshState();
+    } catch (err) {
+      // The draft keeps the rejected edit, so it can be corrected rather than
+      // silently reverting to what is on disk.
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   /*
@@ -139,20 +191,7 @@ export function SettingsDrawer() {
     return [...(f.context ?? []), ...(f.cwd ? legacy : legacy.slice(1))];
   };
 
-  const save = async () => {
-    const current = draft();
-    if (!current) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await api.saveWorkspace(current);
-      await refreshState();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
+
 
   const modelOptions = createMemo(() => [
     { value: "", label: "Pi default" },
@@ -505,18 +544,16 @@ export function SettingsDrawer() {
         </div>
       </div>
 
-      {/* Only the workspace half has anything to save; app settings apply as
-          they are changed, so a footer over them would invite a pointless click. */}
+      {/*
+        A status line, not a form. Workspace edits write themselves; this says
+        where they went, because they go to a file that travels with the project
+        and it should not be a surprise that one was touched.
+      */}
       <Show when={showPanel() && !APP_SECTIONS.has(current())}>
         <div data-slot="drawer-footer" data-corvu-no-drag>
-          <span class="text-v2-text-text-muted">{dirty() ? "Unsaved changes" : "Saved"}</span>
-          <span class="flex-1" />
-          <Button variant="ghost" disabled={!dirty()} onClick={() => setDraft(snapshot())}>
-            Revert
-          </Button>
-          <Button variant="contrast" disabled={!dirty() || saving()} onClick={() => void save()}>
-            {saving() ? "Saving…" : "Save to workspace.json"}
-          </Button>
+          <span class="text-v2-text-text-muted">
+            {saving() || pending() ? "Saving…" : "Saved to workspace.json"}
+          </span>
         </div>
       </Show>
     </Drawer>
