@@ -17,6 +17,7 @@ import { Select, Switch, Tag, TextArea, TextInput } from "./ui/primitives.tsx";
 import { AppearancePanel, NotificationsPanel } from "./AppSettings.tsx";
 import { GlobalMemoryPanel, WorkspaceMemoryPanel } from "./MemorySettings.tsx";
 import { DirectoryDialog } from "./DirectoryDialog.tsx";
+import { resolveWorkspacePath } from "../lib/workspace-paths.ts";
 
 type Section =
   | "general"
@@ -362,7 +363,6 @@ export function SettingsDrawer() {
                       label="Working directory"
                       placeholder="/path/to/repo"
                       values={openedCwd() ? [openedCwd()!] : []}
-                      resolved={[state.workspace?.cwd ?? undefined]}
                       max={1}
                       hint="Where the agent works by default."
                       onChange={(values) => patch({ cwd: values[0], directories: undefined, context: openedContext() })}
@@ -371,7 +371,6 @@ export function SettingsDrawer() {
                       label="Context directories"
                       placeholder="/path/to/reference"
                       values={openedContext()}
-                      resolved={state.workspace?.roots.filter((r) => r.kind === "context").map((r) => r.path)}
                       hint="Open alongside it, and writable. These may sit inside the working directory, or contain it."
                       onChange={(context) => patch({ context, cwd: openedCwd(), directories: undefined })}
                     />
@@ -538,13 +537,6 @@ function DirectoryListEditor(props: {
   hint?: string;
   /** How many entries the list may hold. One, for the working directory. */
   max?: number;
-  /**
-   * The same directories, resolved, positionally. A workspace file may store a
-   * path relative to itself — "." is the common case — and opening the chooser
-   * on "." would start it wherever the *server* happens to be running rather
-   * than at the directory the row names.
-   */
-  resolved?: (string | undefined)[];
   onChange: (values: string[]) => void;
 }) {
   const full = () => props.max !== undefined && props.values.length >= props.max;
@@ -583,13 +575,18 @@ function DirectoryListEditor(props: {
         </Button>
       </Show>
 
+      {/* `initialPath` is resolved: a workspace file stores paths relative to
+          itself, and "." would otherwise start the browser wherever the server
+          happens to be running. */}
       <Show when={browsing() !== null}>
         <DirectoryDialog
           open
           onOpenChange={(open) => !open && setBrowsing(null)}
           title={props.label}
           confirmLabel={browsing() === -1 ? "Add" : "Choose"}
-          initialPath={browsing()! >= 0 ? (props.resolved?.[browsing()!] ?? props.values[browsing()!]) : undefined}
+          initialPath={
+            browsing()! >= 0 ? resolveWorkspacePath(props.values[browsing()!] ?? "", state.workspace?.path) : undefined
+          }
           onChoose={(folder) => {
             const at = browsing()!;
             props.onChange(at === -1 ? [...props.values, folder] : props.values.map((v, i) => (i === at ? folder : v)));

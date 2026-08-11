@@ -83,7 +83,13 @@ export class App {
   /**
    * Fill in what the loader could not see: the global memory list this
    * workspace's entries merge with, and the roots those directories add.
-   * Every path that produces a `Workspace` goes through here (§50).
+   * Every path that produces a `Workspace` goes through here (§50) — which is
+   * what `adopt` below is for, since "remember to call this" did not hold:
+   * changing the model rewrote the workspace file and assigned the loader's
+   * result directly, and the loader cannot fill `memory`. The workspace then
+   * had no memory directories at all until it was reopened, so they vanished
+   * from settings and from the file tree while still being listed in the global
+   * panel, which reads the settings rather than the merge.
    */
   private withMemory(workspace: Workspace): Workspace {
     const diagnostics = [...workspace.diagnostics];
@@ -103,15 +109,29 @@ export class App {
       memory,
       // Order is the order the sidebar shows: cwd, then context, then memory.
       roots: [...workspace.roots.filter((root) => root.kind !== "memory"), ...memoryRoots(memory)],
-      diagnostics,
+      // Deduplicated because this runs again on an already-resolved workspace
+      // whenever the global list changes, and the same complaint twice reads as
+      // two problems.
+      diagnostics: [...new Set(diagnostics)],
     };
+  }
+
+  /**
+   * Take a workspace as the open one, resolving what only the app can resolve.
+   *
+   * The single place `this.workspace` is set from a value, so a path that
+   * rewrites the workspace file cannot forget the memory directories.
+   */
+  private adopt(workspace: Workspace): Workspace {
+    const resolved = this.withMemory(workspace);
+    this.workspace = resolved;
+    return resolved;
   }
 
   async openWorkspace(path: string): Promise<Workspace> {
     await this.closeWorkspace();
 
-    const workspace = this.withMemory(loadWorkspace(path));
-    this.workspace = workspace;
+    const workspace = this.adopt(loadWorkspace(path));
     rememberWorkspace(workspace.path, workspace.file.name);
     setUiState(LAST_WORKSPACE_KEY, workspace.path);
 
@@ -192,8 +212,7 @@ export class App {
   async updateWorkspaceFile(next: WorkspaceFile): Promise<Workspace> {
     const current = this.requireWorkspace();
     const before = current.file;
-    const workspace = this.withMemory(writeWorkspaceFile(current.path, next));
-    this.workspace = workspace;
+    const workspace = this.adopt(writeWorkspaceFile(current.path, next));
 
     for (const session of this.sessions.values()) session.updateWorkspace(workspace);
 
@@ -261,8 +280,7 @@ export class App {
     // Memory directories are global too, so the open workspace's roots and
     // context may have just changed under it.
     if (this.workspace) {
-      const workspace = this.withMemory(this.workspace);
-      this.workspace = workspace;
+      const workspace = this.adopt(this.workspace);
       for (const session of this.sessions.values()) session.updateWorkspace(workspace);
       this.hub.publish(null, { type: "workspace.updated", workspace });
     }
@@ -602,8 +620,7 @@ export class App {
     const workspace = this.requireWorkspace();
     const next: WorkspaceFile = { ...workspace.file, model: { provider, model, thinking } };
     if (JSON.stringify(next.model) !== JSON.stringify(workspace.file.model)) {
-      const updated = writeWorkspaceFile(workspace.path, next);
-      this.workspace = updated;
+      const updated = this.adopt(writeWorkspaceFile(workspace.path, next));
       this.hub.publish(null, { type: "workspace.updated", workspace: updated });
     }
     this.publishSessionList();

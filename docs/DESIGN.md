@@ -119,6 +119,16 @@ as the cwd and the rest as context, which is what it already meant in practice
 since the runtime picked the first existing entry to work in. Nothing needs
 rewriting to open.
 
+**One funnel sets the open workspace.** The loader cannot fill `memory` — it
+cannot see the global list a workspace's entries merge with — so the app does,
+and every path that produces a `Workspace` has to go through that step. Saying
+so in a comment was not enough: changing the model rewrites the workspace file
+to record the new default, and that path assigned the loader's result straight
+to `this.workspace`. Every memory directory then vanished from the settings
+panel and the file tree until the workspace was reopened, while the global panel
+went on listing them, because it reads the settings rather than the merge. The
+assignment is a single private method now, and resolving is part of it.
+
 **They may nest, and that is often the point.** Deduplication is by exact path,
 so naming `…/picone/docs` while the cwd is `…/dotty-projects` opens both: one is
 the tree you navigate, the other is a shortcut to the part of it you care about.
