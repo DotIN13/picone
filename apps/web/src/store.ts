@@ -338,23 +338,19 @@ export async function refreshState(): Promise<void> {
     .catch(() => setState("memorySubjects", []));
 
   /*
-   * The working directory opens itself, one level, lazily (DESIGN §12).
+   * Nothing opens itself (DESIGN §12).
    *
-   * Only that one. Expansion is keyed by path, and a context directory may sit
-   * *inside* the cwd (§3) — so opening it as a root also opened it where it
-   * appears nested, and the tree came up with a few folders inexplicably open
-   * among all the closed ones. The rest are top-level rows already, which was
-   * the point of listing them; a chevron is enough.
+   * The tree comes up as the list of roots and waits. Opening the working
+   * directory for you was the last of the automatic expansion, and it was the
+   * same complaint as the rest: a refresh should leave the sidebar where it
+   * was, and since it cannot, the honest resting state is closed rather than a
+   * guess at which folder was wanted.
    *
-   * With no cwd, the first root that exists stands in, so the tree is not a
-   * column of closed folders with nothing to look at.
+   * The working directory's listing is fetched anyway, so the first click on it
+   * is instant. That is a prefetch, not a decision about what to show.
    */
-  const roots = next.workspace.roots.filter((root) => root.exists);
-  const opening = roots.find((root) => root.kind === "cwd") ?? roots[0];
-  if (opening) {
-    setState("expanded", treeKey(opening.path, opening.path), true);
-    void loadDirectory(opening.path);
-  }
+  const cwd = next.workspace.roots.find((root) => root.exists && root.kind === "cwd");
+  if (cwd) void loadDirectory(cwd.path);
   void refreshGitStatus();
 }
 

@@ -573,11 +573,12 @@ path is allowed to contain. Directory *contents* stay keyed by path alone: what
 is inside a folder is the same wherever you look at it, and only whether you are
 looking is local.
 
-**Only the working directory opens itself**, one level, lazily. The others are
-top-level rows already, which is why they were listed; a chevron is enough, and
-nothing is fetched that is not looked at. With no working directory the first
-root that exists stands in, so the sidebar is never just a column of closed
-folders.
+**Nothing opens itself.** The tree comes up as the list of roots and waits.
+Auto-expanding every root, then only the working directory, were the same
+mistake at different sizes: a refresh cannot restore where you were, and a guess
+at which folder was wanted reads as the tree acting on its own. Closed is the
+honest resting state. The working directory's listing is fetched anyway, so the
+first click on it is instant — a prefetch, not a decision about what to show.
 
 Revealing a path (§51) picks the *most specific* root containing it, so a file
 under a context directory appears beneath that directory rather than at the end
