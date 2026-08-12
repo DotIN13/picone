@@ -3,6 +3,7 @@ import type { JSX } from "solid-js";
 import type { MemorySubject, SlashCommand, WidgetLine } from "@picone/protocol";
 import {
   abort,
+  activeCapabilities,
   activeSessionState,
   compactSession,
   exportSession,
@@ -169,7 +170,7 @@ function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
 
 /** Commands handled in the browser; they never reach Pi. */
 const APP_COMMANDS: SlashCommand[] = [
-  { name: "new", description: "Start a new session in a new tab", source: "app" },
+  { name: "new", description: "Start a new session in a new tab — `/new claude` to choose the agent", source: "app" },
   { name: "close", description: "Close the current tab", source: "app" },
   { name: "settings", description: "Open workspace settings", source: "app" },
   { name: "theme", description: "Toggle light / dark theme", source: "app" },
@@ -217,10 +218,26 @@ export function Composer() {
     return /\s/.test(token) ? null : token;
   });
 
+  /**
+   * The app's own commands, minus the ones this session's agent cannot do
+   * (§57). Compaction, reload and export are all agent-dependent, and offering
+   * one that answers "not supported" is worse than not offering it.
+   */
+  const appCommands = createMemo(() => {
+    const caps = activeCapabilities();
+    if (!caps) return APP_COMMANDS;
+    return APP_COMMANDS.filter((command) => {
+      if (command.name === "compact") return caps.compact;
+      if (command.name === "reload") return caps.reload;
+      if (command.name === "export") return caps.exportHtml;
+      return true;
+    });
+  });
+
   const commands = createMemo(() => {
     const sessionId = state.activeSessionId;
-    const piCommands = sessionId ? (state.commands[sessionId] ?? []) : [];
-    return [...APP_COMMANDS, ...piCommands];
+    const agentCommands = sessionId ? (state.commands[sessionId] ?? []) : [];
+    return [...appCommands(), ...agentCommands];
   });
 
   const matches = createMemo(() => {
@@ -288,10 +305,12 @@ export function Composer() {
     field?.focus();
   });
 
-  const runAppCommand = (name: string): boolean => {
+  const runAppCommand = (name: string, argument?: string): boolean => {
     switch (name) {
       case "new":
-        void newSession();
+        // `/new claude` starts one with that agent (§57); `/new` takes the
+        // workspace's usual one, which is what it has always done.
+        void newSession(argument === "claude" || argument === "pi" ? argument : undefined);
         return true;
       case "close":
         if (state.activeTabId) closeTab(state.activeTabId);
@@ -355,9 +374,10 @@ export function Composer() {
     const value = text().trim();
     if (!value) return;
 
-    const appCommand = value.startsWith("/") ? APP_COMMANDS.find((c) => `/${c.name}` === value) : undefined;
+    const [word, ...rest] = value.split(/\s+/);
+    const appCommand = value.startsWith("/") ? APP_COMMANDS.find((c) => `/${c.name}` === word) : undefined;
     if (appCommand) {
-      runAppCommand(appCommand.name);
+      runAppCommand(appCommand.name, rest.join(" ").trim() || undefined);
       field?.set([]);
       return;
     }

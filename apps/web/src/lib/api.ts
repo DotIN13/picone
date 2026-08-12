@@ -1,4 +1,5 @@
 import type {
+  AgentKind,
   CommentStatus,
   CreateWorkspaceRequest,
   DirEntry,
@@ -81,8 +82,8 @@ export const api = {
     request<{ comment: FileComment }>(`/comments/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
 
   sessions: () => request<{ sessions: SessionSummary[]; activeSessionId: string | null }>("/sessions"),
-  createSession: (title: string) =>
-    request<{ session: SessionSummary }>("/sessions", { method: "POST", body: JSON.stringify({ title }) }),
+  createSession: (title: string, agent?: AgentKind) =>
+    request<{ session: SessionSummary }>("/sessions", { method: "POST", body: JSON.stringify({ title, agent }) }),
   selectSession: (id: string) => request<{ ok: true }>(`/sessions/${id}/select`, { method: "POST" }),
   forkSession: (id: string, itemId: string) =>
     request<{ session: SessionSummary }>(`/sessions/${id}/fork`, {
@@ -104,7 +105,10 @@ export const api = {
       `/sessions/${id}/messages?before=${encodeURIComponent(before)}&limit=${limit}`,
     ),
 
-  models: () => request<{ models: ModelOption[] }>("/models"),
+  /** Per agent: the two do not share a catalogue (§57). */
+  models: (agent?: AgentKind) => request<{ models: ModelOption[] }>(`/models${agent ? `?agent=${agent}` : ""}`),
+  /** Which agents a session can be started with, and why not. */
+  agents: () => request<{ agents: AgentAvailability[] }>("/agents"),
 
   setAutoCompaction: (enabled: boolean) =>
     request<{ autoCompaction: boolean }>("/compaction", { method: "POST", body: JSON.stringify({ enabled }) }),
@@ -118,3 +122,11 @@ export const api = {
       body: JSON.stringify({ settings }),
     }),
 };
+
+/** An agent the server offers, with the reason when it cannot be used (§57). */
+export interface AgentAvailability {
+  kind: AgentKind;
+  name: string;
+  available: boolean;
+  reason?: string;
+}

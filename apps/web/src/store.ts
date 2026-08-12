@@ -1,5 +1,7 @@
 import { createStore, produce, reconcile } from "solid-js/store";
 import type {
+  AgentCapabilities,
+  AgentKind,
   AgentState,
   ChatItem,
   ContextUsage,
@@ -23,7 +25,7 @@ import type {
   Workspace,
   WorkspaceStateResponse,
 } from "@picone/protocol";
-import { api } from "./lib/api.ts";
+import { api, type AgentAvailability } from "./lib/api.ts";
 import {
   applyAppearance,
   defaultAppSettings,
@@ -125,6 +127,8 @@ interface State {
   comments: FileComment[];
   mcp: McpServerState[];
   models: ModelOption[];
+  /** Which agents this server can start a session with (§57). */
+  agents: AgentAvailability[];
   voice: { input: boolean; output: boolean };
   /** Settings shared by every workspace. */
   settings: GlobalSettings;
@@ -198,6 +202,7 @@ const [state, setState] = createStore<State>({
   comments: [],
   mcp: [],
   models: [],
+  agents: [],
   memorySubjects: [],
   moreHistory: {},
   contextUsage: {},
@@ -277,8 +282,9 @@ function sync(): Promise<void> {
   syncing ??= (async () => {
     try {
       await refreshState();
-      const { models } = await api.models();
-      setState("models", models);
+      const { agents } = await api.agents();
+      setState("agents", agents);
+      await loadModels();
     } catch {
       // The socket says when the server is back, and this runs again then.
     } finally {
@@ -452,10 +458,41 @@ export async function ensureCommands(sessionId: string): Promise<void> {
   }
 }
 
-export async function newSession(): Promise<void> {
-  const { session } = await api.createSession("New session");
+export async function newSession(agent?: AgentKind): Promise<void> {
+  const { session } = await api.createSession("New session", agent);
   addSessionTab(session.id, session.title);
   setState({ activeTabId: session.id, activeSessionId: session.id });
+  // A different agent has a different catalogue, and the picker is about to
+  // be looking at it (§57).
+  await loadModels();
+}
+
+/** Which agent the session on screen is having its conversation with. */
+export function activeAgent(): AgentKind {
+  const id = state.activeSessionId;
+  return (id ? sessionSummary(id)?.agent : undefined) ?? state.workspace?.file.agent ?? "pi";
+}
+
+/** What the session on screen can do — an affordance it lacks is not drawn. */
+export function activeCapabilities(): AgentCapabilities | undefined {
+  const id = state.activeSessionId;
+  return id ? sessionSummary(id)?.capabilities : undefined;
+}
+
+/**
+ * The model catalogue for whichever agent is on screen.
+ *
+ * Claude's list can only come from a live session, so this is asked again when
+ * the active session changes rather than once at startup.
+ */
+export async function loadModels(): Promise<void> {
+  const agent = activeAgent();
+  try {
+    const { models } = await api.models(agent);
+    setState("models", models);
+  } catch {
+    // The picker falls back to showing whatever the session is already using.
+  }
 }
 
 export async function openFile(path: string): Promise<void> {

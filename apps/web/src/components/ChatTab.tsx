@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
-import { forkAt, loadEarlier, openFile, rewindTo, state, surfaceOf, transcriptOf } from "../store.ts";
+import { activeCapabilities, forkAt, loadEarlier, openFile, rewindTo, state, surfaceOf, transcriptOf } from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
@@ -340,6 +340,10 @@ export function ChatTab(props: { sessionId: string }) {
 }
 
 function ChatRow(props: { item: ChatItem }) {
+  // What this session's agent can do with a past message (§57).
+  const canRewind = () => activeCapabilities()?.rewind ?? true;
+  const canFork = () => activeCapabilities()?.fork ?? true;
+
   return (
     <Switch>
       <Match when={props.item.kind === "user" ? props.item : null}>
@@ -360,29 +364,34 @@ function ChatRow(props: { item: ChatItem }) {
               </div>
             </div>
 
-            {/* Only where Pi has a node to go back to (§53). Messages from
-                before the session tree was tracked have no entry id, and an
-                affordance that cannot work is worse than none. */}
-            <Show when={item().entryId}>
+            {/* Only where the agent has a node to go back to (§53). Messages
+                from before the session tree was tracked have no entry id, and
+                an agent may not do this at all (§57) — an affordance that
+                cannot work is worse than none. */}
+            <Show when={item().entryId && (canRewind() || canFork())}>
               <div data-slot="msg-actions">
-                <button
-                  type="button"
-                  data-slot="msg-action"
-                  title="Go back to just before this message, in this session"
-                  onClick={() => rewindTo(item().id)}
-                >
-                  <Icon name="rewind" size={11} />
-                  Rewind
-                </button>
-                <button
-                  type="button"
-                  data-slot="msg-action"
-                  title="Continue from here in a new session, leaving this one as it is"
-                  onClick={() => void forkAt(item().id)}
-                >
-                  <Icon name="git-branch" size={11} />
-                  Fork
-                </button>
+                <Show when={canRewind()}>
+                  <button
+                    type="button"
+                    data-slot="msg-action"
+                    title="Go back to just before this message, in this session"
+                    onClick={() => rewindTo(item().id)}
+                  >
+                    <Icon name="rewind" size={11} />
+                    Rewind
+                  </button>
+                </Show>
+                <Show when={canFork()}>
+                  <button
+                    type="button"
+                    data-slot="msg-action"
+                    title="Continue from here in a new session, leaving this one as it is"
+                    onClick={() => void forkAt(item().id)}
+                  >
+                    <Icon name="git-branch" size={11} />
+                    Fork
+                  </button>
+                </Show>
               </div>
             </Show>
           </div>

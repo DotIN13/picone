@@ -5,11 +5,13 @@ import {
   mentionPath,
   moveTab,
   newSession,
+  sessionSummary,
   setActiveTab,
   state,
   toggleSidebar,
 } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
+import { AgentMark } from "./NewSessionButton.tsx";
 import { Spinner } from "./ui/primitives.tsx";
 
 interface DropTarget {
@@ -190,6 +192,9 @@ export function TabBar() {
                   <Spinner size={9} />
                 </Show>
                 <span class="truncate">{tab.name}</span>
+                <Show when={tab.kind === "session"}>
+                  <AgentMark agent={sessionSummary(tab.id)?.agent} />
+                </Show>
                 <Show when={tab.kind === "file" && commentCount(tab.id) > 0}>
                   <span data-slot="tab-badge">{commentCount(tab.id)}</span>
                 </Show>

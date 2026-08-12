@@ -3,6 +3,7 @@ import type { SessionSummary } from "@picone/protocol";
 import { deleteSession, newSession, openSession, renameSession, state } from "../store.ts";
 import { IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
+import { AgentMark, NewSessionButton } from "./NewSessionButton.tsx";
 import { Spinner } from "./ui/primitives.tsx";
 
 /**
@@ -47,7 +48,7 @@ export function SessionList() {
             onInput={(event) => setFilter(event.currentTarget.value)}
           />
         </div>
-        <IconButton icon="plus" label="New session" size="normal" onClick={() => void newSession()} />
+        <NewSessionButton />
       </div>
 
       <ul class="min-h-0 flex-1 overflow-auto px-2 pb-2">
@@ -87,6 +88,7 @@ export function SessionList() {
                       <Spinner size={8} />
                     </Show>
                     <span data-slot="session-title">{session.title}</span>
+                    <AgentMark agent={session.agent} />
                     <Show when={session.forkedFrom}>
                       <span data-slot="session-fork" title="Forked from another session">
                         <Icon name="git-branch" size={9} />
