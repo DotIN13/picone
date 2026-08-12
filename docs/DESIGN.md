@@ -2744,23 +2744,24 @@ rather than only that something is. That replaced the generic spinner in four
 places — the session list, the tabs, the status pill and the chat's working
 row.
 
-The still marks are the published symbols, Anthropic's Claude burst (CC0) and
-the Pi glyph from `pi.dev`, with their fills dropped so they take the colour of
-the text beside them. The moving ones are drawn here, in each agent's idiom:
-Pi's logo as a character-cell grid building in reading order, Claude's asterisk
-growing through the frames its own CLI cycles, in its own clay — the one place
-a mark is not simply the text colour, because a thing in motion may as well say
-whose motion it is.
+The still marks are the products' own — Claude Code's mark, and the Pi glyph
+from `pi.dev` — with their fills dropped so they take the colour of the text
+beside them. Claude *Code* rather than the Claude chat symbol, because that is
+the product this backend drives. The moving ones are drawn here, in each
+agent's idiom: Pi's logo as a character-cell grid building in reading order,
+Claude's asterisk growing through the frames its own CLI cycles, in its own
+clay — the one place a mark is not simply the text colour, because a thing in
+motion may as well say whose motion it is.
 
-Sizing them is not arithmetic. The four drawings share nothing: the burst fills
-its 100 box edge to edge, the Pi glyph occupies 59% of its 800 box, the tile
+Sizing them is not arithmetic. The four drawings share nothing: Claude Code's
+mark is 24 wide and 15 tall, the Pi glyph occupies 59% of its 800 box, the tile
 grid is 23 of 24 units, and a text glyph is whatever the font says. Each
-declares its own ink and is scaled into one 24-unit frame, which is what stops
-a mark changing size the moment a session starts working — the moving Claude
-mark measured 67% of the frame against the still one's 75% until its box was
-corrected. The two agents are then given deliberately *different* fractions of
-that frame, because a chunky block glyph reads heavier than a spiky star at
-identical measurements.
+declares its own ink — a rectangle, not a square — and its longer side is
+scaled into one 24-unit frame, which is what stops a mark changing size the
+moment a session starts working: the moving Claude mark measured 67% of the
+frame against the still one's 75% until its box was corrected. The two agents
+are then given deliberately *different* fractions of that frame, because a
+chunky block glyph reads heavier than a spiky star at identical measurements.
 
 The model is stored per agent (`models: { pi, claude }`) because the two do not
 share a catalogue: `sonnet` means nothing to Pi and `deepseek-v4-flash` means

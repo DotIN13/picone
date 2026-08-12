@@ -3402,7 +3402,7 @@ body[data-dragging-path] {
 }
 
 [data-slot="sidebar-new"]:hover {
-  background: var(--v2-background-bg-hover);
+  background: var(--v2-overlay-simple-overlay-hover);
   color: var(--v2-icon-icon-base);
 }
 
@@ -3529,8 +3529,11 @@ body[data-dragging-path] {
   outline: none;
 }
 
+/* A menu row does take a fill, unlike the boxes: it is how every other menu in
+   the app shows what the pointer and the keyboard are on, and a row with only
+   a border to change has nothing to change. */
 [data-slot="agent-option"][data-highlighted]:not([data-disabled]) {
-  background: var(--v2-background-bg-hover);
+  background: var(--v2-overlay-simple-overlay-hover);
   color: var(--v2-icon-icon-base);
 }
 
