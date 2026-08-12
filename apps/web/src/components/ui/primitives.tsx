@@ -35,6 +35,12 @@ export interface DialogProps {
   title: JSX.Element;
   description?: JSX.Element;
   width?: string;
+  /**
+   * Stay a centred dialog on a phone rather than docking as a sheet. For
+   * content that is a handful of choices: a sheet is for something long enough
+   * to scroll, and drawing one for two rows is a lot of ceremony.
+   */
+  centred?: boolean;
   children: JSX.Element;
   footer?: JSX.Element;
   /**
@@ -55,8 +61,9 @@ export interface DialogProps {
  */
 export function Dialog(props: DialogProps) {
   // On phones a centred dialog fights the keyboard and the safe areas, so the
-  // same content docks to the bottom as a sheet instead.
-  const sheet = () => state.compact;
+  // same content docks to the bottom as a sheet instead — unless it is small
+  // enough not to, which a short list of choices is.
+  const sheet = () => state.compact && !props.centred;
 
   return (
     <KDialog open={props.open} onOpenChange={props.onOpenChange} modal>

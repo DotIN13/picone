@@ -36,11 +36,11 @@ import { piconeTools } from "./tools.ts";
  */
 
 const CLAUDE_CAPABILITIES: AgentCapabilities = {
-  // Claude's `resume` + `resumeSessionAt` rebuilds by restarting the query
-  // rather than navigating a tree in place, which is a different operation with
-  // a different cost. Not wired yet; see docs/todo/claude-agent.md.
+  // Rewinding in place would mean restarting the query against an earlier
+  // point, which is a different operation from Pi's walk of a session tree.
+  // Not wired; see docs/todo/claude-agent.md.
   rewind: false,
-  fork: false,
+  fork: true,
   // `/compact` is a command rather than an API, but it is a real one.
   compact: true,
   // Claude decides for itself; there is no switch to offer.
@@ -505,6 +505,35 @@ export class ClaudeBackend implements AgentBackend {
         source: "skill" as const,
       }));
     }
+  }
+
+  /**
+   * The same point in a session of its own (§53).
+   *
+   * `forkSession` copies the transcript into a new session id, remapping every
+   * uuid and keeping the parent chain — so the fork is resumable exactly like
+   * any other session and the original is untouched.
+   *
+   * `upToMessageId` is *inclusive*, and Picone forks from *before* a message so
+   * the new session opens with it in the composer rather than having already
+   * asked it (§53). The cut is therefore the entry before ours, which means
+   * reading the session's own list to find out what that was — the transcript
+   * here only records ids for user messages, and the entry in between is an
+   * assistant turn.
+   */
+  async forkFrom(entryRef: string): Promise<{ resumeRef: string | null }> {
+    if (!this.persisted || !this.sessionId) return { resumeRef: null };
+    const { forkSession, getSessionMessages } = await import("@anthropic-ai/claude-agent-sdk");
+    const messages = await getSessionMessages(this.sessionId, { dir: this.context.cwd });
+    const index = messages.findIndex((message) => message.uuid === entryRef);
+    // Forking from the very first message is just a new session, which is what
+    // a null handle becomes.
+    if (index <= 0) return { resumeRef: null };
+    const forked = await forkSession(this.sessionId, {
+      dir: this.context.cwd,
+      upToMessageId: messages[index - 1]!.uuid,
+    });
+    return { resumeRef: forked.sessionId };
   }
 
   updateWorkspace(workspace: Workspace): void {

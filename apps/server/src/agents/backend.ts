@@ -69,8 +69,11 @@ export interface AgentBackend {
   exportHtml?(): Promise<string>;
   /** Move the leaf back to just before an entry (§53). */
   rewindTo?(entryRef: string): Promise<{ cancelled: boolean; editorText?: string }>;
-  /** The same point in a session of its own (§53). */
-  forkFrom?(entryRef: string): { resumeRef: string | null };
+  /**
+   * The same point in a session of its own (§53), as something the new session
+   * can be opened with. Asynchronous because it may mean copying a transcript.
+   */
+  forkFrom?(entryRef: string): Promise<{ resumeRef: string | null }> | { resumeRef: string | null };
   /** The agent's own name for this session (§26), when it keeps one. */
   agentName?(): string | undefined;
   /** Push a name into the agent's own record of the session (§26). */

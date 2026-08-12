@@ -494,7 +494,7 @@ ${pointers}` : text;
   }
 
   /** The same point, in a session of its own (§53). */
-  forkPoint(itemId: string): { resumeRef: string | null; text: string; history: ChatItem[] } {
+  async forkPoint(itemId: string): Promise<{ resumeRef: string | null; text: string; history: ChatItem[] }> {
     if (!this.backend.forkFrom) throw new Error("This agent cannot fork a conversation.");
     const { entryId, index } = this.entryFor(itemId);
     const item = this.transcript[index];
@@ -503,7 +503,7 @@ ${pointers}` : text;
     // browser's copy of the same thing (§37). Entry ids survive the branch, so
     // the forked messages stay rewindable too.
     const history = this.transcript.slice(0, index).map((entry) => structuredClone(entry));
-    const { resumeRef } = this.backend.forkFrom(entryId);
+    const { resumeRef } = await this.backend.forkFrom(entryId);
     return { resumeRef, text, history };
   }
 

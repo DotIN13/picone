@@ -657,7 +657,7 @@ export class App {
    */
   async fork(itemId: string, sessionId?: string): Promise<SessionRuntime> {
     const source = this.target(sessionId);
-    const { resumeRef, text, history } = source.forkPoint(itemId);
+    const { resumeRef, text, history } = await source.forkPoint(itemId);
 
     const workspace = this.requireWorkspace();
     const id = randomUUID();

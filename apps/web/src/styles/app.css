@@ -3379,9 +3379,10 @@ body[data-dragging-path] {
 /* ---------------------------------------------------------------------------
  * Choosing an agent (§58)
  *
- * The `+` is the choice. It opens a menu of the agents installed rather than
- * hiding the interesting half behind a caret, and the same button appears in
- * the sidebar and on the tab bar, so both behave the same way.
+ * The `+` is the choice: it opens a dialog with a box per agent, from the
+ * sidebar and from the tab bar alike. A box rather than a row because deciding
+ * what will be having the conversation is not the same act as picking an item
+ * off a list, and because a mark is worth showing at a size you can see.
  * ------------------------------------------------------------------------ */
 
 [data-slot="sidebar-new"] {
@@ -3404,90 +3405,103 @@ body[data-dragging-path] {
   color: var(--v2-icon-icon-base);
 }
 
-[data-component="agent-menu"] {
-  z-index: var(--z-floating);
+/* A box per agent, side by side. Two of them fit a phone at this minimum, and
+   a third would wrap rather than squeeze. */
+[data-component="agent-grid"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+[data-slot="agent-card"] {
+  position: relative;
   display: flex;
   flex-direction: column;
-  min-width: 208px;
-  max-width: 268px;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--v2-background-bg-layer-01);
-  box-shadow: var(--v2-elevation-floating);
-}
-
-[data-slot="agent-heading"] {
-  padding: 6px 8px 4px;
-  color: var(--v2-text-text-faint);
-  font-size: calc(11px * var(--font-scale));
-}
-
-/* Mark, name, tick — then whatever the row has to add underneath it. */
-[data-slot="agent-option"] {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 2px 8px;
   align-items: center;
-  padding: 7px 8px;
-  border-radius: 6px;
+  gap: 3px;
+  padding: 18px 12px 14px;
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-base);
-  font-size: calc(13px * var(--font-scale));
   cursor: pointer;
-  outline: none;
+  text-align: center;
 }
 
-[data-slot="agent-option"][data-highlighted]:not([data-disabled]) {
+[data-slot="agent-card"]:hover:not(:disabled) {
+  border-color: var(--v2-border-border-base);
   background: var(--v2-background-bg-hover);
 }
 
-[data-slot="agent-option"][data-disabled] {
+[data-slot="agent-card"]:focus-visible {
+  outline: 2px solid var(--v2-border-border-brand);
+  outline-offset: 1px;
+}
+
+/* The workspace's usual agent, which is what the plain `+` would have used. */
+[data-slot="agent-card"][data-current] {
+  border-color: var(--v2-border-border-brand);
+}
+
+[data-slot="agent-card"]:disabled {
   color: var(--v2-text-text-faint);
   cursor: default;
 }
 
-[data-slot="agent-name"] {
-  font-weight: 500;
+[data-slot="agent-card-tick"] {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: inline-flex;
+  color: var(--v2-icon-icon-brand, var(--v2-text-text-brand));
 }
 
-/* As a sheet the rows fill the width and sit apart from each other, and the
-   Dialog supplies the heading the menu draws itself. */
-[data-component="agent-menu"][data-sheet] {
-  min-width: 0;
-  max-width: none;
-  padding: 0 0 4px;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+[data-slot="agent-card-mark"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-03);
+  color: var(--v2-icon-icon-base);
 }
 
-[data-component="agent-menu"][data-sheet] [data-slot="agent-option"] {
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-  font-size: calc(15px * var(--font-scale));
-  padding: 11px 10px;
+[data-slot="agent-card"]:disabled [data-slot="agent-card-mark"] {
+  color: var(--v2-icon-icon-muted);
 }
 
-[data-component="agent-menu"][data-sheet] [data-slot="agent-option"]:active:not(:disabled) {
-  background: var(--v2-background-bg-hover);
+[data-slot="agent-card-name"] {
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 560;
 }
 
-/* A finger needs a bigger row than a pointer does. */
-@media (pointer: coarse) {
-  [data-slot="agent-option"] {
-    min-height: 44px;
-  }
-}
-
-/* The model it would run, or the reason it cannot run: either way it belongs
-   under the name rather than beside it. */
+/* The model it would run, or the reason it cannot run. */
 [data-slot="agent-note"] {
-  grid-column: 2 / -1;
   color: var(--v2-text-text-faint);
   font-size: calc(11px * var(--font-scale));
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+[data-slot="sidebar-new"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--v2-icon-icon-muted);
+  cursor: pointer;
+}
+
+[data-slot="sidebar-new"]:hover {
+  background: var(--v2-background-bg-hover);
+  color: var(--v2-icon-icon-base);
 }
 
 /* The agent in front of a session's name, where a row previously had nothing
