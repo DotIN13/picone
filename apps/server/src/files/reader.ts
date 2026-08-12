@@ -75,6 +75,8 @@ export function detectLanguage(filePath: string): string {
 export function detectKind(filePath: string, language: string, sample: Buffer): FileKind {
   if (looksBinary(sample)) return "binary";
   if (language === "markdown") return "markdown";
+  // Like markdown, it has something to show as well as something to read.
+  if (language === "html") return "html";
   if (language === "plaintext") {
     const base = path.basename(filePath).toLowerCase();
     return TEXT_FILENAMES.has(base) || path.extname(filePath) === ".txt" ? "text" : "text";

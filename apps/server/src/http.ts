@@ -6,6 +6,7 @@ import type { App } from "./app.ts";
 import { forgetWorkspace, listRecentWorkspaces, loadTranscriptBefore, loadTranscriptTail, seqOfMessage } from "./db.ts";
 import { listDirectory, searchFiles } from "./files/browser.ts";
 import { gitChanges } from "./files/git.ts";
+import { withSelectionBridge } from "./files/preview-bridge.ts";
 import { completePath, inspectPath } from "./files/paths.ts";
 import { readFileForTab } from "./files/reader.ts";
 import { resolvePaths } from "./files/resolve.ts";
@@ -28,13 +29,20 @@ export function createApiRouter(app: App): Router {
       });
     };
 
-  /** Reads are confined to the workspace roots plus the workspace file itself. */
+  /**
+   * Reads are confined to the workspace roots and the workspace file itself.
+   *
+   * `app.roots` includes the hidden ones (§3), which is the point of them: a
+   * workspace can open the home directory so `~/.pi` or `~/Downloads` can be
+   * read, without it appearing in the tree. Reads only — nothing that writes
+   * comes through here.
+   */
   const resolveReadable = (target: string): string => {
     const workspace = app.getWorkspace();
     const abs = expandPath(target);
     if (workspace && abs === workspace.path) return abs;
     const allowed = resolveWithinRoots(app.roots, target);
-    if (!allowed) throw new Error(`Path is outside the workspace: ${target}`);
+    if (!allowed) throw new Error(`Path is not readable from here: ${target}`);
     return allowed;
   };
 
@@ -166,7 +174,7 @@ export function createApiRouter(app: App): Router {
       const paths = req.body?.paths;
       if (!Array.isArray(paths)) throw new Error("paths must be an array");
       const targets = paths.filter((p): p is string => typeof p === "string");
-      res.json({ results: resolvePaths(app.roots, targets) });
+      res.json({ results: resolvePaths(app.visibleRoots, targets) });
     }),
   );
 
@@ -196,6 +204,52 @@ export function createApiRouter(app: App): Router {
     }),
   );
 
+  /**
+   * An HTML file for the preview frame, sandboxed by the response itself.
+   *
+   * The point of this route is that the *file* gets to run: a report with
+   * inline plotting or a page of generated charts is worth seeing working, and
+   * the sanitized rendering next to it cannot show that. What makes it safe is
+   * `Content-Security-Policy: sandbox`, which drops the response into an opaque
+   * origin — it may execute, and it may not reach this app's cookies, storage
+   * or DOM. The header rather than only the frame's `sandbox` attribute,
+   * because a response that is safe only inside the right frame is a stored
+   * cross-site script waiting for someone to open the URL directly.
+   *
+   * Path-shaped rather than a query parameter so that relative references
+   * resolve: `chart.png` beside a report asks for the sibling URL and lands
+   * back here, on the same guard.
+   */
+  router.get(
+    "/files/preview/*path",
+    asyncRoute(async (req, res) => {
+      const rest = (req.params as Record<string, string | string[]>).path;
+      const target = resolveReadable(Array.isArray(rest) ? rest.join("/") : String(rest));
+      if (!statSync(target).isFile()) throw new Error(`Not a file: ${target}`);
+
+      // `allow-scripts` and nothing else. Notably not `allow-same-origin`:
+      // together the two would hand the frame back the origin this is keeping
+      // it out of, which is the one combination that defeats the whole thing.
+      res.setHeader("Content-Security-Policy", "sandbox allow-scripts");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+
+      /*
+       * HTML is sent with the selection bridge in it (§17): the sandbox stops
+       * the app reading into the frame, so the frame has to speak. Everything
+       * else — the stylesheet, the images, the page's own scripts — is sent
+       * untouched, which is what `sendFile` is for.
+       */
+      if ([".html", ".htm"].includes(extname(target).toLowerCase())) {
+        res.type("html").send(withSelectionBridge(readFileSync(target, "utf8")));
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        res.sendFile(target, { acceptRanges: true, dotfiles: "allow" }, (err) => (err ? reject(err) : resolve()));
+      });
+    }),
+  );
+
   router.get(
     "/files/search",
     asyncRoute(async (req, res) => {
@@ -205,7 +259,7 @@ export function createApiRouter(app: App): Router {
         return;
       }
       const rootParam = req.query.root ? resolveReadable(String(req.query.root)) : null;
-      const roots = rootParam ? [rootParam] : app.roots;
+      const roots = rootParam ? [rootParam] : app.visibleRoots;
       const results = roots.flatMap((root) => searchFiles(root, query, 60));
       res.json({ results: results.slice(0, 200) });
     }),
@@ -215,7 +269,7 @@ export function createApiRouter(app: App): Router {
     "/git/changes",
     asyncRoute(async (_req, res) => {
       const perRoot = await Promise.all(
-        app.roots.map(async (root) => ({ root, changes: await gitChanges(root) })),
+        app.visibleRoots.map(async (root) => ({ root, changes: await gitChanges(root) })),
       );
       res.json({ roots: perRoot });
     }),

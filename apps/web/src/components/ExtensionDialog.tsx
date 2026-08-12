@@ -51,7 +51,30 @@ function CustomComponent(props: { prompt: Extract<ExtensionUiPrompt, { method: "
     >
       {/* tabindex, so a div can hold focus and therefore receive keys. */}
       <div ref={host} tabindex={0} data-slot="ext-custom">
-        <pre>{lines().join("\n")}</pre>
+        {/*
+          Still monospace, unlike a widget: this is a screen the component laid
+          out in columns, so its alignment is the layout. Only the colour it
+          asked for is recovered.
+        */}
+        <pre>
+          <For each={lines()}>
+            {(line) => (
+              <div>
+                <For each={line}>
+                  {(span) => (
+                    <span
+                      data-slot="widget-span"
+                      data-role={span.role}
+                      data-bold={span.bold ? "" : undefined}
+                    >
+                      {span.text}
+                    </span>
+                  )}
+                </For>
+              </div>
+            )}
+          </For>
+        </pre>
       </div>
     </Dialog>
   );

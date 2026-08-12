@@ -880,7 +880,14 @@
 
 [data-slot="chat-notice"] {
   display: flex;
-  align-items: flex-start;
+  /*
+   * The tag and the first line of the message are both text, so they line up
+   * the way text does. `flex-start` aligned their *boxes*, and the tag's box is
+   * a padded capsule taller than a line — so the word inside it sat a couple of
+   * pixels low, which only showed up once a message was long enough to wrap and
+   * give the eye a second line to compare against.
+   */
+  align-items: baseline;
   gap: 8px;
   padding: 7px 10px;
   border-radius: 6px;
@@ -1094,6 +1101,15 @@
 }
 
 /* ── File tabs ── */
+/* The preview frame fills the pane; the page inside does its own scrolling. */
+[data-slot="file-preview"] {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
 [data-slot="file-toolbar"] {
   display: flex;
   align-items: center;
@@ -1194,6 +1210,47 @@
   transition: box-shadow 0.14s ease;
 }
 
+/*
+ * What the pointer is carrying while a file is dragged (§51).
+ *
+ * Drawn rather than left to the browser: this is a pointer-event drag, not a
+ * native one, so nothing appears under the cursor unless it is put there.
+ */
+[data-component="drag-ghost"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-02);
+  box-shadow:
+    0 0 0 0.5px var(--v2-border-border-base),
+    var(--v2-elevation-floating);
+  color: var(--v2-text-text-base);
+  font-size: calc(11.5px * var(--font-scale));
+  white-space: nowrap;
+}
+
+/* Over somewhere it can be dropped. */
+[data-component="drag-ghost"][data-over-target] {
+  color: var(--v2-text-text-accent);
+}
+
+/* Nothing under the pointer should try to be selected while it carries a file. */
+body[data-dragging-path] {
+  user-select: none;
+  cursor: grabbing;
+}
+
+/* A file is being dragged over the composer, and will land as its path (§51). */
+[data-slot="composer-box"][data-dropping] {
+  box-shadow:
+    0 0 0 1px var(--v2-text-text-accent),
+    var(--v2-elevation-raised);
+}
+
 /* Model picker and dictation share one control row under the input, so their
    optical centres line up with the send button. */
 [data-slot="composer-controls"] {
@@ -1244,29 +1301,40 @@
     var(--v2-elevation-raised);
 }
 
+/*
+ * The field: a contenteditable, because a mention is an inline node rather than
+ * a run of characters that happens to look like one (§51).
+ */
 [data-slot="composer-input"] {
   width: 100%;
   min-width: 0;
   max-height: 200px;
+  overflow-y: auto;
   padding: 3px 4px;
   border: none;
   background: transparent;
-  resize: none;
   color: var(--v2-text-text-base);
   font-family: inherit;
   font-size: calc(13px * var(--font-scale));
   line-height: 1.5;
   letter-spacing: -0.04px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   outline: none;
 }
 
-[data-slot="composer-input"]:disabled {
+/* A contenteditable has no placeholder of its own. */
+[data-slot="composer-input"][data-empty]::before {
+  content: attr(data-placeholder);
+  color: var(--v2-text-text-faint);
+  pointer-events: none;
+}
+
+[data-slot="composer-input"][contenteditable="false"] {
   cursor: not-allowed;
 }
 
-[data-slot="composer-input"]::placeholder {
-  color: var(--v2-text-text-faint);
-}
+/* The pill itself is defined once, with the transcript's, in markdown.css. */
 
 [data-slot="composer-send"],
 [data-slot="composer-stop"] {
@@ -1555,6 +1623,11 @@
   white-space: pre;
 }
 
+/* A blank line the component drew is still a line, so it keeps its height. */
+[data-slot="ext-custom"] pre > div {
+  min-height: 1.45em;
+}
+
 [data-slot="ext-chrome"] {
   margin: 0;
   padding: 2px 4px;
@@ -1579,19 +1652,117 @@
   font-family: var(--v2-font-family-mono);
 }
 
+/*
+ * A widget an extension pushed (§55). What arrives is spans carrying the roles
+ * the widget asked the theme for, plus a depth read off its box-drawing — so it
+ * is laid out as rows at the reading size rather than reprinted as ASCII art.
+ */
 [data-slot="ext-widget"] {
   margin: 0;
-  padding: 8px 10px;
+  padding: 7px 10px;
   max-height: 220px;
   overflow: auto;
   border-radius: 8px;
   background: var(--v2-background-bg-layer-01);
   box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+  font-size: calc(12px * var(--font-scale));
+  line-height: 1.5;
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="widget-row"] {
+  /* Interior runs of spaces were the widget's column gaps; long paths wrap
+     rather than pushing the card sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Printed as drawn, for a widget the layout above reads badly (§49). */
+[data-slot="widget-verbatim"] {
+  margin: 0;
   font-family: var(--v2-font-family-mono);
   font-size: calc(11.5px * var(--font-scale));
   line-height: 1.5;
-  white-space: pre-wrap;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/*
+ * The fold on a phone: the widget's first line, which is its title, and a
+ * chevron. It is a row like any other, so it reads as the heading it replaces.
+ */
+[data-slot="widget-summary"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+[data-slot="widget-summary"] [data-slot="widget-row"] {
+  flex: 1;
+  min-width: 0;
+  /* One line: the rest is behind the chevron, and a title that wrapped would
+     undo the point of folding. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Printed as drawn, so the fold above it is drawn the same way. */
+[data-slot="ext-widget"][data-verbatim] [data-slot="widget-summary"] {
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(11.5px * var(--font-scale));
+}
+
+[data-slot="widget-summary"] svg {
+  flex: none;
+  color: var(--v2-text-text-faint);
+}
+
+[data-slot="widget-row"][data-heading] {
+  font-weight: 560;
+  margin-bottom: 1px;
+}
+
+/* Empty lines were the widget's paragraph break; a margin says the same. */
+[data-slot="widget-gap"] {
+  height: 6px;
+}
+
+[data-slot="widget-span"][data-bold] {
+  font-weight: 600;
+}
+
+[data-slot="widget-span"][data-role="accent"] {
+  color: var(--v2-text-text-accent);
+}
+
+[data-slot="widget-span"][data-role="success"] {
+  color: var(--v2-state-fg-success);
+}
+
+[data-slot="widget-span"][data-role="warning"] {
+  color: var(--v2-state-fg-warning);
+}
+
+[data-slot="widget-span"][data-role="error"] {
+  color: var(--v2-state-fg-danger);
+}
+
+[data-slot="widget-span"][data-role="muted"] {
   color: var(--v2-text-text-muted);
+}
+
+/* Pi's two quiet roles differ in degree, and so do these. */
+[data-slot="widget-span"][data-role="dim"] {
+  color: var(--v2-text-text-faint);
 }
 
 [data-slot="ext-message-row"] {
@@ -1774,6 +1945,14 @@
   align-items: center;
   gap: 5px;
   max-width: 260px;
+  /*
+   * A flex item will not shrink below its content unless told it may, and a
+   * model id is as long as its vendor felt like: `deep-research-max-preview-
+   * 04-2026` made this button 325px on a 393px phone and pushed the send button
+   * clean off the edge of the composer. The name is the only part here that can
+   * give, so it gives, and the button never costs the row more than it has.
+   */
+  min-width: 0;
   min-height: max(26px, calc(26px * var(--font-scale)));
   padding: 0 8px;
   border: none;
@@ -1812,7 +1991,13 @@
   min-width: 0;
 }
 
+/* The name yields; the badge is three letters and says what the name cannot. */
+[data-slot="model-label"] > :first-child {
+  min-width: 0;
+}
+
 [data-slot="model-thinking"] {
+  flex: none;
   padding: 0 4px;
   border-radius: 3px;
   background: var(--v2-state-bg-info);
@@ -2600,8 +2785,19 @@
     max-width: none;
   }
 
+  /*
+   * Room for a couple of lines and no more: on a handset the widgets sit
+   * between the conversation and the composer, and an extension that draws
+   * twenty rows would otherwise own the screen.
+   */
   [data-slot="ext-widget"] {
-    max-height: 140px;
+    max-height: 132px;
+  }
+
+  /* Folded, it is one line — so it is exactly as tall as one. */
+  [data-slot="ext-widget"][data-folded] {
+    max-height: none;
+    padding-block: 6px;
   }
 }
 
@@ -3046,6 +3242,13 @@
   border-radius: 0;
   background: none;
   box-shadow: none;
+  /*
+   * It keeps its own height cap here rather than growing to the sheet's, so a
+   * phone gets a picker rather than a page — and, being a flex child now,
+   * it needs leave to be shorter than the list inside it. Without that the
+   * list cannot scroll and the sheet stretches to hold every model.
+   */
+  min-height: 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -3077,6 +3280,51 @@
    */
   :root {
     --text-boost: calc(16 / 13);
+  }
+
+  /*
+   * The notch up is for the text, not for the box around it.
+   *
+   * A row whose height is `24px * --font-scale` grows with the boost, so a list
+   * of short labels ends up 23% taller as well as 23% larger — 30px rows on a
+   * monitor, 37px on a handset, which reads as loose rather than legible and
+   * costs a phone the rows it has least room for. These two are lists of one
+   * line each, so their height is set outright and the larger type sits inside
+   * the same box it does on a desktop.
+   */
+  [data-slot="tree-row"] {
+    min-height: 25px;
+  }
+
+  /*
+   * The decoration goes before the name does. A model id runs to thirty-odd
+   * characters and the row it sits in is a phone wide, so every pixel spent on
+   * a sparkle is a pixel of the name that gets an ellipsis instead.
+   */
+  [data-slot="model-trigger"] > svg:first-child {
+    display: none;
+  }
+
+  /*
+   * The 260px cap is a desktop manner — it stops one long name dominating a
+   * wide row. On a phone the row is narrower than the cap, so all the cap does
+   * is truncate a name into space that was going to sit empty. Shrinking is
+   * what keeps the send button on screen now, so the width can go.
+   */
+  [data-slot="model-trigger"] {
+    max-width: none;
+    /*
+     * And the phone's notch up in text size is declined here, which is the one
+     * place in the app that does. It exists so prose reads comfortably; a model
+     * id is not prose but a label you check, and at the boosted size a third of
+     * it is an ellipsis. Unboosted it still paints at the desktop's size,
+     * because the interface zoom applies either way.
+     */
+    --font-scale: 1;
+  }
+
+  [data-slot="model-item"] {
+    padding-block: 3px;
   }
 
   [data-slot="composer-box"] {

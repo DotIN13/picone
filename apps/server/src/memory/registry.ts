@@ -52,6 +52,7 @@ export function resolveMemoryDirs(options: {
       enabled: (local?.enabled ?? inherited?.enabled ?? true) !== false,
       writable: (local?.writable ?? inherited?.writable ?? false) === true,
       source: local?.path ? "workspace" : "global",
+      hidden: (local?.hidden ?? inherited?.hidden ?? false) === true,
       ...inspect(resolved),
     });
   }
@@ -98,6 +99,7 @@ export function memoryRoots(dirs: ResolvedMemoryDir[]): WorkspaceRoot[] {
       exists: true,
       kind: "memory" as const,
       writable: dir.writable,
+      ...(dir.hidden ? { hidden: true } : {}),
     }));
 }
 

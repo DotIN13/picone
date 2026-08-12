@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import type { MemorySubject, SlashCommand } from "@picone/protocol";
+import type { JSX } from "solid-js";
+import type { MemorySubject, SlashCommand, WidgetLine } from "@picone/protocol";
 import {
   abort,
   activeSessionState,
@@ -9,6 +10,7 @@ import {
   sessionStats,
   setAutoCompaction,
   closeTab,
+  consumeEditorInsert,
   consumeEditorPatch,
   newSession,
   reportEditorText,
@@ -20,6 +22,9 @@ import {
   surfaceOf,
   widgetsAt,
 } from "../store.ts";
+import { COMPACT_QUERY, mediaQuery } from "../lib/media.ts";
+import { draftForModel, draftText, textDraft, type Draft } from "../lib/draft.ts";
+import { parseWidgetRows } from "../lib/widget-lines.ts";
 import { Dictation, isSpeechInputSupported, stopSpeaking } from "../voice/speech.ts";
 import { Button } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
@@ -27,6 +32,7 @@ import { Switch } from "./ui/primitives.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import { SlashMenu, filterCommands } from "./SlashMenu.tsx";
 import { MentionMenu, filterSubjects, mentionQueryAt } from "./MentionMenu.tsx";
+import { DraftField, type DraftFieldApi } from "./DraftField.tsx";
 
 /**
  * A header or footer an extension drew (§55).
@@ -39,25 +45,122 @@ export function ExtensionChrome(props: { slot: "header" | "footer" }) {
   const lines = () => (props.slot === "header" ? surfaceOf().header : surfaceOf().footer);
   return (
     <Show when={lines()?.length ? lines() : null}>
-      {(text) => (
-        <pre data-slot="ext-chrome" data-chrome={props.slot}>
-          {text().join("\n")}
-        </pre>
+      {(rows) => (
+        <div data-slot="ext-chrome" data-chrome={props.slot}>
+          <For each={rows()}>{(line) => <div>{spans(line)}</div>}</For>
+        </div>
       )}
     </Show>
   );
 }
 
-/** Line blocks an extension pushed via `setWidget`, rendered as monospace. */
+/** A line's runs, each carrying whatever role the widget declared for it. */
+function spans(line: WidgetLine) {
+  return (
+    <For each={line}>
+      {(span) => (
+        <span data-slot="widget-span" data-role={span.role} data-bold={span.bold ? "" : undefined}>
+          {span.text}
+        </span>
+      )}
+    </For>
+  );
+}
+
+/** The lines a widget drew, less the leading one the fold already shows. */
+function afterFirst(lines: WidgetLine[]): WidgetLine[] {
+  const first = lines.findIndex((line) => line.some((span) => span.text.trim() !== ""));
+  return first === -1 ? [] : lines.slice(first + 1);
+}
+
+/** One widget's rows, or its text as drawn when the layout is switched off. */
+function WidgetBody(props: { lines: WidgetLine[]; folded?: boolean }) {
+  const lines = createMemo(() => (props.folded ? afterFirst(props.lines) : props.lines));
+  const rows = createMemo(() => parseWidgetRows(props.lines).slice(props.folded ? 1 : 0));
+  return (
+    <Show
+      when={state.app.appearance.layoutWidgets}
+      fallback={<pre data-slot="widget-verbatim">{lines().map((line) => spans(line)).map(withNewline)}</pre>}
+    >
+      <For each={rows()}>
+        {(row) => (
+          <Show when={row.kind === "row" ? row : null} fallback={<div data-slot="widget-gap" />}>
+            {(item) => (
+              <div
+                data-slot="widget-row"
+                data-heading={item().heading ? "" : undefined}
+                style={{ "padding-inline-start": `${item().depth * 14}px` }}
+              >
+                {spans(item().spans)}
+              </div>
+            )}
+          </Show>
+        )}
+      </For>
+    </Show>
+  );
+}
+
+/** In a `<pre>`, the line break is the layout, so it has to be in the text. */
+const withNewline = (line: JSX.Element) => [line, "\n"];
+
+/**
+ * Line blocks an extension pushed via `setWidget` (§55).
+ *
+ * On a phone they are folded down to their first line, which is where a widget
+ * puts its title and its count. Two of them expanded is most of the screen
+ * above the composer, and the thing you came to read is the conversation; the
+ * heading is enough to say whether it is worth opening.
+ */
 function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
   const widgets = () => widgetsAt(props.placement);
+  const compact = mediaQuery(COMPACT_QUERY);
+  /** By key, so a widget redrawing mid-turn does not close itself. */
+  const [opened, setOpened] = createSignal<string[]>([]);
+
+  const open = (key: string) => !compact() || opened().includes(key);
+  const toggle = (key: string) =>
+    setOpened((keys) => (keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]));
+
   return (
     <Show when={widgets().length > 0}>
       <div data-slot="ext-widgets" data-placement={props.placement}>
         <For each={widgets()}>
-          {(lines) => (
-            <pre data-slot="ext-widget">{lines.join("\n")}</pre>
-          )}
+          {(widget) => {
+            const head = createMemo(() => {
+              const first = parseWidgetRows(widget.lines)[0];
+              return first?.kind === "row" ? first.spans : [{ text: "Widget" }];
+            });
+            // Nothing to fold away when the whole widget is its first line.
+            const foldable = () => compact() && afterFirst(widget.lines).length > 0;
+
+            return (
+              <div
+                data-slot="ext-widget"
+                data-verbatim={state.app.appearance.layoutWidgets ? undefined : ""}
+                data-folded={foldable() && !open(widget.key) ? "" : undefined}
+              >
+                <Show when={foldable()}>
+                  <button
+                    type="button"
+                    data-slot="widget-summary"
+                    aria-expanded={open(widget.key)}
+                    onClick={() => toggle(widget.key)}
+                  >
+                    <span data-slot="widget-row" data-heading="">
+                      {spans(head())}
+                    </span>
+                    <Icon name={open(widget.key) ? "chevron-up" : "chevron-down"} size={13} />
+                  </button>
+                </Show>
+                <Show when={open(widget.key)}>
+                  {/* The heading is the button when folding; showing it twice
+                      would only repeat what was just tapped. */}
+                  <WidgetBody lines={widget.lines} folded={foldable()} />
+                </Show>
+              </div>
+            );
+          }}
         </For>
       </div>
     </Show>
@@ -82,7 +185,15 @@ const APP_COMMANDS: SlashCommand[] = [
 ];
 
 export function Composer() {
-  const [text, setText] = createSignal("");
+  /**
+   * The draft is a document, not a string (§57).
+   *
+   * `text()` is derived from it for everything that wants words — the slash
+   * menu, the mirror to the server, the message the transcript shows — while
+   * the mentions inside it keep the identity they were picked with.
+   */
+  const [draft, setDraft] = createSignal<Draft>([]);
+  const text = () => draftText(draft());
   const [listening, setListening] = createSignal(false);
   const [voiceError, setVoiceError] = createSignal<string | null>(null);
   const [menuIndex, setMenuIndex] = createSignal(0);
@@ -93,7 +204,7 @@ export function Composer() {
 
   const dictation = new Dictation();
   let baseText = "";
-  let textarea: HTMLTextAreaElement | undefined;
+  let field: DraftFieldApi | undefined;
 
   const busy = () => activeSessionState() !== "idle";
   const disabled = () => state.activeSessionId === null;
@@ -143,29 +254,38 @@ export function Composer() {
     setMenuIndex(0);
   });
 
-  createEffect(() => {
-    text();
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-  });
-
   // Mirror the composer to the server so `getEditorText()` returns something
   // real. Debounced — extensions read it occasionally, not per keystroke.
-  let mirror: number | undefined;
+  let echo: number | undefined;
   createEffect(() => {
     const value = text();
-    if (mirror) window.clearTimeout(mirror);
-    mirror = window.setTimeout(() => reportEditorText(value), 200);
+    if (echo) window.clearTimeout(echo);
+    echo = window.setTimeout(() => reportEditorText(value), 200);
   });
 
   // An extension called setEditorText/pasteToEditor.
   createEffect(() => {
     const patch = state.editorPatch;
     if (!patch) return;
-    setText(patch.text);
+    field?.set(textDraft(patch.text));
     consumeEditorPatch();
-    textarea?.focus();
+    field?.focus();
+  });
+
+  /**
+   * A file or directory handed over by the tree or the tab bar (§57).
+   *
+   * Appended rather than inserted at the caret: a drop has no caret to speak
+   * of, and a path landing in the middle of a half-typed word is not what
+   * anyone means by dropping it there.
+   */
+  createEffect(() => {
+    const dropped = state.editorInsert;
+    if (!dropped) return;
+    consumeEditorInsert();
+    const label = dropped.text.split(/[\\/]/).pop() || dropped.text;
+    field?.append({ type: "mention", kind: "file", id: dropped.text, label });
+    field?.focus();
   });
 
   const runAppCommand = (name: string): boolean => {
@@ -205,32 +325,30 @@ export function Composer() {
   const pickCommand = (command: SlashCommand) => {
     if (command.source === "app") {
       runAppCommand(command.name);
-      setText("");
+      field?.set([]);
       return;
     }
     // Pi expands prompt templates and runs extension commands itself, so the
     // composer only has to complete the token and let the user add arguments.
-    setText(`/${command.name} `);
-    textarea?.focus();
+    field?.set(textDraft(`/${command.name} `));
+    field?.focus();
   };
 
   /**
-   * Complete the token in place. Only text goes in — the pointer the agent
-   * receives is assembled server-side when the turn is sent, so a mention
-   * survives being edited, copied, or reloaded (§52).
+   * Complete the token in place, as a mention node (§52).
+   *
+   * The `@query` that summoned the menu is swallowed and a pill takes its
+   * place, carrying the slug — so identity is settled here, once, rather than
+   * being read back out of the words afterwards.
    */
   const pickSubject = (subject: MemorySubject) => {
     const active = mention();
     if (!active) return;
-    const value = text();
-    const inserted = `@${subject.slug} `;
-    const next = value.slice(0, active.start) + inserted + value.slice(caret());
-    const at = active.start + inserted.length;
-    setText(next);
-    setCaret(at);
-    textarea?.focus();
-    // The caret has to be placed after Solid has written the new value.
-    queueMicrotask(() => textarea?.setSelectionRange(at, at));
+    field?.insertMention(
+      { type: "mention", kind: "subject", id: subject.slug, label: subject.name },
+      caret() - active.start,
+    );
+    field?.focus();
   };
 
   const submit = (source: "chat" | "voice" = "chat") => {
@@ -240,13 +358,20 @@ export function Composer() {
     const appCommand = value.startsWith("/") ? APP_COMMANDS.find((c) => `/${c.name}` === value) : undefined;
     if (appCommand) {
       runAppCommand(appCommand.name);
-      setText("");
+      field?.set([]);
       return;
     }
 
+    /*
+     * Two readings of the same draft (§57): what the agent is given, where a
+     * file mention is the path it stands for, and what the transcript shows,
+     * where it stays the name that was picked. Derived from the document, so
+     * neither has to be recovered from the other.
+     */
+    const sent = draftForModel(draft());
     // During an active run this becomes steering server-side (DESIGN §28).
-    sendPrompt(value, source);
-    setText("");
+    sendPrompt(sent, source, sent === value ? undefined : value);
+    field?.set([]);
     stopSpeaking();
   };
 
@@ -258,7 +383,7 @@ export function Composer() {
     setVoiceError(null);
     baseText = text() ? `${text()} ` : "";
     const started = dictation.start({
-      onTranscript: (transcript) => setText(`${baseText}${transcript}`),
+      onTranscript: (transcript) => field?.set(textDraft(`${baseText}${transcript}`)),
       onError: setVoiceError,
       onEnd: () => setListening(false),
     });
@@ -302,7 +427,7 @@ export function Composer() {
         // A slash command is the whole message, so dismissing it clears the
         // field. A mention is one word inside a sentence — closing the menu
         // must not throw the sentence away, so the caret steps past the token.
-        if (menu === "slash") setText("");
+        if (menu === "slash") field?.set([]);
         else setDismissed(mention()?.start ?? null);
         return;
       }
@@ -340,23 +465,26 @@ export function Composer() {
           />
         </Show>
 
+        {/*
+          No drop handler of its own. A mention is only created by the two
+          things that know they are handing over a file — a row in the tree and
+          a file tab, both of which carry a path through `mentionPath` — and
+          dropping anything else, a paragraph out of the transcript or a URL
+          from another window, lands as the text it is. It used to accept any
+          `text/plain` and turn it into a pill, which made a mention out of
+          things that were never files.
+        */}
         <div data-slot="composer-box" data-listening={listening() ? "" : undefined}>
-          <textarea
-            ref={textarea}
-            data-slot="composer-input"
-            rows={1}
+          <DraftField
+            ref={(api) => (field = api)}
+            draft={draft()}
+            onDraft={setDraft}
+            onCaret={setCaret}
+            onKeyDown={onKeyDown}
             disabled={disabled()}
-            value={text()}
             placeholder={
               disabled() ? "Open a session to start" : busy() ? "Steer the agent…" : "Ask anything, or / for commands"
             }
-            onInput={(event) => {
-              setText(event.currentTarget.value);
-              setCaret(event.currentTarget.selectionStart ?? event.currentTarget.value.length);
-            }}
-            onKeyUp={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
-            onClick={(event) => setCaret(event.currentTarget.selectionStart ?? 0)}
-            onKeyDown={onKeyDown}
           />
 
           <div data-slot="composer-controls">

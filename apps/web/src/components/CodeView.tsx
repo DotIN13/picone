@@ -10,9 +10,14 @@ export interface Selection {
   text: string;
   lineStart: number;
   lineEnd: number;
-  /** Viewport coordinates for the floating action. */
+  /**
+   * Viewport coordinates of the selection itself, for the floating action.
+   * `y` is its top, which is where the action goes; `bottom` is the fallback
+   * for a selection with no room above it.
+   */
   x: number;
   y: number;
+  bottom: number;
 }
 
 export interface CodeViewProps {
@@ -20,16 +25,12 @@ export interface CodeViewProps {
   language: string;
   comments: FileComment[];
   onSelect: (selection: Selection | null) => void;
-  onResolveComment: (id: string) => void;
 }
 
-const setComments = StateEffect.define<{ comments: FileComment[]; onResolve: (id: string) => void }>();
+const setComments = StateEffect.define<{ comments: FileComment[] }>();
 
 class CommentWidget extends WidgetType {
-  constructor(
-    private readonly comments: FileComment[],
-    private readonly onResolve: (id: string) => void,
-  ) {
+  constructor(private readonly comments: FileComment[]) {
     super();
   }
 
@@ -80,21 +81,8 @@ class CommentWidget extends WidgetType {
       column.appendChild(meta);
       shell.appendChild(column);
 
-      const tools = document.createElement("div");
-      tools.dataset.slot = "line-comment-tools";
-      const resolve = document.createElement("button");
-      resolve.type = "button";
-      resolve.dataset.component = "button";
-      resolve.dataset.variant = "ghost";
-      resolve.dataset.size = "small";
-      resolve.textContent = "Resolve";
-      resolve.onclick = (event) => {
-        event.preventDefault();
-        this.onResolve(comment.id);
-      };
-      tools.appendChild(resolve);
-      shell.appendChild(tools);
-
+      // No Resolve button: the agent closes a comment when it has dealt with
+      // it (§23), and a card that only ever waits is quieter without one.
       card.appendChild(shell);
       wrap.appendChild(card);
     }
@@ -106,7 +94,7 @@ class CommentWidget extends WidgetType {
   }
 }
 
-function buildDecorations(state: EditorState, comments: FileComment[], onResolve: (id: string) => void): DecorationSet {
+function buildDecorations(state: EditorState, comments: FileComment[]): DecorationSet {
   const byEndLine = new Map<number, FileComment[]>();
   const highlighted = new Set<number>();
   const totalLines = state.doc.lines;
@@ -133,7 +121,7 @@ function buildDecorations(state: EditorState, comments: FileComment[], onResolve
       builder.add(
         line.to,
         line.to,
-        Decoration.widget({ widget: new CommentWidget(widgets, onResolve), block: true, side: 1 }),
+        Decoration.widget({ widget: new CommentWidget(widgets), block: true, side: 1 }),
       );
     }
   }
@@ -144,7 +132,7 @@ const commentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(value, tr) {
     for (const effect of tr.effects) {
-      if (effect.is(setComments)) return buildDecorations(tr.state, effect.value.comments, effect.value.onResolve);
+      if (effect.is(setComments)) return buildDecorations(tr.state, effect.value.comments);
     }
     return tr.docChanged ? Decoration.none : value;
   },
@@ -217,24 +205,27 @@ export function CodeView(props: CodeViewProps) {
           props.onSelect(null);
           return;
         }
-        const coords = update.view.coordsAtPos(range.head) ?? update.view.coordsAtPos(range.from);
+        // `from`, not `head`: the anchor is the first character selected, so
+        // dragging upwards puts the action in the same place as dragging down.
+        const coords = update.view.coordsAtPos(range.from) ?? update.view.coordsAtPos(range.head);
         props.onSelect({
           text: update.state.sliceDoc(range.from, range.to),
           lineStart: update.state.doc.lineAt(range.from).number,
           lineEnd: update.state.doc.lineAt(range.to).number,
           x: coords?.left ?? 0,
-          y: coords?.bottom ?? 0,
+          y: coords?.top ?? 0,
+          bottom: coords?.bottom ?? 0,
         });
       }),
     ];
 
     view = new EditorView({ state: EditorState.create({ doc: content, extensions }), parent: host });
-    view.dispatch({ effects: setComments.of({ comments: props.comments, onResolve: props.onResolveComment }) });
+    view.dispatch({ effects: setComments.of({ comments: props.comments }) });
   });
 
   createEffect(() => {
     const comments = props.comments;
-    view?.dispatch({ effects: setComments.of({ comments, onResolve: props.onResolveComment }) });
+    view?.dispatch({ effects: setComments.of({ comments }) });
   });
 
   onCleanup(() => view?.destroy());

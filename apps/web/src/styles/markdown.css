@@ -429,8 +429,51 @@
   transition: background-color 90ms ease-out;
 }
 
-[data-component="mention-pill"]:hover,
-[data-component="mention-pill"]:focus-visible {
+/*
+ * A file mention (§51). The same pill in every way but its colour, and with no
+ * pointer: the path it stood for went to the model, so there is nothing to
+ * open here.
+ */
+[data-component="mention-pill"][data-kind="file"] {
+  color: var(--v2-text-text-accent);
+  cursor: text;
+}
+
+[data-component="mention-pill"][data-kind="subject"]:hover,
+[data-component="mention-pill"][data-kind="subject"]:focus-visible {
   background: var(--v2-state-bg-magic);
   outline: none;
+}
+
+/*
+ * The same pill in the composer, and it must not cost a single pixel of width.
+ *
+ * The caret is the textarea's and the glyphs are the mirror's, so anything that
+ * changes how wide the text is moves the two apart — and with several pills the
+ * error accumulates until the caret is words away from where it is typing.
+ * Weight, spacing, padding and margin are therefore all pinned back to what the
+ * field itself uses.
+ *
+ * The chip look survives as a `box-shadow` spread, which paints outside the box
+ * without taking part in layout: it reads as padding and measures as nothing.
+ */
+/*
+ * The same pill inside the composer, where it is a real inline node the caret
+ * steps over rather than into. Filled rather than colour-only: there is no
+ * hover to reveal it while typing, and it has to read as one object.
+ */
+[data-slot="composer-input"] [data-component="mention-pill"] {
+  cursor: text;
+  border-radius: 3px;
+  padding: 0 2px;
+  /* Selected whole or not at all, which is what atomic means to a reader. */
+  user-select: all;
+}
+
+[data-slot="composer-input"] [data-component="mention-pill"][data-kind="subject"] {
+  background: var(--v2-state-bg-magic);
+}
+
+[data-slot="composer-input"] [data-component="mention-pill"][data-kind="file"] {
+  background: var(--v2-state-bg-info);
 }

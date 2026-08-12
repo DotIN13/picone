@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { ExtensionUiAnswer, ExtensionUiPrompt, ExtensionUiUpdate } from "@picone/protocol";
-import { FactoryWidget, WIDGET_WIDTH, keybindingsStub, plainTheme } from "./widget-render.ts";
+import type { ExtensionUiAnswer, ExtensionUiPrompt, ExtensionUiUpdate, WidgetLine } from "@picone/protocol";
+import {
+  FactoryWidget,
+  WIDGET_WIDTH,
+  keybindingsStub,
+  markingTheme,
+  parseLines,
+  plainLines,
+} from "./widget-render.ts";
 
 /**
  * Options Pi passes to the blocking dialog methods.
@@ -40,7 +47,7 @@ export interface ExtensionUiHooks {
   /** Push a fire-and-forget surface update. */
   update(update: ExtensionUiUpdate): void;
   /** Redraw an open `custom` component. */
-  frame(id: string, lines: string[]): void;
+  frame(id: string, lines: WidgetLine[]): void;
   /** Surface a message in the transcript. */
   notify(message: string, level: "info" | "warn" | "error"): void;
   /** Current composer contents, mirrored from the browser. */
@@ -131,7 +138,7 @@ export class ExtensionUiBridge {
     this.widgets.get(key)?.dispose();
     this.widgets.delete(key);
 
-    const send = (lines: string[] | undefined) => this.hooks.update({ method: "setChrome", slot, lines });
+    const send = (lines: WidgetLine[] | undefined) => this.hooks.update({ method: "setChrome", slot, lines });
     if (typeof factory !== "function") {
       send(undefined);
       return;
@@ -216,9 +223,9 @@ export class ExtensionUiBridge {
       // The dialog's own dismissal arrives through the ordinary answer path.
       this.pending.set(id, () => settle(undefined));
 
-      const draw = (component: { render(width: number): string[] }) => {
+      const draw = (component: { render(width: number): string[] }): WidgetLine[] => {
         try {
-          return component.render(WIDGET_WIDTH);
+          return parseLines(component.render(WIDGET_WIDTH));
         } catch {
           return [];
         }
@@ -235,7 +242,7 @@ export class ExtensionUiBridge {
         try {
           const made = await (factory as (t: unknown, th: unknown, kb: unknown, done: (r: T) => void) => unknown)(
             tui,
-            plainTheme,
+            markingTheme,
             keybindingsStub,
             (result: T) => settle(result),
           );
@@ -303,15 +310,20 @@ export class ExtensionUiBridge {
 
       setWidget: (key: string, content: unknown, options?: { placement?: "aboveEditor" | "belowEditor" }) => {
         const placement = options?.placement;
-        const send = (lines: string[] | undefined) =>
+        const send = (lines: WidgetLine[] | undefined) =>
           bridge.hooks.update({ method: "setWidget", key, lines, placement });
 
         // Registering under a key replaces whatever held it, as it does in Pi.
         bridge.widgets.get(key)?.dispose();
         bridge.widgets.delete(key);
 
-        if (content === undefined || Array.isArray(content)) {
-          send(content as string[] | undefined);
+        // The array form never saw the theme, so it has no roles to recover.
+        if (content === undefined) {
+          send(undefined);
+          return;
+        }
+        if (Array.isArray(content)) {
+          send(plainLines(content as string[]));
           return;
         }
 
@@ -373,10 +385,10 @@ export class ExtensionUiBridge {
       // working — styling is a no-op and the text arrives intact. It used to be
       // absent entirely, which would throw on the first `ctx.ui.theme.fg(...)`.
       get theme() {
-        return plainTheme;
+        return markingTheme;
       },
       getAllThemes: () => [{ name: "picone", path: undefined }],
-      getTheme: () => plainTheme,
+      getTheme: () => markingTheme,
       setTheme: () => ({ success: false, error: "Themes are controlled by the Picone UI" }),
 
       // --- genuinely terminal-only, intentionally inert ---

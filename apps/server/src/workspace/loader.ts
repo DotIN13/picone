@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import type { Workspace, WorkspaceFile, WorkspaceRoot } from "@picone/protocol";
+import { asWorkspaceDir } from "@picone/protocol";
+import type { Workspace, WorkspaceDirRef, WorkspaceFile, WorkspaceRoot } from "@picone/protocol";
 import { expandPath } from "../util/paths.ts";
 import { validateWorkspaceFile } from "./schema.ts";
 
@@ -57,9 +58,9 @@ export function loadWorkspace(filePath: string): Workspace {
    */
   const legacy = file.directories ?? [];
   const cwdEntry = file.cwd ?? legacy[0];
-  const contextEntries = [...(file.context ?? []), ...(file.cwd ? legacy : legacy.slice(1))];
+  const contextEntries: WorkspaceDirRef[] = [...(file.context ?? []), ...(file.cwd ? legacy : legacy.slice(1))];
 
-  const add = (dir: string, kind: "cwd" | "context") => {
+  const add = (dir: string, kind: "cwd" | "context", hidden = false) => {
     const resolved = expandPath(dir, workspaceDir);
     if (seen.has(resolved)) {
       diagnostics.push(`Duplicate directory ignored: ${dir}`);
@@ -81,11 +82,20 @@ export function loadWorkspace(filePath: string): Workspace {
       exists,
       kind,
       writable: true,
+      ...(hidden ? { hidden: true } : {}),
     });
   };
 
-  if (cwdEntry) add(cwdEntry, "cwd");
-  for (const dir of contextEntries) add(dir, "context");
+  if (cwdEntry) {
+    const dir = asWorkspaceDir(cwdEntry);
+    add(dir.path, "cwd", dir.hidden === true);
+  }
+  for (const entry of contextEntries) {
+    // A hidden entry is a context directory in every way that matters — a root,
+    // reachable, resolvable in a mention — that the tree happens to skip (§3).
+    const dir = asWorkspaceDir(entry);
+    add(dir.path, "context", dir.hidden === true);
+  }
 
   const cwd = roots.find((root) => root.kind === "cwd")?.path ?? null;
 
@@ -124,10 +134,12 @@ export function workspaceContext(ws: Workspace): string {
    * summary that will be stale by the second turn buys nothing. Memory
    * directories are deliberately absent — they are readable roots, but listing
    * them here sends the agent hunting for source files in them, so they get
-   * their own context file (§50).
+   * their own context file (§50). Hidden directories are absent for the same
+   * reason and a stronger one: home is on that list, and announcing it as a
+   * place to work would be an invitation to go rummaging.
    */
   const cwd = ws.roots.find((root) => root.kind === "cwd");
-  const context = ws.roots.filter((root) => root.kind === "context");
+  const context = ws.roots.filter((root) => root.kind === "context" && !root.hidden);
 
   if (cwd) {
     lines.push("");
@@ -157,7 +169,7 @@ export function workspaceContext(ws: Workspace): string {
   lines.push("");
   lines.push(
     "The human reviews your work in a web UI and can leave comments anchored to selected text in a file. " +
-      'When a comment arrives, treat it as direct feedback on that text. After you act on it, call `mark_comment_addressed` with the comment id.',
+      'When a comment arrives, treat it as direct feedback on that text. Once you have dealt with it — changed the work, or established that no change is needed — call `resolve_comment` with the comment id. Nobody else closes them.',
   );
 
   return lines.join("\n");

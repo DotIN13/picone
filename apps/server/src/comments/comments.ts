@@ -23,8 +23,17 @@ export function createComment(
   return comment;
 }
 
-export function markAddressed(commentId: string): FileComment | null {
-  return setCommentStatus(commentId, "addressed");
+/**
+ * The agent has dealt with a comment, so it leaves the list (§23).
+ *
+ * There was an "addressed" step between this and resolved, waiting on a click
+ * from the reader. It bought nothing — whether the work was done is visible in
+ * the file — and left finished comments cluttering the list until someone
+ * cleared them one at a time. The status remains in the type for comments
+ * already saved under it.
+ */
+export function resolveComment(commentId: string): FileComment | null {
+  return setCommentStatus(commentId, "resolved");
 }
 
 export function listComments(workspaceId: string): FileComment[] {

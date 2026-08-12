@@ -1,5 +1,5 @@
 import { For, Show, onCleanup, onMount } from "solid-js";
-import { openFile, refreshGitStatus, setFilter, setSidebarMode, state } from "../store.ts";
+import { openFile, refreshGitStatus, refreshTree, setFilter, setSidebarMode, state } from "../store.ts";
 import { FileTree } from "./FileTree.tsx";
 import { SessionList } from "./SessionList.tsx";
 import { CommentList } from "./CommentList.tsx";
@@ -38,7 +38,14 @@ export function Sidebar() {
               onInput={(event) => setFilter(event.currentTarget.value)}
             />
           </div>
-          <IconButton icon="refresh" label="Refresh" size="normal" onClick={() => void refreshGitStatus()} />
+          {/* The listings first, then their git status: what the button is for is
+              usually a file that has appeared or gone, not a changed badge. */}
+          <IconButton
+            icon="refresh"
+            label="Refresh"
+            size="normal"
+            onClick={() => void refreshTree().then(refreshGitStatus)}
+          />
         </div>
 
         <div data-slot="sidebar-scroll" class="min-h-0 flex-1 overflow-auto pb-2">

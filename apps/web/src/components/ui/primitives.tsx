@@ -37,6 +37,15 @@ export interface DialogProps {
   width?: string;
   children: JSX.Element;
   footer?: JSX.Element;
+  /**
+   * The content manages its own scrolling, so the body must not add a second.
+   *
+   * A dialog body scrolls by default, which is right for a column of settings.
+   * It is wrong for content that is already a fixed frame around a scrolling
+   * list — the two nest, the sheet grows to the height of the frame, and the
+   * page under the list drags around beneath it.
+   */
+  fill?: boolean;
 }
 
 /**
@@ -73,7 +82,9 @@ export function Dialog(props: DialogProps) {
                 <IconButton icon="close" label="Close" variant="ghost-muted" />
               </KDialog.CloseButton>
             </div>
-            <div data-slot="dialog-body">{props.children}</div>
+            <div data-slot="dialog-body" data-fill={props.fill ? "" : undefined}>
+              {props.children}
+            </div>
             <Show when={props.footer}>
               <div data-slot="dialog-footer">{props.footer}</div>
             </Show>

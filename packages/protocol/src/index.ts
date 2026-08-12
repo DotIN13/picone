@@ -77,12 +77,36 @@ export type WorkspaceResources = Record<string, WorkspaceResource>;
  * two are merged field by field, so toggling a global directory never has to
  * restate where it lives.
  */
+/**
+ * A context directory with more said about it than its path.
+ *
+ * `hidden` opens the directory without drawing it: readable, mentionable and
+ * resolvable like any other, but absent from the file explorer and from what
+ * the agent is told. Home is opened this way — `~/.pi`, `~/.agents` and
+ * `~/Downloads` are worth reaching, and nobody wants the whole of home as a row
+ * above their code.
+ */
+export interface WorkspaceDir {
+  path: string;
+  hidden?: boolean;
+}
+
+/** A context directory: a path, or a path with something said about it. */
+export type WorkspaceDirRef = string | WorkspaceDir;
+
+/** The object form of an entry, whichever form it was written in. */
+export function asWorkspaceDir(entry: WorkspaceDirRef): WorkspaceDir {
+  return typeof entry === "string" ? { path: entry } : entry;
+}
+
 export interface MemoryDir {
   /** Absolute, `~`-relative, or relative to the file that declares it. */
   path?: string;
   enabled?: boolean;
   /** Default false, and enforced by the permission gate rather than merely stated. */
   writable?: boolean;
+  /** Open, but left out of the file explorer — as on any directory (§3). */
+  hidden?: boolean;
 }
 
 export type MemoryDirs = Record<string, MemoryDir>;
@@ -97,6 +121,8 @@ export interface ResolvedMemoryDir {
   exists: boolean;
   /** Where the path came from; a workspace entry that only toggles stays "global". */
   source: "global" | "workspace";
+  /** Open, but left out of the file explorer (§3). */
+  hidden: boolean;
   /** It carries an `AGENTS.md`, so it can explain itself to the agent. */
   hasInstructions: boolean;
   /** It carries an `index.md` worth pointing the agent at. */
@@ -133,14 +159,21 @@ export interface WorkspaceFile {
   /**
    * Where work happens (DESIGN §3). One directory, and the agent's working
    * directory for the session.
+   *
+   * A path, or a path with something said about it — the same form every
+   * directory in this file takes.
    */
-  cwd?: string;
+  cwd?: WorkspaceDirRef;
   /**
    * Directories that are open alongside the cwd — other repositories, a spec
    * folder, anything worth having to hand. May sit inside the cwd or contain
    * it; nesting is allowed and is often the point.
+   *
+   * A plain string is the usual form. The object form is the same directory
+   * with something else said about it — so far, that the file explorer should
+   * leave it out (§3).
    */
-  context?: string[];
+  context?: WorkspaceDirRef[];
   /**
    * The flat list this replaced. Still read: the first entry becomes the cwd
    * and the rest become context, so an older workspace file opens unchanged.
@@ -195,6 +228,8 @@ export interface WorkspaceRoot {
   kind: "cwd" | "context" | "memory";
   /** Whether the agent may write here. Always true for project directories. */
   writable: boolean;
+  /** Reachable, but left out of the file explorer (§3). */
+  hidden?: boolean;
 }
 
 export interface RecentWorkspace {
@@ -276,7 +311,11 @@ export interface DirEntry {
 
 export type GitStatus = "modified" | "added" | "deleted" | "untracked" | "renamed" | "conflicted";
 
-export type FileKind = "markdown" | "code" | "text" | "binary";
+/**
+ * How a file wants to be shown. `markdown` and `html` are the two that have a
+ * rendered form worth reading; everything else is source or bytes.
+ */
+export type FileKind = "markdown" | "html" | "code" | "text" | "binary";
 
 export interface FileContent {
   path: string;
@@ -394,23 +433,39 @@ export type ExtensionUiPrompt =
    * done. The browser shows the lines and forwards the keys; the component,
    * running on the server, does the rest.
    */
-  | { id: string; method: "custom"; lines: string[] };
+  | { id: string; method: "custom"; lines: WidgetLine[] };
 
 export type ExtensionUiAnswer =
   | { id: string; value: string }
   | { id: string; confirmed: boolean }
   | { id: string; cancelled: true };
 
+/**
+ * A run of text from an extension's widget, with the role it declared (§55).
+ *
+ * Extensions draw through Pi's theme — `theme.fg("success", "✓")` — so the role
+ * is what the widget *meant*, not a colour to reproduce. The browser decides
+ * what "success" looks like; an unrecognised or unstyled run has no role.
+ */
+export interface WidgetSpan {
+  text: string;
+  role?: string;
+  bold?: boolean;
+}
+
+/** One rendered line. Empty means a blank line. */
+export type WidgetLine = WidgetSpan[];
+
 /** Fire-and-forget surfaces an extension can drive. */
 export type ExtensionUiUpdate =
   | { method: "setStatus"; key: string; text: string | undefined }
-  | { method: "setWidget"; key: string; lines: string[] | undefined; placement?: "aboveEditor" | "belowEditor" }
+  | { method: "setWidget"; key: string; lines: WidgetLine[] | undefined; placement?: "aboveEditor" | "belowEditor" }
   /**
    * `setHeader` and `setFooter`. Both take a component factory in Pi and are
    * rendered to lines the same way a factory widget is; they differ from a
    * widget only in where they sit, so they share one message.
    */
-  | { method: "setChrome"; slot: "header" | "footer"; lines: string[] | undefined }
+  | { method: "setChrome"; slot: "header" | "footer"; lines: WidgetLine[] | undefined }
   /** The label on the row shown while the agent works. */
   | { method: "setWorkingMessage"; message: string | undefined }
   /** Whether that row appears at all. */
@@ -543,7 +598,12 @@ export type ChatItem =
 // ---------------------------------------------------------------------------
 
 export type AgentEvent =
-  | { type: "session.snapshot"; sessionId: string; items: ChatItem[]; state: AgentState }
+  /**
+   * The tail of the transcript (§14). `hasMore` is whether anything precedes
+   * it — the browser cannot tell from the items alone, and without being told
+   * it has to assume there might be.
+   */
+  | { type: "session.snapshot"; sessionId: string; items: ChatItem[]; state: AgentState; hasMore: boolean }
   /** Put text in the composer — a rewound message, ready to be said differently. */
   | { type: "editor.set"; text: string }
   /** How full the context is, sampled when it can have changed (§54). */
@@ -573,7 +633,7 @@ export type AgentEvent =
   | { type: "extension.ui.prompt"; prompt: ExtensionUiPrompt }
   | { type: "extension.ui.prompt.closed"; id: string }
   /** A `custom` component redrawing itself while it is open. */
-  | { type: "extension.ui.frame"; id: string; lines: string[] }
+  | { type: "extension.ui.frame"; id: string; lines: WidgetLine[] }
   | { type: "extension.ui.update"; update: ExtensionUiUpdate }
   | { type: "mcp.state"; servers: McpServerState[] };
 
@@ -632,7 +692,12 @@ export interface ResourceReport {
 
 export type ClientMessage =
   /** `sessionId` targets a specific session; omitted means the active one. */
-  | { type: "prompt"; text: string; source?: "chat" | "voice"; sessionId?: string }
+  /**
+   * `display` is what the transcript shows when it differs from what the model
+   * is given — a file mention reads as `@report.html` and is sent as the path
+   * it stands for (§51).
+   */
+  | { type: "prompt"; text: string; display?: string; source?: "chat" | "voice"; sessionId?: string }
   | { type: "steer"; text: string; sessionId?: string }
   | { type: "abort"; sessionId?: string }
   | { type: "permission_response"; requestId: string; decision: PermissionDecision }

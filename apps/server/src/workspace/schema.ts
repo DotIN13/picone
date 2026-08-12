@@ -1,6 +1,9 @@
+import { asWorkspaceDir } from "@picone/protocol";
 import type {
   MemoryDirs,
   PermissionSetting,
+  WorkspaceDir,
+  WorkspaceDirRef,
   WorkspaceFile,
   WorkspaceMcpConfig,
   WorkspaceResources,
@@ -29,6 +32,41 @@ function stringArray(value: unknown, field: string, errors: string[]): string[] 
     return undefined;
   }
   return value as string[];
+}
+
+/**
+ * Context directories, in either form (§3).
+ *
+ * A path on its own is the usual entry. The object form carries a flag beside
+ * it — today only `hidden`, which opens a directory without drawing it — and is
+ * kept in whichever form it was written, so a hand-edited file comes back out
+ * looking the way its author left it.
+ */
+function dirRefArray(value: unknown, field: string, errors: string[]): WorkspaceDirRef[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    errors.push(`"${field}" must be an array of paths`);
+    return [];
+  }
+
+  const out: WorkspaceDirRef[] = [];
+  for (const entry of value) {
+    if (typeof entry === "string") {
+      out.push(entry);
+      continue;
+    }
+    if (entry && typeof entry === "object" && typeof (entry as WorkspaceDir).path === "string") {
+      const { path, hidden } = entry as WorkspaceDir;
+      if (hidden !== undefined && typeof hidden !== "boolean") {
+        errors.push(`"${field}" entries may set "hidden" to true or false`);
+        continue;
+      }
+      out.push(hidden ? { path, hidden: true } : path);
+      continue;
+    }
+    errors.push(`"${field}" entries must be a path, or an object with a "path"`);
+  }
+  return out;
 }
 
 function permission(value: unknown, field: string, errors: string[]): PermissionSetting | undefined {
@@ -62,12 +100,19 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
    * becomes the cwd and the rest become context.
    */
   const directories = stringArray(raw.directories, "directories", errors) ?? [];
-  const context = stringArray(raw.context, "context", errors) ?? [];
+  const context = dirRefArray(raw.context, "context", errors);
 
-  let cwd: string | undefined;
+  /* Same two forms as a context entry: a path, or a path saying more (§3). */
+  let cwd: WorkspaceDirRef | undefined;
   if (raw.cwd !== undefined) {
-    if (typeof raw.cwd !== "string" || raw.cwd.trim() === "") errors.push(`"cwd" must be a non-empty path`);
-    else cwd = raw.cwd;
+    const [parsed] = dirRefArray([raw.cwd], "cwd", errors);
+    if (parsed === undefined) {
+      // dirRefArray has already said why.
+    } else if (asWorkspaceDir(parsed).path.trim() === "") {
+      errors.push(`"cwd" must be a non-empty path`);
+    } else {
+      cwd = parsed;
+    }
   }
 
   if (raw.cwd === undefined && raw.directories === undefined) {
@@ -138,7 +183,7 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
           continue;
         }
         if (!isRecord(entry)) {
-          errors.push(`"memory.${name}" must be a path, or { "path": …, "enabled": …, "writable": … }`);
+          errors.push(`"memory.${name}" must be a path, or { "path": …, "enabled": …, "writable": …, "hidden": … }`);
           continue;
         }
         if (entry.path !== undefined && typeof entry.path !== "string") {
@@ -149,6 +194,7 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
           path: typeof entry.path === "string" ? entry.path : undefined,
           enabled: entry.enabled === undefined ? undefined : Boolean(entry.enabled),
           writable: entry.writable === undefined ? undefined : Boolean(entry.writable),
+          hidden: entry.hidden === undefined ? undefined : Boolean(entry.hidden),
         };
       }
       if (Object.keys(out).length > 0) memory = out;

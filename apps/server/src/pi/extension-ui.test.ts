@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ExtensionUiUpdate } from "@picone/protocol";
 import { ExtensionUiBridge } from "./extension-ui.ts";
+import { parseSpans } from "./widget-render.ts";
 
 function harness() {
   const updates: ExtensionUiUpdate[] = [];
-  const prompts: { id: string; method: string; lines?: string[] }[] = [];
-  const frames: { id: string; lines: string[] }[] = [];
+  const prompts: { id: string; method: string; lines?: unknown[] }[] = [];
+  const frames: { id: string; lines: unknown[] }[] = [];
   const closed: string[] = [];
   const bridge = new ExtensionUiBridge({
     prompt: (p) => void prompts.push(p as never),
@@ -31,7 +32,9 @@ test("a factory widget is rendered to lines", () => {
     () => ({ render: () => ["one", "two"] }),
     { placement: "belowEditor" },
   );
-  assert.deepEqual(updates, [{ method: "setWidget", key: "k", lines: ["one", "two"], placement: "belowEditor" }]);
+  assert.deepEqual(updates, [
+    { method: "setWidget", key: "k", lines: [[{ text: "one" }], [{ text: "two" }]], placement: "belowEditor" },
+  ]);
 });
 
 test("a header and a footer are rendered from their factories", () => {
@@ -44,8 +47,8 @@ test("a header and a footer are rendered from their factories", () => {
   }));
 
   assert.deepEqual(updates, [
-    { method: "setChrome", slot: "header", lines: ["hello"] },
-    { method: "setChrome", slot: "footer", lines: ["branch=null"] },
+    { method: "setChrome", slot: "header", lines: [[{ text: "hello" }]] },
+    { method: "setChrome", slot: "footer", lines: [[{ text: "branch=null" }]] },
   ]);
 });
 
@@ -82,13 +85,14 @@ test("tool expansion is readable synchronously and pushed when set", () => {
   assert.deepEqual(updates, [{ method: "setToolsExpanded", expanded: true }]);
 });
 
-test("theme is present and styles nothing", () => {
+test("the theme a widget draws through records the role it asked for", () => {
   const { ui } = harness();
   const theme = ui.theme as never as { fg(c: string, t: string): string; bold(t: string): string };
   // It used to be absent, which throws on the first `ctx.ui.theme.fg(...)`.
   assert.equal(typeof theme?.fg, "function");
-  assert.equal(theme.fg("accent", "text"), "text");
-  assert.equal(theme.bold("text"), "text");
+  // Marked rather than coloured, so the browser is told `accent`, not a hex.
+  assert.deepEqual(parseSpans(theme.fg("accent", "text")), [{ text: "text", role: "accent" }]);
+  assert.deepEqual(parseSpans(theme.bold("text")), [{ text: "text", bold: true }]);
   assert.equal((ui.getTheme as never as (n: string) => unknown)("anything") !== undefined, true);
 });
 
@@ -124,12 +128,12 @@ test("a custom component is shown, driven by keys, and returns its result", asyn
   // Shown, with its first frame.
   assert.equal(prompts.length, 1);
   assert.equal(prompts[0]!.method, "custom");
-  assert.deepEqual(prompts[0]!.lines, ["typed: "]);
+  assert.deepEqual(prompts[0]!.lines, [[{ text: "typed: " }]]);
 
   const id = prompts[0]!.id;
   bridge.key(id, "h");
   bridge.key(id, "i");
-  assert.deepEqual(frames.map((f) => f.lines), [["typed: h"], ["typed: hi"]]);
+  assert.deepEqual(frames.map((f) => f.lines), [[[{ text: "typed: h" }]], [[{ text: "typed: hi" }]]]);
 
   bridge.key(id, ENTER);
   assert.equal(await result, "hi");

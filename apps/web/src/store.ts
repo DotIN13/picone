@@ -3,7 +3,6 @@ import type {
   AgentState,
   ChatItem,
   ContextUsage,
-  CommentStatus,
   CreateWorkspaceRequest,
   DirEntry,
   ExtensionUiAnswer,
@@ -20,6 +19,7 @@ import type {
   ServerFrame,
   SessionSummary,
   SlashCommand,
+  WidgetLine,
   Workspace,
   WorkspaceStateResponse,
 } from "@picone/protocol";
@@ -56,24 +56,40 @@ export interface FileTabModel {
 
 export type Tab = SessionTab | FileTabModel;
 
+/** What a file tab is showing: see `OpenFileState.view`. */
+export type FileView = "rendered" | "preview" | "source";
+
 export interface OpenFileState {
   content: FileContent | null;
   loading: boolean;
   error: string | null;
   /** Set when the file changed on disk while the tab is open (DESIGN §24). */
   staleMtime: number | null;
-  markdownSource: boolean;
+  /**
+   * Which of a file's forms the tab is showing (§24).
+   *
+   * `rendered` is markdown as prose. `preview` is an HTML file running in a
+   * sandboxed frame — the only way to see one that draws itself — where
+   * selection arrives by way of the bridge the preview route injects, the
+   * frame's own not being ours to read. `source` is the text.
+   */
+  view: FileView;
+  /**
+   * Bumped whenever the file is re-read, so a view holding its own copy — the
+   * preview frame, which fetched the document itself — is made to fetch again.
+   */
+  reloadedAt: number;
 }
 
 /** One session's extension-drawn surfaces (DESIGN §55). */
 export interface ExtensionSurface {
   /** `setStatus`, keyed as the extension keyed it. */
   status: Record<string, string>;
-  /** `setWidget` blocks around the composer. */
-  widgets: Record<string, { lines: string[]; placement: "aboveEditor" | "belowEditor" }>;
+  /** `setWidget` blocks around the composer, as spans with the roles declared. */
+  widgets: Record<string, { lines: WidgetLine[]; placement: "aboveEditor" | "belowEditor" }>;
   /** `setHeader` / `setFooter`, rendered from their component factories. */
-  header?: string[];
-  footer?: string[];
+  header?: WidgetLine[];
+  footer?: WidgetLine[];
   /** `setWorkingMessage` / `setWorkingVisible` / `setWorkingIndicator`. */
   workingMessage?: string;
   workingHidden?: boolean;
@@ -121,7 +137,7 @@ interface State {
   /** Blocking extension dialogs, oldest first. */
   extensionPrompts: ExtensionUiPrompt[];
   /** The latest frame of each open `custom` component, which redraws itself. */
-  extensionFrames: Record<string, string[]>;
+  extensionFrames: Record<string, WidgetLine[]>;
   /**
    * Everything extensions have drawn, per session (§55).
    *
@@ -132,6 +148,15 @@ interface State {
   extensionUi: Record<string, ExtensionSurface>;
   /** Text an extension pushed into the composer, consumed by the Composer. */
   editorPatch: { text: string; at: number } | null;
+  /**
+   * A file or directory to mention in the composer (§57).
+   *
+   * Dropping a row or a tab there is a way of saying "this one" — so it appends
+   * rather than replacing, and the composer clears it once taken. A path, and
+   * only ever a path: it becomes a mention carrying that identity, which is not
+   * something arbitrary dropped text can claim.
+   */
+  editorInsert: { text: string; at: number } | null;
 
   tabs: Tab[];
   activeTabId: string | null;
@@ -187,6 +212,7 @@ const [state, setState] = createStore<State>({
   extensionFrames: {},
   extensionUi: {},
   editorPatch: null,
+  editorInsert: null,
 
   tabs: [],
   activeTabId: null,
@@ -441,7 +467,14 @@ export async function openFile(path: string): Promise<void> {
   setState({ activeTabId: path, sidebarOverlayOpen: false });
 
   if (state.files[path]?.content) return;
-  setState("files", path, { content: null, loading: true, error: null, staleMtime: null, markdownSource: false });
+  setState("files", path, {
+    content: null,
+    loading: true,
+    error: null,
+    staleMtime: null,
+    view: "rendered",
+    reloadedAt: 0,
+  });
   socket.send({ type: "watch_file", path });
   await reloadFile(path);
 }
@@ -454,7 +487,8 @@ export async function reloadFile(path: string): Promise<void> {
       loading: false,
       error: null,
       staleMtime: null,
-      markdownSource: file?.markdownSource ?? false,
+      view: file?.view ?? "rendered",
+      reloadedAt: (file?.reloadedAt ?? 0) + 1,
     }));
   } catch (err) {
     setState("files", path, (file) => ({
@@ -462,7 +496,8 @@ export async function reloadFile(path: string): Promise<void> {
       loading: false,
       error: (err as Error).message,
       staleMtime: null,
-      markdownSource: file?.markdownSource ?? false,
+      view: file?.view ?? "rendered",
+      reloadedAt: file?.reloadedAt ?? 0,
     }));
   }
 }
@@ -523,8 +558,8 @@ export function moveTab(draggedId: string, targetId: string, side: "before" | "a
   );
 }
 
-export function toggleMarkdownSource(path: string): void {
-  setState("files", path, "markdownSource", (value) => !value);
+export function setFileView(path: string, view: FileView): void {
+  setState("files", path, "view", view);
 }
 
 // ---------------------------------------------------------------------------
@@ -597,6 +632,42 @@ export async function revealInTree(target: string): Promise<void> {
   }
 }
 
+/**
+ * Re-read every directory the tree is holding (DESIGN §12).
+ *
+ * A listing is fetched once, when its row is first opened, and kept — which is
+ * right for a tree you are navigating and wrong the moment the files change
+ * underneath it. Nothing was watching the filesystem and the Refresh button
+ * only reloaded git status, so a directory emptied outside Picone went on
+ * showing every file it used to have, for as long as the tab stayed open.
+ *
+ * Every held path, not just the open ones: a collapsed row keeps its listing,
+ * and reopening it should not show what was there an hour ago.
+ */
+export async function refreshTree(): Promise<void> {
+  await Promise.all(
+    Object.keys(state.tree).map(async (path) => {
+      try {
+        const { entries } = await api.listDirectory(path);
+        // Diffed by path, so rows that did not change keep their identity and
+        // the tree does not blink or lose what is scrolled into view.
+        setState("tree", path, reconcile(entries, { key: "path" }));
+      } catch {
+        /*
+         * Gone, most likely — which is the case this exists for, so it is not
+         * worth a toast. Forgetting it drops the rows and lets the directory be
+         * listed afresh if it comes back.
+         */
+        setState(
+          produce((current) => {
+            delete current.tree[path];
+          }),
+        );
+      }
+    }),
+  );
+}
+
 export async function loadDirectory(path: string): Promise<void> {
   if (state.treeLoading[path]) return;
   setState("treeLoading", path, true);
@@ -667,6 +738,9 @@ export function closeSidebarOverlay(): void {
 export function setLayout(layout: { compact?: boolean; coarse?: boolean }): void {
   if (layout.compact !== undefined && layout.compact !== state.compact) {
     setState("compact", layout.compact);
+    // A phone renders at a share of the baseline zoom (§49), and that is decided
+    // by the viewport — so crossing the breakpoint has to redo the arithmetic.
+    applyAppearanceNow();
     // Leaving compact should never strand the app with a hidden sidebar.
     if (!layout.compact) setState({ sidebarOverlayOpen: false, sidebarCollapsed: false });
   }
@@ -689,10 +763,14 @@ export function showToast(text: string, level: "info" | "warn" | "error" = "info
 // Session input
 // ---------------------------------------------------------------------------
 
-export function sendPrompt(text: string, source: "chat" | "voice" = "chat"): void {
+/**
+ * Send a turn. `display` is what the transcript should show when it differs
+ * from what the model is given — see the file mentions in §57.
+ */
+export function sendPrompt(text: string, source: "chat" | "voice" = "chat", display?: string): void {
   const sessionId = state.activeSessionId;
   if (!text.trim() || !sessionId) return;
-  socket.send({ type: "prompt", text, source, sessionId });
+  socket.send({ type: "prompt", text, display, source, sessionId });
 }
 
 /**
@@ -825,6 +903,22 @@ export function consumeEditorPatch(): void {
   setState("editorPatch", null);
 }
 
+/**
+ * Mention a file or directory in the composer (§57).
+ *
+ * Named for what it is rather than where it goes: it makes a *mention*, with
+ * the path as its identity, so it must only be called with one. It used to be
+ * `insertIntoComposer`, and a drop handler duly fed it every `text/plain` that
+ * landed on the field — every one of which became a pill.
+ */
+export function mentionPath(path: string): void {
+  setState("editorInsert", { text: path, at: Date.now() });
+}
+
+export function consumeEditorInsert(): void {
+  setState("editorInsert", null);
+}
+
 /** The active session's extension surfaces, or an empty one before anything draws. */
 export function surfaceOf(sessionId: string | null = state.activeSessionId): ExtensionSurface {
   return (sessionId && state.extensionUi[sessionId]) || EMPTY_SURFACE;
@@ -832,10 +926,11 @@ export function surfaceOf(sessionId: string | null = state.activeSessionId): Ext
 
 const EMPTY_SURFACE: ExtensionSurface = { status: {}, widgets: {} };
 
-export function widgetsAt(placement: "aboveEditor" | "belowEditor"): string[][] {
-  return Object.values(surfaceOf().widgets)
-    .filter((widget) => widget.placement === placement)
-    .map((widget) => widget.lines);
+/** Keyed, so a widget keeps whatever the reader did with it as it redraws. */
+export function widgetsAt(placement: "aboveEditor" | "belowEditor"): Array<{ key: string; lines: WidgetLine[] }> {
+  return Object.entries(surfaceOf().widgets)
+    .filter(([, widget]) => widget.placement === placement)
+    .map(([key, widget]) => ({ key, lines: widget.lines }));
 }
 
 export function respondPermission(requestId: string, decision: PermissionDecision): void {
@@ -864,10 +959,6 @@ export function addComment(input: {
     return;
   }
   socket.send({ type: "file_comment", input });
-}
-
-export async function setCommentStatus(id: string, status: CommentStatus): Promise<void> {
-  await api.setCommentStatus(id, status);
 }
 
 // ---------------------------------------------------------------------------
@@ -908,7 +999,7 @@ function adoptWorkspace(next: WorkspaceStateResponse): void {
     comments: [],
     filter: "",
     filterResults: [],
-  });
+    });
 }
 
 export async function openWorkspace(path: string): Promise<void> {
@@ -956,6 +1047,15 @@ function applyFrame(frame: ServerFrame): void {
         const overlap = held && firstId ? held.findIndex((item) => item.id === firstId) : -1;
         const merged = overlap > 0 ? [...held!.slice(0, overlap), ...event.items] : event.items;
         setState("transcripts", event.sessionId, held ? reconcile(merged, { key: "id" }) : merged);
+      }
+      /*
+       * Only when nothing better is known. The snapshot's answer is about the
+       * *server's* tail, and a reader who has already paged back past it has a
+       * more precise one — taking this would put the button back after they had
+       * reached the beginning.
+       */
+      if (state.moreHistory[event.sessionId] === undefined) {
+        setState("moreHistory", event.sessionId, event.hasMore);
       }
       setState("agentStates", event.sessionId, event.state);
       break;

@@ -10,7 +10,7 @@ import {
   updateAppSettings,
 } from "./store.ts";
 import { SIDEBAR_WIDTH } from "./lib/app-settings.ts";
-import { COARSE_QUERY, COMPACT_QUERY, mediaQuery, trackVisualViewport } from "./lib/media.ts";
+import { COARSE_QUERY, COMPACT_QUERY, mediaQuery, trackViewportSize, trackVisualViewport } from "./lib/media.ts";
 import { TitleBar } from "./components/TitleBar.tsx";
 import { Resizer } from "./components/Resizer.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
@@ -31,6 +31,7 @@ export function App() {
 
   onMount(() => {
     void init();
+    trackViewportSize();
     trackVisualViewport();
   });
 

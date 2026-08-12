@@ -27,6 +27,7 @@ import type {
 } from "@picone/protocol";
 import { appendMessage, loadTranscriptTail, nextSeq, truncateTranscript } from "../db.ts";
 import { memoryContextFiles } from "../memory/context.ts";
+import { commentContext } from "../comments/matcher.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import { PermissionGate } from "../permissions/gate.ts";
 import { resolvedPermissions, resolvedVoice } from "../workspace/schema.ts";
@@ -138,6 +139,14 @@ export class SessionRuntime {
    * the database and are fetched when the browser scrolls back to them.
    */
   private transcript: ChatItem[] = [];
+  /**
+   * Whether the tail above is the whole conversation or the end of a longer one.
+   *
+   * Known here for free — the page that loaded the tail said so — and worth
+   * passing on: the browser otherwise has to offer "earlier messages" on every
+   * session, including a new one where the button does nothing at all.
+   */
+  private hasEarlier = false;
   /** `seq` of `transcript[0]`, so a row's number survives not holding the rest. */
   private baseSeq = 0;
   /** Next free `seq`, read from the table rather than counted from memory. */
@@ -184,6 +193,7 @@ export class SessionRuntime {
     const tail = loadTranscriptTail(this.id, TAIL);
     this.transcript = tail.items;
     this.baseSeq = tail.firstSeq;
+    this.hasEarlier = tail.hasMore;
     this.seq = nextSeq(this.id);
 
     this.translator = new EventTranslator({
@@ -441,7 +451,21 @@ export class SessionRuntime {
    * and only by a path and an instruction to look wider. A message that mentions
    * nobody is returned untouched, which is almost every message.
    */
+  /**
+   * What the agent receives on top of what was typed (§51, §16).
+   *
+   * Two additions, both about things the message names rather than describes: a
+   * pointer to any memory subject it mentions, and the open comments on any
+   * file it names. Appended rather than woven in, and kept out of the
+   * transcript, so what the reader sees is what they wrote.
+   */
   private withMentions(text: string): string {
+    const comments = commentContext(text, this.options.toolHooks.openComments());
+    if (comments) text = `${text}
+
+---
+
+${comments}`;
     const pointers = mentionContext(text, memorySubjects(this.workspace.memory));
     return pointers ? `${text}
 
@@ -817,7 +841,13 @@ ${pointers}` : text;
   }
 
   snapshot(): AgentEvent {
-    return { type: "session.snapshot", sessionId: this.id, items: this.transcript, state: this.state };
+    return {
+      type: "session.snapshot",
+      sessionId: this.id,
+      items: this.transcript,
+      state: this.state,
+      hasMore: this.hasEarlier,
+    };
   }
 
   /** Set once, when this session was forked from another (DESIGN §53). */

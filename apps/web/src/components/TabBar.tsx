@@ -1,5 +1,14 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
-import { activeSessionState, closeTab, moveTab, newSession, setActiveTab, state, toggleSidebar } from "../store.ts";
+import {
+  activeSessionState,
+  closeTab,
+  mentionPath,
+  moveTab,
+  newSession,
+  setActiveTab,
+  state,
+  toggleSidebar,
+} from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
 import { Spinner } from "./ui/primitives.tsx";
 
@@ -86,9 +95,24 @@ export function TabBar() {
       if (current?.id !== targetId || current.side !== side) setDropTarget({ id: targetId, side });
     };
 
-    const finish = () => {
+    const finish = (up: PointerEvent) => {
       const from = dragging();
       const target = dropTarget();
+
+      /*
+       * Dropped on the composer rather than on the strip: a file tab becomes
+       * its path in the message (§57). Checked before the reorder, because a
+       * tab let go over the composer was never being reordered.
+       */
+      const over = document.elementFromPoint(up.clientX, up.clientY);
+      const composer = over?.closest?.('[data-slot="composer-box"]');
+      const tab = from ? state.tabs.find((t) => t.id === from) : undefined;
+      if (from && composer && tab?.kind === "file") {
+        mentionPath(tab.path);
+        cleanup();
+        return;
+      }
+
       if (from && target) moveTab(from, target.id, target.side);
       cleanup();
     };

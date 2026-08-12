@@ -22,7 +22,10 @@
      *                  as `zoom` on #root (below) and on the portal layers,
      *                  which sit outside it. Moves type and geometry together.
      *                  The baseline exists because the design was drawn a notch
-     *                  small: what needed 125% is what 100% now gives.
+     *                  small: what needed 125% is what 100% now gives. A phone
+     *                  takes 90% of that baseline (MOBILE_BASE_ZOOM) — the same
+     *                  move in the other direction, because a handset wears the
+     *                  desktop size a notch large.
      *
      *   --text-boost   1 everywhere except the phone block of app.css, which
      *                  raises it to 16/13. Moves type only. A handset needs
@@ -49,9 +52,23 @@
        from JS — is in unzoomed pixels, so inside a zoomed root it renders
        `--ui-scale` too large. These are the corrected forms; use them rather
        than the raw units. (`position: fixed` needs no correction: it is laid
-       out against the real viewport already.) */
-    --vh: calc(1dvh / var(--ui-scale));
-    --vw: calc(1vw / var(--ui-scale));
+       out against the real viewport already.)
+
+       The size comes from measureViewport(), not from `dvh` and `vw` written
+       here, and the difference is not cosmetic: `zoom` and viewport units do
+       not compose the same way in every engine. Blink multiplies a `dvh` length
+       by the zoom, so dividing by it first lands on the viewport exactly;
+       WebKit does not, so the same arithmetic left the shell at 1/1.25 of the
+       screen and a fifth of every iPhone was blank below the composer. A plain
+       pixel length is multiplied by both, so measuring `100dvh` where nothing
+       has zoomed it and publishing the number is the form that agrees.
+
+       The units below are the fallback for the first frame, and for a browser
+       without ResizeObserver. */
+    --viewport-height: 100dvh;
+    --viewport-width: 100vw;
+    --vh: calc(var(--viewport-height) / 100 / var(--ui-scale));
+    --vw: calc(var(--viewport-width) / 100 / var(--ui-scale));
 
     /*
      * Stacking order, in one place because it is the kind of thing that only
@@ -89,6 +106,36 @@
     height: 100%;
     margin: 0;
   }
+
+  /*
+   * The other half of `user-scalable=no`, and the half that works.
+   *
+   * WebKit has ignored the viewport meta's zoom limits since iOS 10, so the
+   * gesture is refused here instead: `pan-x pan-y` permits scrolling in both
+   * directions and nothing else, which rules out pinch and double-tap zoom.
+   * Panning a magnified page is not how this app is meant to be made bigger —
+   * Settings › Appearance has an interface scale that reflows instead.
+   */
+  html {
+    touch-action: pan-x pan-y;
+  }
+
+  /*
+   * `text-size-adjust` is deliberately left alone here — see §49.
+   *
+   * The obvious hardening, `text-size-adjust: 100%`, breaks iOS outright. On
+   * WebKit the interface `zoom` below does not scale text with it: measured on
+   * an iPhone, 15.4px inside `zoom: 1.4375` renders at 15.4px, not 22.1px. What
+   * makes the app the right size there is iOS's own text inflation, which
+   * multiplies by the ratio of the viewport to the laid-out width — the zoom,
+   * arrived at from the other direction. Turning it off leaves every word a
+   * third too small.
+   *
+   * It is load-bearing and it is not exact: the multiplier is worked out per
+   * block, so a narrow one — the file tree, the model list — comes out slightly
+   * larger than the main column. That is a known, small discrepancy on iOS, and
+   * the cure attempted so far is worse than it.
+   */
 
   /*
    * Interface scale lives here rather than on `html`, and the difference
@@ -156,7 +203,15 @@
     font-variant-numeric: tabular-nums;
     font-optical-sizing: auto;
     overflow: hidden;
-    /* No rubber-banding of the app shell itself. */
+    /*
+     * No rubber-banding of the app shell itself.
+     *
+     * Not what costs you pull-to-refresh on a phone, though it looks as though
+     * it should: the browser fires that from its *page* scroller, and this page
+     * never scrolls — the shell is a fixed frame the height of the viewport and
+     * every scrolling region inside it is a div. Relaxing this was tried on iOS
+     * and changed nothing, so it stays as the stricter of the two.
+     */
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
   }

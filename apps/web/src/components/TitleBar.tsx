@@ -42,8 +42,17 @@ export function TitleBar() {
     return "working";
   };
 
-  /** Offline is worth showing with no workspace open; the rest is not. */
-  const showStatus = () => !state.connected || Boolean(state.workspace && state.activeSessionId);
+  /**
+   * Offline is worth showing with no workspace open; the rest is not.
+   *
+   * None of it is worth the room on a phone, where the bar is a few hundred
+   * pixels already truncating the workspace name. What the pill reports is
+   * legible elsewhere: the composer shows the agent working, a permission
+   * request is a card in the transcript, and a dropped socket announces itself
+   * the moment you try to send anything.
+   */
+  const showStatus = () =>
+    !state.compact && (!state.connected || Boolean(state.workspace && state.activeSessionId));
 
   return (
     <header data-slot="titlebar">

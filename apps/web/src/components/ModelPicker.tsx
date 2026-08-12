@@ -152,7 +152,7 @@ export function ModelPicker() {
       when={state.compact}
       fallback={
         <Popover open={open()} onOpenChange={setOpen} placement="top-start" gutter={6}>
-          <Popover.Trigger data-slot="model-trigger" disabled={!state.activeSessionId}>
+          <Popover.Trigger data-slot="model-trigger" title={label()} disabled={!state.activeSessionId}>
             {trigger}
           </Popover.Trigger>
           <Popover.Portal>
@@ -164,12 +164,14 @@ export function ModelPicker() {
       <button
         type="button"
         data-slot="model-trigger"
+        // Narrow rows truncate the name, so the whole of it stays reachable.
+        title={label()}
         disabled={!state.activeSessionId}
         onClick={() => setOpen(true)}
       >
         {trigger}
       </button>
-      <Dialog open={open()} onOpenChange={setOpen} title="Model">
+      <Dialog open={open()} onOpenChange={setOpen} title="Model" fill>
         <div data-component="model-popover" data-sheet="">
           {body()}
         </div>

@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import type { Workspace, WorkspaceFile } from "@picone/protocol";
 import { DATA_DIR } from "../config.ts";
@@ -76,6 +77,19 @@ export function createWorkspace(options: CreateWorkspaceOptions): Workspace {
     // One directory to start with; context directories are added afterwards,
     // in settings, once there is a reason for them (§3).
     cwd,
+    /*
+     * Home, opened but not drawn (§3).
+     *
+     * A session reaches for things under it constantly — `~/.pi` for the
+     * extensions and their settings, `~/.agents` for skills, `~/Downloads` for
+     * whatever was just saved — and being unable to open them is a papercut
+     * every workspace would hit. An ordinary context directory, with the one
+     * thing worth saying about it said: the file explorer is for your code, and
+     * home would be a row of forty directories above it.
+     *
+     * Removable, and its visibility is a switch, in Settings › Directories.
+     */
+    context: [{ path: homedir(), hidden: true }],
     permissions: { files: "allow", shell: "ask", git: "ask" },
     voice: { input: true, output: true },
   };

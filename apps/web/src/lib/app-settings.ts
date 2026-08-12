@@ -20,6 +20,15 @@ export interface AppearanceSettings {
   fontSize: number;
   /** Sidebar width in CSS pixels, as dragged. */
   sidebarWidth: number;
+  /**
+   * Lay extension widgets out as rows, rather than printing them as drawn.
+   *
+   * The reading is a good one — depth off the box drawing, colour off the role
+   * the widget declared — but it is still a reading. An extension that lays out
+   * in columns, or draws something the shapes here do not cover, is better off
+   * printed verbatim, and this is the way back to that.
+   */
+  layoutWidgets: boolean;
 }
 
 export interface NotificationSettings {
@@ -55,6 +64,31 @@ export const SYSTEM_MONO = `ui-monospace, "SF Mono", "Cascadia Code", Consolas, 
 export const BASE_ZOOM = 1.25;
 
 /**
+ * A phone's share of that baseline (§49).
+ *
+ * The interface scale is one number for every device a browser runs on, and the
+ * size that suits a monitor sits a notch large on a handset — where the same
+ * zoom buys far less screen and the text boost is already making the type
+ * bigger. What needed choosing 90% on a phone is what 100% gives there.
+ *
+ * Applied by viewport rather than stored, because the setting travels with the
+ * browser and the viewport is the thing that actually differs. Phones already
+ * holding a scale are migrated by the reciprocal on load, so nothing anyone is
+ * looking at changes size — only the number describing it does.
+ */
+export const MOBILE_BASE_ZOOM = 0.9;
+
+/** The layout the phone baseline applies to; matches COMPACT_QUERY in media.ts. */
+const PHONE = "(max-width: 767px)";
+/** A narrow *window* is not a phone; a narrow window you touch is. */
+const TOUCH = "(pointer: coarse)";
+
+function onPhone(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(PHONE).matches;
+}
+
+/**
  * The choices, as multiples of the new baseline rather than of the design.
  *
  * Re-based along with it, so the range on offer is roughly what it was: 0.8
@@ -82,12 +116,18 @@ export const FONT_SIZES = [11, 12, 13, 14, 15, 16];
 export const SIDEBAR_WIDTH = { default: 264, min: 180, max: 640 };
 
 /**
- * The nearest offered scale to a value, so a migrated setting still matches a
- * preset — the picker is a list of exact values and highlights nothing
- * otherwise.
+ * The largest offered scale no greater than a value, so a migrated setting
+ * still matches a preset — the picker is a list of exact values and highlights
+ * nothing otherwise.
+ *
+ * Rebasing rounds *down*, not to nearest. The ladder is not geometric — 1 to
+ * 1.15 is a wider step than 0.9 to 1 — so nearest can land above where it
+ * started: dividing 100% by the phone baseline gives 111%, whose nearest preset
+ * is 115%, and an interface asked to get smaller would have got larger. Down is
+ * the direction every one of these changes has meant.
  */
-function nearestScale(value: number): number {
-  return SCALES.reduce((best, s) => (Math.abs(s.value - value) < Math.abs(best - value) ? s.value : best), SCALES[0]!.value);
+export function scaleAtMost(value: number): number {
+  return SCALES.reduce((best, s) => (s.value <= value + 1e-9 && s.value > best ? s.value : best), SCALES[0]!.value);
 }
 
 const DEFAULTS: AppSettings = {
@@ -103,6 +143,7 @@ const DEFAULTS: AppSettings = {
     scale: 1,
     fontSize: BASE_FONT_SIZE,
     sidebarWidth: SIDEBAR_WIDTH.default,
+    layoutWidgets: true,
   },
   notifications: {
     enabled: false,
@@ -146,13 +187,24 @@ export function loadAppSettings(): AppSettings {
    * design. Dividing a stored value by it leaves the interface exactly the size
    * it was — the number changes, the pixels do not — and snapping keeps it on a
    * preset the picker can show. Marked so it happens once.
+   *
+   * The phone baseline moved later and separately, so it carries its own mark
+   * and only a browser that is one gets it. Both divisors compose before the
+   * snap, so a phone owed each is rounded once rather than twice.
    */
   // Only a browser that *had* a scale has one to preserve. Without this a
   // first visit converts the new default down to 0.8 and lands back on the old
   // size, which is the one thing this change is meant to stop.
-  const rebased = isRecord(stored.appearance) && stored.scaleBase !== BASE_ZOOM;
+  const had = isRecord(stored.appearance);
+  let divisor = 1;
+  if (had && stored.scaleBase !== BASE_ZOOM) divisor *= BASE_ZOOM;
+  if (had && stored.mobileBase !== MOBILE_BASE_ZOOM && onPhone() && window.matchMedia(TOUCH).matches) {
+    divisor *= MOBILE_BASE_ZOOM;
+  }
+
+  const rebased = divisor !== 1;
   if (rebased) {
-    settings.appearance.scale = nearestScale(settings.appearance.scale / BASE_ZOOM);
+    settings.appearance.scale = scaleAtMost(settings.appearance.scale / divisor);
   }
 
   // Text size was briefly a multiplier before it was a px value.
@@ -169,7 +221,7 @@ export function loadAppSettings(): AppSettings {
 }
 
 export function saveAppSettings(settings: AppSettings): void {
-  localStorage.setItem(KEY, JSON.stringify({ ...settings, scaleBase: BASE_ZOOM }));
+  localStorage.setItem(KEY, JSON.stringify({ ...settings, scaleBase: BASE_ZOOM, mobileBase: MOBILE_BASE_ZOOM }));
 }
 
 export function defaultAppSettings(): AppSettings {
@@ -192,6 +244,19 @@ export function watchSystemColorScheme(onChange: () => void): void {
   systemDark().addEventListener("change", onChange);
 }
 
+/**
+ * The zoom actually applied, which is not the setting: it is the setting times
+ * the baseline, and a phone takes a share of that baseline again.
+ *
+ * Exported because a couple of things have to undo it. Anything sized in CSS is
+ * carried by the zoom for free; anything that must stay put in real pixels —
+ * an icon's hairline stroke — has to divide by this, so it is worked out in one
+ * place rather than restated wherever it is needed.
+ */
+export function effectiveZoom(appearance: AppearanceSettings, compact: boolean = onPhone()): number {
+  return appearance.scale * BASE_ZOOM * (compact ? MOBILE_BASE_ZOOM : 1);
+}
+
 export function applyAppearance(appearance: AppearanceSettings): void {
   const root = document.documentElement;
   root.dataset.colorScheme = resolveColorScheme(appearance.colorScheme);
@@ -202,8 +267,13 @@ export function applyAppearance(appearance: AppearanceSettings): void {
   root.style.setProperty("--v2-font-family-mono", appearance.codeFont || BUNDLED_MONO);
   // The effective zoom, not the setting: everything that corrects for zoom —
   // `--vh`, the resizer's drag deltas — reads this and must see what was
-  // actually applied.
-  root.style.setProperty("--ui-scale", String(appearance.scale * BASE_ZOOM));
+  // actually applied. Kept a plain number for that reason: the resizer parses
+  // it, and a `calc()` here would reach it as text.
+  //
+  // The phone share is folded in here rather than overridden in a media query,
+  // because this property is an inline style and a stylesheet cannot outrank
+  // one. Re-applied when the viewport crosses the breakpoint (see setLayout).
+  root.style.setProperty("--ui-scale", String(effectiveZoom(appearance)));
   // Scoped by the stylesheet to the panes that display content — the tree,
   // the transcript, a file — rather than to the chrome around them.
   root.style.setProperty("--content-font-scale", String(appearance.fontSize / BASE_FONT_SIZE));

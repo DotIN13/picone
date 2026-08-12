@@ -1,5 +1,7 @@
 import { Dynamic } from "solid-js/web";
 import { splitProps, type ComponentProps } from "solid-js";
+import { effectiveZoom } from "../../lib/app-settings.ts";
+import { state } from "../../store.ts";
 
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import Bell from "lucide-solid/icons/bell";
@@ -12,6 +14,8 @@ import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import Ellipsis from "lucide-solid/icons/ellipsis";
+import Eye from "lucide-solid/icons/eye";
+import EyeOff from "lucide-solid/icons/eye-off";
 import ExternalLink from "lucide-solid/icons/external-link";
 import FileText from "lucide-solid/icons/file-text";
 import FileAudio from "lucide-solid/icons/file-audio";
@@ -61,6 +65,8 @@ const ICONS = {
   "chevron-right": ChevronRight,
   "chevron-up": ChevronUp,
   "external-link": ExternalLink,
+  eye: Eye,
+  "eye-off": EyeOff,
   close: X,
   comment: MessageSquare,
   file: FileText,
@@ -104,6 +110,18 @@ export interface IconProps extends Omit<ComponentProps<"svg">, "children"> {
   strokeWidth?: number;
 }
 
+/**
+ * The hairline, undone by the interface zoom.
+ *
+ * `absoluteStrokeWidth` pins the stroke in the icon's own pixels, which is what
+ * keeps a 12px and a 22px icon the same weight. The zoom on the root then
+ * multiplies it like any other length, so at 130% the hairline is a 2px line
+ * and the icons read heavier than the text beside them — type does not gain
+ * weight as it gains size, and an icon set drawn to match it should not either.
+ * Dividing here leaves the stroke the same on the glass at every scale.
+ */
+const hairline = () => 1.5 / effectiveZoom(state.app.appearance, state.compact);
+
 export function Icon(props: IconProps) {
   const [local, rest] = splitProps(props, ["name", "size", "strokeWidth"]);
   return (
@@ -112,7 +130,7 @@ export function Icon(props: IconProps) {
       {...rest}
       data-slot="icon-svg"
       size={local.size ?? 16}
-      strokeWidth={local.strokeWidth ?? 1.5}
+      strokeWidth={local.strokeWidth ?? hairline()}
       absoluteStrokeWidth
       aria-hidden="true"
     />

@@ -68,7 +68,7 @@ export function attachWebSocket(server: Server, app: App): WebSocketServer {
 async function handle(app: App, message: ClientMessage, watched: Set<string>): Promise<void> {
   switch (message.type) {
     case "prompt":
-      await app.prompt(message.text, message.source ?? "chat", message.sessionId);
+      await app.prompt(message.text, message.source ?? "chat", message.sessionId, message.display);
       break;
 
     case "steer":

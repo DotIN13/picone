@@ -5,8 +5,8 @@ import type { FileComment } from "@picone/protocol";
 export interface PiconeToolHooks {
   /** Voice output as an explicit agent tool (DESIGN §29). */
   speak(text: string): void;
-  /** The agent signalling it acted on a comment (DESIGN §23). */
-  markCommentAddressed(commentId: string): FileComment | null;
+  /** The agent closing a comment it has dealt with (DESIGN §23). */
+  resolveComment(commentId: string): FileComment | null;
   /** Comments the agent may still need to act on. */
   openComments(): FileComment[];
 }
@@ -30,22 +30,31 @@ export function createSpeakTool(hooks: PiconeToolHooks): ToolDefinition {
 }
 
 export function createCommentTools(hooks: PiconeToolHooks): ToolDefinition[] {
-  const markAddressed = defineTool({
-    name: "mark_comment_addressed",
-    label: "Mark comment addressed",
+  /*
+   * Closing a comment is the agent's job, not the reader's (DESIGN §23).
+   *
+   * It used to mark them "addressed" and leave the last step to a button, which
+   * meant a queue of finished work waiting on a click that added nothing: the
+   * person who wrote the comment can see whether it was dealt with by looking
+   * at the file. So the agent resolves, and the reader reads.
+   */
+  const resolveComment = defineTool({
+    name: "resolve_comment",
+    label: "Resolve comment",
     description:
-      "Mark a file comment as addressed once you have changed the work in response to it. " +
-      "Only the user can mark a comment resolved.",
+      "Resolve a file comment once you have changed the work in response to it, or established that no change is " +
+      "needed — say which in your reply. Resolving is how a comment leaves the list, so do it as you finish each " +
+      "one rather than in a batch at the end.",
     parameters: Type.Object({
       commentId: Type.String({ description: "The commentId given to you when the comment was delivered." }),
     }),
     execute: async (_toolCallId, params) => {
-      const comment = hooks.markCommentAddressed(params.commentId);
+      const comment = hooks.resolveComment(params.commentId);
       if (!comment) {
         throw new Error(`No comment with id ${params.commentId}`);
       }
       return {
-        content: [{ type: "text", text: `Marked comment ${params.commentId} as addressed.` }],
+        content: [{ type: "text", text: `Resolved comment ${params.commentId}.` }],
         details: { comment },
       };
     },
@@ -71,7 +80,7 @@ export function createCommentTools(hooks: PiconeToolHooks): ToolDefinition[] {
     },
   });
 
-  return [markAddressed, listOpen];
+  return [resolveComment, listOpen];
 }
 
 function truncate(text: string, max = 160): string {

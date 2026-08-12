@@ -1,10 +1,12 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { unwrap } from "solid-js/store";
+import { asWorkspaceDir } from "@picone/protocol";
 import type {
   ModelOption,
   PermissionSetting,
   ResourceInfo,
   ThinkingLevel,
+  WorkspaceDir,
   WorkspaceFile,
   WorkspaceResources,
 } from "@picone/protocol";
@@ -181,14 +183,43 @@ export function SettingsDrawer() {
    */
   const openedCwd = () => {
     const f = draft();
-    return f?.cwd ?? f?.directories?.[0];
+    const entry = f?.cwd ?? f?.directories?.[0];
+    return entry === undefined ? undefined : asWorkspaceDir(entry);
   };
 
-  const openedContext = () => {
+  /**
+   * The directories open beside the cwd, as objects (§3).
+   *
+   * An entry is a path, or a path with something said about it — so far only
+   * that the file explorer should skip it. Normalised here so the editor deals
+   * in one shape and the file keeps whichever form each entry was written in.
+   */
+  const openedContext = (): WorkspaceDir[] => {
     const f = draft();
     if (!f) return [];
     const legacy = f.directories ?? [];
-    return [...(f.context ?? []), ...(f.cwd ? legacy : legacy.slice(1))];
+    const inherited = f.cwd ? legacy : legacy.slice(1);
+    return [...(f.context ?? []), ...inherited].map(asWorkspaceDir);
+  };
+
+  /** A directory as the file should hold it: a path, unless a flag needs saying. */
+  const asRef = (dir: WorkspaceDir) => (dir.hidden ? { path: dir.path, hidden: true } : dir.path);
+
+  /** Write the list back, plain strings except where a flag needs carrying. */
+  const saveContext = (dirs: WorkspaceDir[]) => {
+    patch({
+      context: dirs.map(asRef),
+      cwd: openedCwd() ? asRef(openedCwd()!) : undefined,
+      directories: undefined,
+    });
+  };
+
+  const saveCwd = (dir: WorkspaceDir | undefined) => {
+    patch({
+      cwd: dir ? asRef(dir) : undefined,
+      context: openedContext().map(asRef),
+      directories: undefined,
+    });
   };
 
 
@@ -401,17 +432,34 @@ export function SettingsDrawer() {
                     <DirectoryListEditor
                       label="Working directory"
                       placeholder="/path/to/repo"
-                      values={openedCwd() ? [openedCwd()!] : []}
+                      values={openedCwd() ? [openedCwd()!.path] : []}
                       max={1}
                       hint="Where the agent works by default."
-                      onChange={(values) => patch({ cwd: values[0], directories: undefined, context: openedContext() })}
+                      shown={() => !openedCwd()?.hidden}
+                      onToggleShown={(_value, show) => {
+                        const dir = openedCwd();
+                        if (dir) saveCwd({ path: dir.path, hidden: !show });
+                      }}
+                      onChange={(values) =>
+                        saveCwd(values[0] === undefined ? undefined : { path: values[0], hidden: openedCwd()?.hidden })
+                      }
                     />
                     <DirectoryListEditor
                       label="Context directories"
                       placeholder="/path/to/reference"
-                      values={openedContext()}
-                      hint="Open alongside it, and writable. These may sit inside the working directory, or contain it."
-                      onChange={(context) => patch({ context, cwd: openedCwd(), directories: undefined })}
+                      values={openedContext().map((dir) => dir.path)}
+                      hint="Open alongside it, and writable. These may sit inside the working directory, or contain it. Switch off the eye to keep a directory reachable without listing it in the file explorer — which is how your home directory is opened."
+                      shown={(value) => !openedContext().find((dir) => dir.path === value)?.hidden}
+                      onToggleShown={(value, show) =>
+                        saveContext(
+                          openedContext().map((dir) => (dir.path === value ? { path: dir.path, hidden: !show } : dir)),
+                        )
+                      }
+                      onChange={(values) =>
+                        saveContext(
+                          values.map((path) => openedContext().find((dir) => dir.path === path) ?? { path }),
+                        )
+                      }
                     />
                   </div>
                 </Show>
@@ -575,6 +623,9 @@ function DirectoryListEditor(props: {
   /** How many entries the list may hold. One, for the working directory. */
   max?: number;
   onChange: (values: string[]) => void;
+  /** Whether a row appears in the file explorer. Omitted lists have no switch. */
+  shown?: (value: string) => boolean;
+  onToggleShown?: (value: string, shown: boolean) => void;
 }) {
   const full = () => props.max !== undefined && props.values.length >= props.max;
   /** Which row the chooser is editing, or -1 for a new one. Null when closed. */
@@ -597,6 +648,13 @@ function DirectoryListEditor(props: {
                 props.onChange(values);
               }}
             />
+            <Show when={props.shown && props.onToggleShown}>
+              <IconButton
+                icon={props.shown!(value) ? "eye" : "eye-off"}
+                label={props.shown!(value) ? "Hide from the file explorer" : "Show in the file explorer"}
+                onClick={() => props.onToggleShown!(value, !props.shown!(value))}
+              />
+            </Show>
             <IconButton icon="folder" label={`Browse for ${props.label}`} onClick={() => setBrowsing(index())} />
             <IconButton
               icon="close"

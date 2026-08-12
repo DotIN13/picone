@@ -1,41 +1,81 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FactoryWidget, WIDGET_WIDTH, plainTheme } from "./widget-render.ts";
+import type { WidgetLine } from "@picone/protocol";
+import { FactoryWidget, markingTheme, parseSpans, plainLines } from "./widget-render.ts";
 
-test("a factory is rendered and its lines handed over", () => {
-  const pushed: (string[] | undefined)[] = [];
+const ESC = String.fromCharCode(27);
+const BACKSLASH = String.fromCharCode(92);
+
+test("a role survives the round trip through the render", () => {
+  // What the widget declared is what comes back — no colour matching, because
+  // the code was one we handed out.
+  const drawn = markingTheme.fg("success", "✓");
+  assert.deepEqual(parseSpans(drawn), [{ text: "✓", role: "success" }]);
+});
+
+test("roles nest with plain text around them", () => {
+  const line = `├─ ${markingTheme.fg("warning", "◐")} Draw the list`;
+  assert.deepEqual(parseSpans(line), [
+    { text: "├─ " },
+    { text: "◐", role: "warning" },
+    { text: " Draw the list" },
+  ]);
+});
+
+test("bold is carried, and closed", () => {
+  assert.deepEqual(parseSpans(`${markingTheme.bold("Head")}tail`), [{ text: "Head", bold: true }, { text: "tail" }]);
+});
+
+test("a Windows path passes through untouched", () => {
+  // The reason this has its own test: the escapes we add are ANSI, and a
+  // backslash is not one. Nothing in this path escapes or unescapes text.
+  const path = ["D:", "dotty-projects", "agent-bridge"].join(BACKSLASH);
+  const line = `${markingTheme.fg("muted", "bg-4")}  cd ${path}; python x.py`;
+
+  const spans = parseSpans(line);
+  assert.deepEqual(spans, [
+    { text: "bg-4", role: "muted" },
+    { text: `  cd ${path}; python x.py` },
+  ]);
+  assert.equal(spans.map((s) => s.text).join(""), `bg-4  cd ${path}; python x.py`);
+});
+
+test("a backslash immediately before an escape is kept", () => {
+  const line = `ends with${BACKSLASH}${markingTheme.fg("dim", "then dim")}`;
+  assert.deepEqual(parseSpans(line), [{ text: `ends with${BACKSLASH}` }, { text: "then dim", role: "dim" }]);
+});
+
+test("ANSI we did not write is dropped, and its text kept", () => {
+  // An extension colouring by hand gets its words through with no role, which
+  // is the same outcome as never having styled them.
+  // Unstyled either side of it, so it is one span: the sequence left no trace.
+  assert.deepEqual(parseSpans(`${ESC}[31mred${ESC}[0m plain`), [{ text: "red plain" }]);
+});
+
+test("adjacent runs of the same styling are one span", () => {
+  const line = markingTheme.fg("dim", "a") + markingTheme.fg("dim", "b");
+  assert.deepEqual(parseSpans(line), [{ text: "ab", role: "dim" }]);
+});
+
+test("a widget that supplied strings has no roles to recover", () => {
+  assert.deepEqual(plainLines(["one", "", "two"]), [[{ text: "one" }], [], [{ text: "two" }]]);
+});
+
+test("a factory is rendered and its spans handed over", () => {
+  const pushed: WidgetLine[][] = [];
   const widget = new FactoryWidget(
-    (_tui, theme) => ({ render: (width) => [theme.fg("accent", `w=${width}`), theme.bold("two")] }),
+    (_tui, theme) => ({ render: (width) => [`${theme.fg("accent", "●")} w=${width}`] }),
     (lines) => pushed.push(lines),
   );
   widget.push();
 
-  assert.deepEqual(pushed, [[`w=${WIDGET_WIDTH}`, "two"]]);
-});
-
-test("the theme styles nothing, so no escape codes reach the browser", () => {
-  const styled = [
-    plainTheme.fg("accent", "a"),
-    plainTheme.bg("error", "b"),
-    plainTheme.bold("c"),
-    plainTheme.italic("d"),
-    plainTheme.underline("e"),
-    plainTheme.inverse("f"),
-    plainTheme.strikethrough("g"),
-  ].join("");
-  assert.equal(styled, "abcdefg");
-  // eslint-disable-next-line no-control-regex
-  assert.ok(!//.test(styled), "an ANSI escape survived");
+  assert.deepEqual(pushed.at(-1), [[{ text: "●", role: "accent" }, { text: " w=160" }]]);
 });
 
 test("requestRender re-renders, which is how an extension refreshes", () => {
-  // The todo overlay registers once and then calls requestRender on every
-  // completed `todo` call; without this the panel would freeze at its first
-  // state.
   let count = 0;
-  const pushed: string[][] = [];
+  const pushed: WidgetLine[][] = [];
   let ask: () => void = () => {};
-
   const widget = new FactoryWidget(
     (tui) => {
       ask = () => tui.requestRender();
@@ -45,13 +85,12 @@ test("requestRender re-renders, which is how an extension refreshes", () => {
   );
   widget.push();
   ask();
-  ask();
 
-  assert.deepEqual(pushed, [["render 1"], ["render 2"], ["render 3"]]);
+  assert.deepEqual(pushed.map((lines) => lines[0]![0]!.text), ["render 1", "render 2"]);
 });
 
-test("a widget that throws yields no lines rather than killing the session", () => {
-  const pushed: (string[] | undefined)[] = [];
+test("a widget that throws yields nothing rather than killing the session", () => {
+  const pushed: WidgetLine[][] = [];
   const widget = new FactoryWidget(
     () => ({
       render: () => {
@@ -65,12 +104,9 @@ test("a widget that throws yields no lines rather than killing the session", () 
   assert.deepEqual(pushed, [[]]);
 });
 
-test("dispose reaches the component, so an extension can release what it held", () => {
+test("dispose reaches the component", () => {
   let disposed = false;
-  const widget = new FactoryWidget(
-    () => ({ render: () => [], dispose: () => void (disposed = true) }),
-    () => {},
-  );
+  const widget = new FactoryWidget(() => ({ render: () => [], dispose: () => void (disposed = true) }), () => {});
   widget.dispose();
   assert.equal(disposed, true);
 });

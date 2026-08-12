@@ -12,7 +12,7 @@ import type {
   WorkspaceFile,
   WorkspaceStateResponse,
 } from "@picone/protocol";
-import { createComment, listComments, markAddressed, setCommentStatus } from "./comments/comments.ts";
+import { createComment, listComments, resolveComment, setCommentStatus } from "./comments/comments.ts";
 import { commentSummary, commentToInput, formatCommentForModel } from "./comments/matcher.ts";
 import {
   deleteSession,
@@ -78,6 +78,18 @@ export class App {
 
   get roots(): string[] {
     return this.workspace?.roots.map((r) => r.path) ?? [];
+  }
+
+  /**
+   * The roots the file explorer draws, which is not all of them.
+   *
+   * A workspace may open directories it does not want listed (§3) — home is the
+   * one every new workspace gets. They stay reachable and resolvable; what they
+   * are kept out of is the places that would go trawling through them: the
+   * sidebar, the default search area, and git status.
+   */
+  get visibleRoots(): string[] {
+    return this.workspace?.roots.filter((r) => !r.hidden).map((r) => r.path) ?? [];
   }
 
   /**
@@ -463,8 +475,8 @@ export class App {
       extraTools: () => this.mcp.tools(),
       globalSkillPaths: this.settings.skills.map((skill) => expandPath(skill.path)),
       toolHooks: {
-        markCommentAddressed: (commentId) => {
-          const comment = markAddressed(commentId);
+        resolveComment: (commentId) => {
+          const comment = resolveComment(commentId);
           if (comment) this.hub.publish(null, { type: "comment.updated", comment });
           return comment;
         },
@@ -549,8 +561,8 @@ export class App {
     return session;
   }
 
-  async prompt(text: string, source: "chat" | "voice", sessionId?: string): Promise<void> {
-    await this.target(sessionId).prompt(text, source);
+  async prompt(text: string, source: "chat" | "voice", sessionId?: string, display?: string): Promise<void> {
+    await this.target(sessionId).prompt(text, source, display);
   }
 
   async steer(text: string, sessionId?: string): Promise<void> {

@@ -1,21 +1,28 @@
+import type { WidgetLine, WidgetSpan } from "@picone/protocol";
+
 /**
- * Rendering Pi's *component* widgets to lines, so they survive the trip to a
- * browser (DESIGN §55).
+ * Rendering Pi's *component* widgets for a browser (DESIGN §55).
  *
  * `ExtensionUIContext.setWidget` takes either an array of strings or a factory,
- * `(tui, theme) => { render(width): string[] }`. The array form is already a
- * web surface. The factory form was written for the TUI, and Picone used to
- * drop it — which is why the `rpiv-todo` extension, whose entire display is a
- * factory widget, showed nothing at all here while working in the terminal.
+ * `(tui, theme) => { render(width): string[] }`. The factory form was written
+ * for a terminal, and it hands back exactly what a terminal wants: text with the
+ * layout baked in and the meaning carried by colour.
  *
- * A factory is not really terminal-only, though. It asks for a width and hands
- * back lines; a terminal is just the caller that happened to be asking. So this
- * asks on the browser's behalf, with a plain-text theme in place of the ANSI
- * one, and forwards the lines to the same place the array form goes.
+ * Printing that into a `<pre>` is faithful and looks like it. What this does
+ * instead is *ask the widget what it meant*. Every TUI draws through the theme —
+ * `theme.fg("success", "✓")`, `theme.fg("dim", hint)` — and the theme is ours to
+ * supply. So it emits ANSI carrying the role name rather than a colour, and the
+ * rendered lines are parsed back into spans that say `success` and `dim`. The
+ * browser then styles them, and nothing has to guess what a glyph implies.
+ *
+ * Why ANSI rather than markers of our own: `visibleWidth()` in pi-tui strips
+ * ANSI before measuring, and `truncateToWidth` is built on it — so the widget's
+ * own truncation, padding and right-alignment stay correct. Any other marker
+ * would count towards the width and pull its layout apart.
  */
 
-/** Text styling, as Pi's `Theme` exposes it — every method a pass-through. */
-interface PlainTheme {
+/** Text styling, as Pi's `Theme` exposes it. */
+interface MarkingTheme {
   fg(color: string, text: string): string;
   bg(color: string, text: string): string;
   bold(text: string): string;
@@ -30,38 +37,118 @@ interface PlainTheme {
   getBashModeBorderColor(): string;
 }
 
+const ESC = String.fromCharCode(27);
+
 /**
- * A theme that styles nothing.
+ * A colour index per role, allocated as roles are seen.
  *
- * Colour is the browser's job, and it has the real thing: CSS. Emitting ANSI
- * here would only mean stripping it again downstream, and a half-stripped
- * escape sequence in a `<pre>` is worse than no colour at all. Glyphs survive —
- * the todo list's `○ ◐ ✓` carry the status without needing the colour that
- * accompanies them in the terminal.
+ * The number is meaningless as a colour — it is a handle we hand out and read
+ * back, so the role that comes out is exactly the role that went in. A real
+ * theme's palette would have to be matched by RGB, which is guessing with extra
+ * steps.
  */
-export const plainTheme: PlainTheme = {
-  fg: (_color, text) => text,
-  bg: (_color, text) => text,
-  bold: (text) => text,
-  italic: (text) => text,
-  underline: (text) => text,
+const roleCodes = new Map<string, number>();
+const codeRoles = new Map<number, string>();
+/** 16 upwards: below that are the terminal's own eight, which extensions use raw. */
+let nextCode = 16;
+
+function codeFor(role: string): number {
+  const existing = roleCodes.get(role);
+  if (existing !== undefined) return existing;
+  const code = nextCode++;
+  roleCodes.set(role, code);
+  codeRoles.set(code, role);
+  return code;
+}
+
+const fgOpen = (role: string) => `${ESC}[38;5;${codeFor(role)}m`;
+const bgOpen = (role: string) => `${ESC}[48;5;${codeFor(role)}m`;
+
+/** The theme handed to every widget factory. */
+export const markingTheme: MarkingTheme = {
+  fg: (color, text) => `${fgOpen(color)}${text}${ESC}[39m`,
+  bg: (color, text) => `${bgOpen(color)}${text}${ESC}[49m`,
+  bold: (text) => `${ESC}[1m${text}${ESC}[22m`,
+  italic: (text) => `${ESC}[3m${text}${ESC}[23m`,
+  underline: (text) => `${ESC}[4m${text}${ESC}[24m`,
   inverse: (text) => text,
-  strikethrough: (text) => text,
-  getFgAnsi: () => "",
-  getBgAnsi: () => "",
-  getColorMode: () => "none",
-  getThinkingBorderColor: () => "",
-  getBashModeBorderColor: () => "",
+  strikethrough: (text) => `${ESC}[9m${text}${ESC}[29m`,
+  // Handed out so a widget that builds its own string still carries the role.
+  getFgAnsi: (color) => fgOpen(color),
+  getBgAnsi: (color) => bgOpen(color),
+  getColorMode: () => "256",
+  getThinkingBorderColor: () => fgOpen("accent"),
+  getBashModeBorderColor: () => fgOpen("accent"),
 };
+
+/** Kept for callers that only want the text — the `custom` dialog's fallback. */
+export const plainTheme = markingTheme;
+
+/** `ESC [ … m`, the only sequence a theme produces. */
+const SGR = new RegExp(`${ESC}\\[([0-9;]*)m`, "g");
+
+/**
+ * One rendered line, split into spans by the roles the widget declared.
+ *
+ * Codes we did not hand out are dropped rather than guessed at — an extension
+ * writing its own ANSI gets its text through with no role, which is the same
+ * outcome as never having styled it.
+ */
+export function parseSpans(line: string): WidgetLine {
+  const spans: WidgetSpan[] = [];
+  let role: string | undefined;
+  let bold = false;
+  let at = 0;
+
+  const push = (text: string) => {
+    if (text === "") return;
+    const last = spans[spans.length - 1];
+    // Adjacent text with the same styling is one span, so a widget that opens
+    // and closes a colour around every character does not produce hundreds.
+    if (last && last.role === role && (last.bold ?? false) === bold) last.text += text;
+    else spans.push({ text, ...(role ? { role } : {}), ...(bold ? { bold } : {}) });
+  };
+
+  SGR.lastIndex = 0;
+  for (let match = SGR.exec(line); match !== null; match = SGR.exec(line)) {
+    push(line.slice(at, match.index));
+    at = match.index + match[0].length;
+
+    const params = (match[1] ?? "").split(";").filter((p) => p !== "");
+    for (let i = 0; i < params.length; i++) {
+      const code = Number(params[i]);
+      if (code === 0) {
+        role = undefined;
+        bold = false;
+      } else if (code === 1) bold = true;
+      else if (code === 22) bold = false;
+      else if (code === 39 || code === 49) role = undefined;
+      else if ((code === 38 || code === 48) && params[i + 1] === "5") {
+        role = codeRoles.get(Number(params[i + 2]));
+        i += 2;
+      }
+    }
+  }
+  push(line.slice(at));
+
+  return spans;
+}
+
+export function parseLines(lines: string[]): WidgetLine[] {
+  return lines.map(parseSpans);
+}
+
+/** Plain text, for a widget that supplied strings rather than a factory. */
+export function plainLines(lines: string[]): WidgetLine[] {
+  return lines.map((text) => (text === "" ? [] : [{ text }]));
+}
 
 /**
  * The width widgets are rendered at.
  *
- * A browser has no column count to report, and the factory contract insists on
- * one. Generous rather than accurate: extensions use the width to *truncate*,
- * not to pad, so too large only means nothing is cut, and the browser wraps
- * what it is given. Too small would lose text permanently, before it was ever
- * sent.
+ * Generous, because the browser re-lays out what comes back: a narrow width
+ * would make the widget truncate text that had room to wrap. Too wide costs
+ * nothing now that nothing downstream depends on the column arithmetic.
  */
 export const WIDGET_WIDTH = 160;
 
@@ -72,31 +159,30 @@ interface WidgetComponent {
   dispose?(): void;
 }
 
-type WidgetFactory = (tui: { requestRender(): void }, theme: PlainTheme) => WidgetComponent;
+type WidgetFactory = (tui: { requestRender(): void }, theme: MarkingTheme) => WidgetComponent;
 
 /**
  * A live factory widget: the component, and the way it asks to be redrawn.
  *
  * Extensions register once and then call `tui.requestRender()` whenever their
- * data changes — the todo overlay does this on every completed `todo` tool
- * call. So the component is kept, and each request re-renders it and pushes the
- * result. Nothing is diffed here; the lines are small and the browser reconciles.
+ * data changes — the todo overlay does this on every completed `todo` call. So
+ * the component is kept, and each request re-renders it and pushes the result.
  */
 export class FactoryWidget {
   private readonly component: WidgetComponent;
 
-  constructor(factory: WidgetFactory, private readonly onLines: (lines: string[]) => void) {
-    this.component = factory({ requestRender: () => this.push() }, plainTheme);
+  constructor(factory: WidgetFactory, private readonly onLines: (lines: WidgetLine[]) => void) {
+    this.component = factory({ requestRender: () => this.push() }, markingTheme);
   }
 
-  /** Render now and hand the lines over. */
+  /** Render now and hand the spans over. */
   push(): void {
     this.onLines(this.render());
   }
 
-  private render(): string[] {
+  private render(): WidgetLine[] {
     try {
-      return this.component.render(WIDGET_WIDTH);
+      return parseLines(this.component.render(WIDGET_WIDTH));
     } catch {
       // A widget that throws is a broken widget, not a broken session: the
       // extension keeps working, and the panel simply stays empty.

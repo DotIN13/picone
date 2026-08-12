@@ -88,6 +88,13 @@
   padding: 0 14px 14px;
 }
 
+/* Content that scrolls itself gets the space, not a scroller wrapped round it. */
+[data-slot="dialog-body"][data-fill] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 [data-slot="dialog-footer"] {
   display: flex;
   align-items: center;

@@ -5,9 +5,13 @@
     <!-- viewport-fit=cover so the shell can paint under the notch and home
          indicator; interactive-widget keeps Android from resizing the layout
          viewport out from under a focused composer. -->
+    <!-- No pinch zoom: the interface has a zoom of its own, in Settings ›
+         Appearance, and it reflows rather than panning a magnified page. A
+         browser's zoom fights that one — it scales a layout already sized to
+         the viewport, so the composer ends up off the edge of the screen. -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />

@@ -79,3 +79,40 @@ test("a missing directory is listed but is not a root", () => {
   assert.equal(resolved[0]!.exists, false);
   assert.deepEqual(memoryRoots(resolved), []);
 });
+
+test("a directory can be open without being drawn", () => {
+  const notes = dir("notes");
+  const resolved = resolveMemoryDirs({
+    global: { notes: { path: notes, hidden: true } },
+    workspace: undefined,
+    workspaceDir: "D:\ws",
+  });
+
+  // Still a root — reachable, readable — and the file explorer skips it (§3).
+  assert.equal(resolved[0]!.hidden, true);
+  assert.deepEqual(memoryRoots(resolved).map((r) => [r.name, r.hidden]), [["notes", true]]);
+});
+
+test("a workspace can hide a directory the global list shows, and vice versa", () => {
+  const notes = dir("notes");
+  const shown = resolveMemoryDirs({
+    global: { notes: { path: notes, hidden: true } },
+    workspace: { notes: { hidden: false } },
+    workspaceDir: "D:\ws",
+  });
+  assert.equal(shown[0]!.hidden, false);
+  assert.equal(memoryRoots(shown)[0]!.hidden, undefined);
+
+  const hidden = resolveMemoryDirs({
+    global: { notes: { path: notes } },
+    workspace: { notes: { hidden: true } },
+    workspaceDir: "D:\ws",
+  });
+  assert.equal(hidden[0]!.hidden, true);
+});
+
+test("saying nothing leaves a directory drawn", () => {
+  const notes = dir("notes");
+  const resolved = resolveMemoryDirs({ global: { notes: { path: notes } }, workspace: undefined, workspaceDir: "D:\ws" });
+  assert.equal(resolved[0]!.hidden, false);
+});

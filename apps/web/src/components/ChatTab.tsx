@@ -84,8 +84,15 @@ export function ChatTab(props: { sessionId: string }) {
   /** True while a page is on its way from the server, so we ask once. */
   let fetching = false;
 
-  /** Anything older to reach for, in memory or in the database. */
-  const hasEarlier = () => hidden() > 0 || state.moreHistory[props.sessionId] !== false;
+  /**
+   * Anything older to reach for, in memory or in the database.
+   *
+   * An empty transcript has nothing before it by definition, and saying so here
+   * covers the moment before the first snapshot lands — otherwise a new session
+   * opens offering to fetch messages it has never had.
+   */
+  const hasEarlier = () =>
+    items().length > 0 && (hidden() > 0 || state.moreHistory[props.sessionId] !== false);
 
   /**
    * Show another page, keeping what the reader is looking at exactly where it

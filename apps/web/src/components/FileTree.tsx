@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js";
 import type { DirEntry, GitStatus } from "@picone/protocol";
-import { openFile, state, toggleDirectory, treeKey } from "../store.ts";
+import { mentionPath, openFile, state, toggleDirectory, treeKey } from "../store.ts";
+import { startPathDrag } from "../lib/drag-path.ts";
 import { Icon } from "./ui/icon.tsx";
 
 const STATUS_MARK: Record<GitStatus, string> = {
@@ -25,8 +26,12 @@ export function FileTree() {
    * A stable sort, so directories keep the order the workspace file lists them
    * in within each group.
    */
+  /* Hidden roots are open, not drawn (§3): home is one, and a tree that began
+     with forty directories of it would bury the thing you came for. */
   const roots = () =>
-    [...(state.workspace?.roots ?? [])].sort((a, b) => (ORDER[a.kind] ?? 1) - (ORDER[b.kind] ?? 1));
+    [...(state.workspace?.roots ?? [])]
+      .filter((root) => !root.hidden)
+      .sort((a, b) => (ORDER[a.kind] ?? 1) - (ORDER[b.kind] ?? 1));
 
   return (
     <div class="py-0.5">
@@ -88,6 +93,16 @@ function TreeNode(props: {
         data-selected={state.activeTabId === props.entry.path ? "" : undefined}
         style={{ "padding-inline-start": indent() }}
         title={props.entry.path}
+        /* Drag it onto the composer, where it becomes a mention — and brings
+           the file's open comments with it (§57, §16). */
+        onPointerDown={(event) =>
+          startPathDrag(event, {
+            path: props.entry.path,
+            label: props.entry.name,
+            target: '[data-slot="composer-box"]',
+            onDrop: (path) => mentionPath(path),
+          })
+        }
         onClick={() =>
           isDir() ? void toggleDirectory(key(), props.entry.path) : void openFile(props.entry.path)
         }

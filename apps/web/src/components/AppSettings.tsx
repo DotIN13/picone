@@ -144,6 +144,18 @@ export function AppearancePanel() {
         />
       </Show>
 
+      <div>
+        <Switch
+          checked={appearance().layoutWidgets}
+          onChange={(value) => updateAppSettings({ appearance: { layoutWidgets: value } })}
+          label="Lay out extension widgets"
+        />
+        <p data-slot="field-hint">
+          Reads the indentation and colour an extension drew and renders it as text. Turn this off to print widgets
+          exactly as they came, in monospace.
+        </p>
+      </div>
+
       <div data-slot="appearance-preview" style={{ "font-family": appearance().interfaceFont || undefined }}>
         <div>The quick brown fox jumps over the lazy dog.</div>
         <code style={{ "font-family": appearance().codeFont || undefined }}>

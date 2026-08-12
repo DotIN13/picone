@@ -1,6 +1,5 @@
 import { For, Show } from "solid-js";
-import { openFile, setCommentStatus, state } from "../store.ts";
-import { IconButton } from "./ui/button.tsx";
+import { openFile, state } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
 
 /** Comment navigator: every anchor the human has left, across the workspace. */
@@ -27,13 +26,7 @@ export function CommentList() {
                     </span>
                     <span data-slot="comment-body">{comment.body}</span>
                   </button>
-                  <IconButton
-                    icon="check"
-                    label="Resolve comment"
-                    size="small"
-                    variant="ghost-muted"
-                    onClick={() => void setCommentStatus(comment.id, "resolved")}
-                  />
+
                 </li>
               );
             }}

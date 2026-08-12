@@ -2308,7 +2308,9 @@ been typed. Exactly one menu is open at a time and the keyboard belongs to it.
 comment matchers (§17): text survives editing, copy-paste, reload, and being
 read by something that is not this app. The server re-resolves mentions when the
 turn is sent, and one that no longer resolves degrades to the words the user
-typed. In the transcript a resolved mention renders as `@Name` in purple — the same
+typed. The *composer* holds more than that while the sentence is being written
+(§57) — a mention there is a node carrying a slug — but what it sends is these
+words, and the stored message is nothing but words. In the transcript a resolved mention renders as `@Name` in purple — the same
 "this came from the store" signal the memory tag in the tree uses — and opens
 the page in a tab. Coloured type and nothing else at rest: no border, no fill,
 and the size of the sentence it sits in. A box drawn around every mention turns
@@ -2332,8 +2334,10 @@ lands on the line it belongs to.
 
 * **No mode where the agent answers *as* the mentioned person.** The pointer is
   the useful part; that is a much larger feature with its own problems.
-* **`@` names memory subjects only**, not files or sessions. §51 already
-  resolves paths in prose, and mixing the two would make the menu a grab bag.
+* **No completion menu for paths, and no mentioning a session at all.** Files
+  became mentions later (§57), but they arrive by being dragged in from the tree
+  or a tab. The `@` menu stays the memory store's: a completion list over every
+  path in a workspace is a different feature with a different index behind it.
 
 ---
 
@@ -2525,3 +2529,93 @@ rest are labelled: `update · id 4 · completed`.
 written to the database with the row. A tool that returned a whole file in
 `details` would otherwise store it twice — once as text, once as structure.
 
+---
+
+## 57. What the composer is holding
+
+The field was a `<textarea>` and the draft was a string. `@gio-choi` was found
+again by regular expression every time it had to be drawn, deleted or sent —
+and that works right up to the point where a mention has to carry an identity
+its label does not spell out. Two files are called `notes.md`. `@sarah` does not
+say which Sarah. Structured to text is safe; text back to structured is a guess.
+
+**The draft is a document.** `lib/draft.ts`: a list of nodes, each one text or a
+mention, and a mention carries the id it stands for beside the label it shows.
+Everything else is derived from it — `draftText` for the transcript and for what
+goes back in the field on a rewind, `draftForModel` for what the agent gets, and
+those are deliberately different. A file mention reads as `@notes.md` and is
+sent as its absolute path, which is the thing that can be opened and the thing
+its comments are matched against (§17). A memory subject reads as `@Gio Choi`
+and is sent as `@gio-choi`, because the server has resolved those since §52 and
+still should.
+
+**The field is `contenteditable`, and the pill is a real inline node** —
+`contenteditable="false"`, so the browser gives one press of backspace, one step
+of the arrow key, and no caret stranded in the middle of somebody's name. All of
+that is free from the DOM and none of it is free from a textarea with pills
+painted behind it, where the caret has to be reimplemented and gets it wrong the
+first time text wraps.
+
+One thing has to be read *past* rather than read: every engine keeps a trailing
+`<br>` inside an editable box so the last line has a height to click into, and
+it appears the instant a field is emptied. Taken at face value it is a newline,
+which meant an emptied composer held `"
+"` forever — never equal to empty, so
+the placeholder never came back and a dropped file led with a blank line. A
+trailing `<br>` that is the last child is the browser's; a real trailing newline
+is two of them, and the first still counts.
+
+Editing belongs to the browser. `DraftField` reads a model out of the DOM after
+each change and writes back only for things the user did not type — picking a
+mention from the menu, a file arriving from the tree, clearing after send.
+Rewriting the DOM on every keystroke is what breaks undo, IME composition and
+mobile keyboards, and it breaks them in ways that are hard to see from a desk.
+
+Deletion is intercepted on `beforeinput` rather than `keydown`: that is where
+the browser says what it is *about* to do, so one branch covers a backspace, a
+soft keyboard's delete, and whatever an IME means by it — and only when a
+mention is the thing that would otherwise be half-eaten.
+
+A drop is intercepted in the same place, for a different reason. What a browser
+inserts on a drop is the drag's `text/html`, so a sentence dragged out of the
+transcript arrives wearing that page's spans, weights and colours in a field
+that has no formatting — and worse, wearing them invisibly, since the draft is
+read back as text and the markup only shows up as a font that will not go away.
+`beforeinput` is a *later* hook than the `drop` event, and that is exactly why
+it is the right one: cancelling the drop cancels the whole gesture, including
+the half of a move that takes the text out of where it came from, while
+cancelling only the insertion leaves the browser to do that half itself.
+
+**Two flavours on the clipboard, and the same two on a drag.** `text/plain` so
+a copied draft pastes as words anywhere else, and
+`application/x-picone-draft` so it comes back into this field with its mentions
+intact. A drag out of the field clears the drag store before setting those two,
+because the browser would otherwise attach the selection's markup as `text/html`
+and a mention would land in another editor as a styled box rather than a name. Mentions are rebuilt *only* from our own payload
+— a `@notes.md` copied out of a chat window is words, because which file it
+meant is not in there, and inventing one attaches the wrong identity to the
+right-looking label. A payload that does not parse exactly is refused rather
+than half-trusted; `text/plain` is always underneath it.
+
+**A mention arrives from three places, and only three**: the `@` menu, a row
+dragged out of the file tree, and a file tab dragged onto the field. The drag is
+pointer-based (`lib/drag-path.ts`) with a ghost drawn under the cursor, because
+HTML5 drag on a `<button draggable>` does not start in Blink and there is
+nothing to see while it does not.
+
+The composer had a plain `drop` handler as well, which took any `text/plain` and
+made a mention of it. Anything dragged in — a paragraph out of the transcript, a
+URL from another window — became a pill claiming to be a file at that path. So
+it is gone: the two things that *know* they are handing over a file both go
+through `mentionPath`, named for what it makes rather than where it goes, and
+everything else dropped on the field lands as the plain text it says it is. A
+drop target that accepts everything cannot tell you what it accepted.
+
+### Not built
+
+* **No undo of a programmatic mutation.** Inserting a mention and deleting one
+  atomically are our writes, not the browser's, so they are outside its undo
+  stack. `document.execCommand` would keep them in it and is deprecated to the
+  point of being unreliable; a custom stack is a bigger thing than this.
+* **No rich text.** Bold, links and lists are not in the model, and a paste that
+  contains them contributes its text. The field is a sentence with names in it.

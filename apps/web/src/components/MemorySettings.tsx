@@ -77,6 +77,11 @@ export function GlobalMemoryPanel(props: {
                 onChange={(writable) => patch(name, { writable })}
                 label="Let the agent write here"
               />
+              <Switch
+                checked={dir.hidden !== true}
+                onChange={(shown) => patch(name, { hidden: shown ? undefined : true })}
+                label="Show in the file explorer"
+              />
             </div>
           )}
         </For>
@@ -152,6 +157,12 @@ export function WorkspaceMemoryPanel(props: {
               <span data-slot="resource-path" title={dir.path}>
                 {dir.path}
               </span>
+              {/* Same control, same meaning, as on a context directory (§3). */}
+              <IconButton
+                icon={dir.hidden ? "eye-off" : "eye"}
+                label={dir.hidden ? `Show ${dir.name} in the file explorer` : `Hide ${dir.name} from the file explorer`}
+                onClick={() => patch(dir.name, { hidden: dir.hidden ? undefined : true })}
+              />
               <Show when={dir.source === "workspace"}>
                 <IconButton icon="close" label={`Remove ${dir.name}`} onClick={() => remove(dir.name)} />
               </Show>
