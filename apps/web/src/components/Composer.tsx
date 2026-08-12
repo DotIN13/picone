@@ -31,6 +31,7 @@ import { Button } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { Switch } from "./ui/primitives.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
+import { ModeSwitch } from "./ModeSwitch.tsx";
 import { SlashMenu, filterCommands } from "./SlashMenu.tsx";
 import { MentionMenu, filterSubjects, mentionQueryAt } from "./MentionMenu.tsx";
 import { DraftField, type DraftFieldApi } from "./DraftField.tsx";
@@ -524,6 +525,7 @@ export function Composer() {
             </Show>
 
             <ModelPicker />
+            <ModeSwitch />
 
             <div class="flex-1" />
 

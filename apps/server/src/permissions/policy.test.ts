@@ -42,3 +42,13 @@ test("the card does not say the tool's name twice", () => {
   assert.equal(call.title, "Claude wants to use the Edit tool on");
   assert.equal(call.detail, "a.ts");
 });
+
+test("plan mode's promise is about writes, whatever the tool is called", () => {
+  // What the session checks in plan mode is the write list, so an unknown tool
+  // that carries a path and replacement content is caught with the known ones.
+  assert.deepEqual(classifyToolCall("Write", { file_path: "a.ts", content: "x" }).writes, ["a.ts"]);
+  assert.deepEqual(classifyToolCall("mystery_tool", { path: "b.ts", patch: "@@" }).writes, ["b.ts"]);
+  // Reading is not writing, so plan mode leaves it alone.
+  assert.deepEqual(classifyToolCall("Read", { file_path: "a.ts" }).writes, []);
+  assert.deepEqual(classifyToolCall("Grep", { pattern: "x" }).writes, []);
+});

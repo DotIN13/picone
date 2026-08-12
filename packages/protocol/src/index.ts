@@ -383,6 +383,17 @@ export interface SessionModel {
 export type AgentKind = "pi" | "claude";
 
 /**
+ * How an agent is allowed to act this turn (§58).
+ *
+ * `default` is the ordinary loop. `plan` is Claude Code's planning mode: it
+ * reads and thinks but changes nothing, and says what it would do instead —
+ * useful before a large piece of work, and something Picone's own permission
+ * settings cannot express, because they say what *may* happen rather than what
+ * the agent should be trying to do.
+ */
+export type AgentMode = "default" | "plan";
+
+/**
  * What a session's agent can actually do.
  *
  * Agents differ in ways the UI has to respect. Rather than each surface
@@ -407,6 +418,11 @@ export interface AgentCapabilities {
   extensionUi: boolean;
   /** Restoring the files, not just the conversation, to an earlier message. */
   fileCheckpoints: boolean;
+  /**
+   * The modes this agent can be put into, beyond `default`. Empty means the
+   * switch is not drawn at all.
+   */
+  modes: AgentMode[];
 }
 
 export interface SessionSummary {
@@ -428,6 +444,8 @@ export interface SessionSummary {
   sessionFile?: string;
   /** Model this session is actually running, once it has been created. */
   model?: SessionModel;
+  /** How it is currently allowed to act (§58). */
+  mode?: AgentMode;
   /** One line of the most recent message, for the session list (DESIGN §27). */
   excerpt?: string;
   /** The session this one was forked from (§53), when it was. */
@@ -613,6 +631,15 @@ export interface ToolCall {
   status: "running" | "ok" | "error" | "blocked";
   /** Text output, possibly partial while running. */
   output?: string;
+  /**
+   * Seconds a still-running call has been going (§58).
+   *
+   * Not every agent can stream a tool's output as it appears — Claude's SDK
+   * reports that a call is alive and for how long, and nothing of what it has
+   * printed. That is worth showing: the difference between a slow command and a
+   * hung one is the only thing anybody wants to know while waiting.
+   */
+  elapsed?: number;
   /** Unified patch for edit/write tools, when available. */
   patch?: string;
   /**
@@ -776,6 +803,8 @@ export type ClientMessage =
   | { type: "session_export"; sessionId?: string }
   /** `agent` picks the backend; omitted takes the workspace's default (§58). */
   | { type: "new_session"; title?: string; agent?: AgentKind }
+  /** Put a session into a different mode — planning, or back to working (§58). */
+  | { type: "set_mode"; mode: AgentMode; sessionId?: string }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
   /** A keystroke for an open `custom` component, already in terminal form. */
   | { type: "extension_ui_key"; id: string; data: string }

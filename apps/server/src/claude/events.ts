@@ -1,4 +1,5 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { SlashCommand } from "@picone/protocol";
 import type { EventTranslator } from "../agents/translator.ts";
 
 /**
@@ -21,6 +22,8 @@ export interface ClaudeStreamHooks {
   sessionId?(id: string): void;
   /** What the session came up as: its model, and the skills it can reach. */
   init?(message: Extract<SDKMessage, { type: "system"; subtype: "init" }>): void;
+  /** The slash commands changed under the session (§43). */
+  commands?(commands: SlashCommand[]): void;
 }
 
 /** Tool calls we have seen start, so a result can be matched to its name. */
@@ -35,6 +38,15 @@ export function handleClaudeMessage(
   switch (message.type) {
     case "system":
       handleSystem(translator, message, hooks);
+      return;
+
+    /*
+     * Authentication. `isAuthenticating` is a login in progress, which Picone
+     * cannot help with — but a failure is the reason a session has stopped
+     * working, and it should say so rather than going quiet.
+     */
+    case "auth_status":
+      if (message.error) translator.notice(`Claude could not authenticate: ${message.error}`, "error");
       return;
 
     case "stream_event": {
@@ -82,6 +94,24 @@ export function handleClaudeMessage(
           details: toolDetails(message.tool_use_result),
         });
         names.delete(id);
+      }
+      return;
+    }
+
+    /*
+     * A tool is still going. There is no partial output on this stream — the
+     * SDK reports that a call is alive and for how long, not what it has
+     * printed — so the seconds are what the running row can say (§58).
+     */
+    case "tool_progress": {
+      if (message.parent_tool_use_id) return;
+      translator.toolElapsed(message.tool_use_id, Math.round(message.elapsed_time_seconds));
+      if (message.subagent_retry) {
+        const retry = message.subagent_retry;
+        translator.notice(
+          `A subagent is retrying (attempt ${retry.attempt}/${retry.max_retries}): ${retry.error_category}.`,
+          "warn",
+        );
       }
       return;
     }
@@ -140,6 +170,33 @@ function handleSystem(
      */
     case "permission_denied":
       translator.notice(`Claude was refused permission to use ${message.tool_name}.`, "warn");
+      return;
+
+    /*
+     * The three things that used to happen in silence.
+     *
+     * A retry, because a turn that stalls for twenty seconds and then carries
+     * on looks like a hang; an authentication failure, because a session that
+     * has stopped working for that reason will otherwise just stop working; and
+     * the command list changing, because ours is cached from the init frame and
+     * a stale `/` menu offers things that are gone.
+     */
+    case "api_retry":
+      translator.notice(
+        `Retrying after ${message.error_status ? `HTTP ${message.error_status}` : message.error}` +
+          ` (attempt ${message.attempt}/${message.max_retries}, waiting ${Math.round(message.retry_delay_ms / 1000)}s).`,
+        "warn",
+      );
+      return;
+
+    case "commands_changed":
+      hooks.commands?.(
+        message.commands.map((command) => ({
+          name: command.name,
+          description: command.description,
+          source: "builtin" as const,
+        })),
+      );
       return;
 
     default:

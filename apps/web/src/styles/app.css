@@ -3647,3 +3647,39 @@ body[data-dragging-path] {
 [data-slot="session-row"][data-active] [data-slot="session-agent"] {
   color: var(--v2-icon-icon-base);
 }
+
+/* ---------------------------------------------------------------------------
+ * Plan mode (§58)
+ *
+ * Beside the model picker and built like it, because it is the same kind of
+ * decision about the next turn. Off it is another quiet control in the row; on
+ * it is filled, because "this agent will not change anything" is a state worth
+ * seeing without looking for it.
+ * ------------------------------------------------------------------------ */
+
+[data-slot="mode-switch"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  min-height: max(26px, calc(26px * var(--font-scale)));
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--v2-text-text-muted);
+  font-family: inherit;
+  font-size: calc(12px * var(--font-scale));
+  letter-spacing: -0.04px;
+  cursor: pointer;
+}
+
+[data-slot="mode-switch"]:hover {
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="mode-switch"][data-on] {
+  background: var(--v2-state-bg-info);
+  color: var(--v2-text-text-base);
+}

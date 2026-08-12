@@ -87,6 +87,8 @@ const PI_CAPABILITIES: AgentCapabilities = {
   extensionUi: true,
   // Pi rewinds the conversation and leaves the disk where it is (§53).
   fileCheckpoints: false,
+  // Pi has one way of working, so there is no switch to draw (§58).
+  modes: [],
 };
 
 export class PiBackend implements AgentBackend {

@@ -6,8 +6,11 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { homedir } from "node:os";
+import path from "node:path";
 import type {
   AgentCapabilities,
+  AgentMode,
   ContextUsage,
   ResourceInfo,
   ResourceReport,
@@ -46,6 +49,16 @@ const CLAUDE_CAPABILITIES: AgentCapabilities = {
   exportHtml: false,
   extensionUi: false,
   fileCheckpoints: false,
+  /*
+   * Planning, and back again (§58).
+   *
+   * Claude Code cycles three modes; the third, `acceptEdits`, is deliberately
+   * absent. It stops the *CLI* asking about file edits, which changes nothing
+   * here because Picone's own gate asks anyway — the workspace's
+   * `permissions.files` is the setting that means that, and two switches for one
+   * decision is how they end up disagreeing.
+   */
+  modes: ["plan"],
 };
 
 /** Anthropic is the only provider behind this backend. */
@@ -114,6 +127,8 @@ export class ClaudeBackend implements AgentBackend {
    */
   private persisted = false;
   private commandList: SlashCommand[] = [];
+  /** The name Claude holds for this session (§26), once it has one. */
+  private storedName: string | undefined;
   /** Skills as the init frame reports them, and subagents beside them (§34). */
   private skills: ResourceInfo[] = [];
   private subagents: ResourceInfo[] = [];
@@ -125,6 +140,8 @@ export class ClaudeBackend implements AgentBackend {
   private turnDone: (() => void) | null = null;
   /** A turn the human stopped, whose result is still on its way. */
   private abandoned = false;
+  /** How the agent is allowed to act (§58). */
+  private currentMode: AgentMode = "default";
 
   private constructor(private readonly context: AgentBackendContext) {
     this.workspace = context.workspace;
@@ -163,6 +180,7 @@ export class ClaudeBackend implements AgentBackend {
     }
 
     const { cwd, id } = this.context;
+    const dir = cwd;
     const resumeRef = resume;
     this.input = new InputQueue();
 
@@ -261,6 +279,27 @@ export class ClaudeBackend implements AgentBackend {
      */
     this.sessionId = resumeRef ?? id;
 
+    /*
+     * A resumed session may have been renamed elsewhere — in a terminal, or by
+     * Claude itself — and the file is the shared artifact (§26), so its name
+     * wins over ours.
+     */
+    if (resume) {
+      try {
+        const { getSessionInfo } = await import("@anthropic-ai/claude-agent-sdk");
+        const info = await getSessionInfo(resume, { dir });
+        /*
+         * `customTitle` only, not `summary`: the summary is auto-generated from
+         * the first prompt, so taking it would rename every Picone session to
+         * its own opening line the moment it was reopened. A name is something
+         * somebody chose.
+         */
+        this.storedName = info?.customTitle || undefined;
+      } catch {
+        // A session store that cannot be read costs a name, not a session.
+      }
+    }
+
     // What this session can do — commands, models, subagents — comes back from
     // the initialize control request rather than from a turn.
     try {
@@ -325,6 +364,13 @@ export class ClaudeBackend implements AgentBackend {
         if (this.query !== owned) return;
         handleClaudeMessage(this.host.translator, message, this.toolNames, {
           sessionId: (id) => (this.sessionId = id),
+          commands: (commands) => {
+            this.commandList = commands;
+            // The `/` menu is cached per session in the browser (§43), so a
+            // list that changed under us has to be pushed rather than waited
+            // for.
+            this.host.emit({ type: "session.commands", sessionId: this.host.sessionId, commands });
+          },
           init: (init) => {
             this.currentModelId ??= init.model;
             this.skills = (init.skills ?? []).map((skill) => ({ name: skill, source: "" }));
@@ -481,6 +527,22 @@ export class ClaudeBackend implements AgentBackend {
     return this.commandList;
   }
 
+  mode(): AgentMode {
+    return this.currentMode;
+  }
+
+  /**
+   * Put the session into planning, or take it out (§58).
+   *
+   * The CLI holds the mode, so this is a control request rather than a flag of
+   * ours — which also means a mode survives a rewind only because the mode is
+   * set again after the query restarts.
+   */
+  async setMode(mode: AgentMode): Promise<void> {
+    await this.query.setPermissionMode(mode === "plan" ? "plan" : "default");
+    this.currentMode = mode;
+  }
+
   /**
    * Claude discovers skills and subagents rather than extensions and prompt
    * templates, so two of the three columns are empty. Better empty than filled
@@ -566,6 +628,8 @@ export class ClaudeBackend implements AgentBackend {
     }
     this.sessionId = resumeRef;
     this.persisted = true;
+    // The mode belongs to the query, and this is a new one.
+    if (this.currentMode !== "default") await this.setMode(this.currentMode);
     // The shell has the message's text and puts it back in the composer.
     return { cancelled: false };
   }
@@ -597,6 +661,50 @@ export class ClaudeBackend implements AgentBackend {
       upToMessageId: messages[index - 1]!.uuid,
     });
     return { resumeRef: forked.sessionId };
+  }
+
+  /**
+   * The name Claude has for this session (§26).
+   *
+   * Read from the session store rather than held here, the same way Pi's is
+   * read from its session file: the CLI can be pointed at the same session, and
+   * whatever it is called there is what it is called. `undefined` covers both
+   * "no name yet" and "no session yet", which want the same answer.
+   */
+  agentName(): string | undefined {
+    return this.storedName;
+  }
+
+  /**
+   * Rename it on Claude's side too, so the name is not only Picone's.
+   *
+   * Fire-and-forget: `renameSession` writes to the session file and there is
+   * nothing to wait for, while the shell wants the stored name back
+   * immediately. A rename that fails leaves Picone's title as the only one,
+   * which is what it was before this existed.
+   */
+  rename(title: string): string {
+    this.storedName = title;
+    if (this.persisted && this.sessionId) {
+      void import("@anthropic-ai/claude-agent-sdk")
+        .then((sdk) => sdk.renameSession(this.sessionId!, title, { dir: this.context.cwd }))
+        .catch((error) => {
+          this.host.translator.notice(`Could not rename the session for Claude: ${(error as Error).message}`, "warn");
+        });
+    }
+    return title;
+  }
+
+  /**
+   * Claude Code's own directory (§9).
+   *
+   * `~/.claude` is where the CLI keeps this session's transcript and, in plan
+   * mode, the plan it is writing — so a gate that refuses it turns planning
+   * into a mode that cannot record a plan. It is the agent's own store, not the
+   * user's project, and the agent writes there with or without us.
+   */
+  agentRoots(): string[] {
+    return [path.join(homedir(), ".claude")];
   }
 
   updateWorkspace(workspace: Workspace): void {

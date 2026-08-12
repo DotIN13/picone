@@ -2,6 +2,7 @@ import { createStore, produce, reconcile } from "solid-js/store";
 import type {
   AgentCapabilities,
   AgentKind,
+  AgentMode,
   AgentState,
   ChatItem,
   ContextUsage,
@@ -474,6 +475,19 @@ export async function newSession(agent?: AgentKind): Promise<void> {
 export function activeAgent(): AgentKind {
   const id = state.activeSessionId;
   return (id ? sessionSummary(id)?.agent : undefined) ?? state.workspace?.file.agent ?? "pi";
+}
+
+/** How the session on screen is allowed to act (§58). */
+export function activeMode(): AgentMode {
+  const id = state.activeSessionId;
+  return (id ? sessionSummary(id)?.mode : undefined) ?? "default";
+}
+
+/** Put it into a mode. The server answers with a notice and a fresh list. */
+export function setMode(mode: AgentMode): void {
+  const sessionId = state.activeSessionId;
+  if (!sessionId) return;
+  socket.send({ type: "set_mode", mode, sessionId });
 }
 
 /** What the session on screen can do — an affordance it lacks is not drawn. */

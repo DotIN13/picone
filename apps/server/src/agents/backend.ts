@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type {
   AgentCapabilities,
+  AgentMode,
   AgentEvent,
   AgentKind,
   ContextUsage,
@@ -53,6 +54,18 @@ export interface AgentBackend {
   /** Lines for the `/stats` notice (§36). */
   statsLines(): Promise<string[]>;
 
+  /**
+   * Directories that belong to the *agent* rather than to the workspace, and
+   * which it may therefore write (§9).
+   *
+   * The gate exists to keep an agent inside the user's project, not to stop it
+   * keeping its own notes: Claude Code writes its session transcripts and its
+   * plan files under `~/.claude`, so refusing them makes plan mode a mode that
+   * cannot record a plan. Narrow on purpose — one directory, named by the
+   * backend, and it appears in the refusal message like any other root.
+   */
+  agentRoots?(): string[];
+
   /** The workspace file changed under a live session (§34). */
   updateWorkspace(workspace: Workspace): void;
   /**
@@ -78,6 +91,9 @@ export interface AgentBackend {
   agentName?(): string | undefined;
   /** Push a name into the agent's own record of the session (§26). */
   rename?(title: string): string;
+  /** How the agent is currently allowed to act, when it has more than one way. */
+  mode?(): AgentMode;
+  setMode?(mode: AgentMode): Promise<void>;
   /** Pi's automatic compaction switch (§54), which is Pi's own setting. */
   autoCompaction?: { get(): boolean; set(enabled: boolean): void };
   /** The extension UI surface (§55) — Pi only. */
@@ -157,4 +173,5 @@ export const NO_CAPABILITIES: AgentCapabilities = {
   exportHtml: false,
   extensionUi: false,
   fileCheckpoints: false,
+  modes: [],
 };

@@ -146,6 +146,17 @@ export class EventTranslator {
     this.setState("thinking");
   }
 
+  /**
+   * How long a running call has been going. For an agent that reports liveness
+   * rather than output, which is what the running row has to say instead.
+   */
+  toolElapsed(id: string, seconds: number): void {
+    const toolCall = this.toolCalls.get(id);
+    if (!toolCall) return;
+    toolCall.elapsed = seconds;
+    this.hooks.emit({ type: "tool.updated", toolCall: { ...toolCall } });
+  }
+
   /** Whether a call with this id is still open — for a backend that must ask. */
   isToolRunning(id: string): boolean {
     return this.toolCalls.has(id);

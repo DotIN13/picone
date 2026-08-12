@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentEvent,
   AgentKind,
+  AgentMode,
   CommentStatus,
   ExtensionUiAnswer,
   FileComment,
@@ -715,6 +716,16 @@ export class App {
       if (models.length) return models;
     }
     return [];
+  }
+
+  /**
+   * Put a session into a different mode (§58), and tell every browser: the
+   * switch is drawn from the session list, so a change made in one tab has to
+   * show up in the others.
+   */
+  async setMode(mode: AgentMode, sessionId?: string): Promise<void> {
+    await this.target(sessionId).setMode(mode);
+    this.publishSessionList();
   }
 
   commands(sessionId?: string) {

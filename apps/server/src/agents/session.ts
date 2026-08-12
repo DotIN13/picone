@@ -3,6 +3,7 @@ import type {
   AgentCapabilities,
   AgentEvent,
   AgentKind,
+  AgentMode,
   AgentState,
   ChatItem,
   ContextUsage,
@@ -19,7 +20,10 @@ import type {
 import { appendMessage, loadTranscriptTail, nextSeq, truncateTranscript } from "../db.ts";
 import { commentContext } from "../comments/matcher.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
+import path from "node:path";
 import { PermissionGate } from "../permissions/gate.ts";
+import { classifyToolCall } from "../permissions/policy.ts";
+import { isInside } from "../util/paths.ts";
 import { resolvedPermissions } from "../workspace/schema.ts";
 import type { AgentBackend, AgentHost, AgentServices } from "./backend.ts";
 import { createBackend } from "./registry.ts";
@@ -79,6 +83,8 @@ export class SessionRuntime {
 
   /** Replaced when the workspace file is edited, so roots never go stale. */
   private workspace: Workspace;
+  /** Where work happens, resolved once (§3). */
+  private cwd = process.cwd();
   private backend!: AgentBackend;
   private translator!: EventTranslator;
   private gate!: PermissionGate;
@@ -133,6 +139,8 @@ export class SessionRuntime {
       workspace.roots.find((r) => r.exists && r.kind === "context")?.path ??
       process.cwd();
 
+    this.cwd = cwd;
+
     const tail = loadTranscriptTail(this.id, TAIL);
     this.transcript = tail.items;
     this.baseSeq = tail.firstSeq;
@@ -160,10 +168,24 @@ export class SessionRuntime {
       {
         cwd,
         agent: AGENT_NAMES[this.agent],
-        // Read live rather than captured: adding a directory to the workspace,
-        // or making a memory store writable, has to take effect without
-        // rebuilding the session.
-        roots: () => this.workspace.roots,
+        /*
+         * Read live rather than captured: adding a directory to the workspace,
+         * or making a memory store writable, has to take effect without
+         * rebuilding the session.
+         *
+         * The agent's own directories come last and are writable — its
+         * transcripts and its plans are its business, not the workspace's (§9).
+         */
+        roots: () => [
+          ...this.workspace.roots,
+          ...(this.backend?.agentRoots?.() ?? []).map((path) => ({
+            name: path,
+            path,
+            exists: true,
+            kind: "context" as const,
+            writable: true,
+          })),
+        ],
       },
     );
 
@@ -171,7 +193,7 @@ export class SessionRuntime {
       sessionId: this.id,
       translator: this.translator,
       emit: (event) => this.options.emit(this.id, event),
-      askPermission: (toolName, input) => this.gate.check(toolName, input),
+      askPermission: (toolName, input) => this.askPermission(toolName, input),
       editorText: () => this.editorText,
       openComments: () => this.options.comments.open(),
       resolveComment: (commentId) => this.options.comments.resolve(commentId),
@@ -539,6 +561,74 @@ ${pointers}` : text;
     return this.backend?.model();
   }
 
+  /**
+   * The gate (§9/§10), plus whatever the mode promises (§58).
+   *
+   * Plan mode has to be enforced here, and this is the whole reason it is a
+   * Picone mode rather than a message passed through to the CLI. Claude Code's
+   * own plan mode refuses edit tools — but *we* are its permission surface, so
+   * when the workspace says files may be written, we cheerfully authorised the
+   * write and the plan-only turn created a file. Observed, not theorised.
+   *
+   * A write inside the agent's own directories is still allowed: that is where
+   * the plan itself is written.
+   */
+  private async askPermission(toolName: string, input: unknown): Promise<{ allowed: boolean; reason?: string }> {
+    const decision = await this.gate.check(toolName, input);
+    if (!decision.allowed || this.mode !== "plan") return decision;
+
+    /*
+     * The agent asking to leave plan mode is refused, because the switch is the
+     * human's. Left allowed, it reported that it had exited and then met a
+     * blocked write it could not explain — it had, as far as the CLI was
+     * concerned, and Picone had not moved. Saying so is better than either
+     * pretending or letting it out.
+     */
+    if (toolName.toLowerCase() === "exitplanmode") {
+      return {
+        allowed: false,
+        reason:
+          "Plan mode is held by Picone, not by this tool: the human turns it off with the plan switch. " +
+          "Finish the plan in your reply and say it is ready.",
+      };
+    }
+
+    const own = this.backend.agentRoots?.() ?? [];
+    const { writes } = classifyToolCall(toolName, input, AGENT_NAMES[this.agent]);
+    const forbidden = writes
+      .map((target) => path.resolve(this.cwd, target))
+      .filter((target) => !own.some((root) => isInside(root, target)));
+    if (forbidden.length === 0) return decision;
+
+    return {
+      allowed: false,
+      reason:
+        `Blocked: this session is in plan mode, so nothing is changed — ${forbidden[0]} included. ` +
+        `Say what you would do and why; the human will take you out of plan mode when they are ready.`,
+    };
+  }
+
+  /** How this session's agent is allowed to act (§58). */
+  get mode(): AgentMode {
+    return this.backend?.mode?.() ?? "default";
+  }
+
+  /**
+   * Change it. The notice is the point: a session that has quietly stopped
+   * touching anything, or quietly started, should say which it is.
+   */
+  async setMode(mode: AgentMode): Promise<void> {
+    if (!this.backend.setMode) throw new Error("This agent has only one mode.");
+    if (this.mode === mode) return;
+    await this.backend.setMode(mode);
+    this.translator.notice(
+      mode === "plan"
+        ? "Planning: it will read and think, and change nothing, until you take it out of plan mode."
+        : "Out of plan mode — it can act again.",
+      "info",
+    );
+  }
+
   /** The models this session's agent offers, when it is the only source (§58). */
   modelOptions(): ModelOption[] {
     return this.backend?.modelOptions?.() ?? [];
@@ -594,6 +684,7 @@ ${pointers}` : text;
       // Pi's word for the same thing, kept so nothing that reads it breaks.
       sessionFile: this.agent === "pi" ? ref : undefined,
       model: this.currentModel(),
+      mode: this.mode,
       forkedFrom: this.forkedFrom,
     };
   }
