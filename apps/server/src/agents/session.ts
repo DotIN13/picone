@@ -473,10 +473,13 @@ ${pointers}` : text;
     const { entryId, index } = this.entryFor(itemId);
 
     const dropped = this.transcript.length - index;
+    const item = this.transcript[index];
+    const spoken = item?.kind === "user" ? item.text : "";
     const result = await this.backend.rewindTo(entryId);
     if (result.cancelled) return;
 
     this.truncateTo(index);
+    this.rememberResumeRef();
 
     // Say what happened to the messages that vanished. Picone cannot switch
     // between branches yet, and quietly removing work from the screen while
@@ -490,7 +493,13 @@ ${pointers}` : text;
     );
 
     this.options.emit(this.id, this.snapshot());
-    if (result.editorText) this.options.emit(this.id, { type: "editor.set", text: result.editorText });
+    /*
+     * The message goes back in the composer, ready to be said differently —
+     * which is the point of rewinding. Pi hands its own copy back; an agent
+     * that does not is no reason to lose it, since the transcript had it.
+     */
+    const text = result.editorText || spoken;
+    if (text) this.options.emit(this.id, { type: "editor.set", text });
   }
 
   /** The same point, in a session of its own (§53). */

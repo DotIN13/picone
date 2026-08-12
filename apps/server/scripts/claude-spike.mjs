@@ -259,6 +259,27 @@ const cases = {
     }
   },
 
+  /**
+   * Q6. Picone forks from *before* a message (§53), and `upToMessageId` is
+   * inclusive — so the cut is the entry before ours. What is actually in the
+   * list between two turns?
+   */
+  async forkcut() {
+    const { getSessionMessages } = await import("@anthropic-ai/claude-agent-sdk");
+    const id = randomUUID();
+    await turn("Say ONE.", { sessionId: id, maxTurns: 1 });
+    await turn("Say TWO.", { resume: id, maxTurns: 1 });
+    await turn("Say THREE.", { resume: id, maxTurns: 1 });
+
+    const messages = await getSessionMessages(id, { dir: scratch, includeSystemMessages: true });
+    log(`${messages.length} entries:`);
+    for (const [index, message] of messages.entries()) {
+      const content = message.message?.content;
+      const text = typeof content === "string" ? content : JSON.stringify(content ?? "").slice(0, 60);
+      log(`  ${index} ${message.type.padEnd(9)} ${message.uuid.slice(0, 8)} ${text.slice(0, 60)}`);
+    }
+  },
+
   /** Where the CLI came from, with the 283 MB platform package left uninstalled. */
   async exe() {
     writeFileSync(path.join(scratch, "package.json"), "{}\n");

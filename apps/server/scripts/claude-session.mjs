@@ -145,6 +145,34 @@ const reopened = app.activeSession();
 console.log("reopened:", reopened?.id === session.id, "· same resume handle:", reopened?.resumeRef === ref);
 await app.prompt("What number did I ask you to remember? Reply with just the number.", "chat", reopened.id);
 
+console.log("\n--- turn 7: forking from a message ------------------------------------");
+// The transcript is private to the runtime; a script may reach in.
+const marked = reopened["transcript"].filter((item) => item.kind === "user" && item.entryId);
+const at = marked[1] ?? marked[0];
+console.log("forking at:", JSON.stringify(at?.text?.slice(0, 48)), "· entry", at?.entryId?.slice(0, 8));
+const fork = await app.fork(at.id, reopened.id);
+console.log(
+  "forked:", fork.id !== reopened.id,
+  "· own handle:", Boolean(fork.resumeRef) && fork.resumeRef !== reopened.resumeRef,
+  "· inherited", fork["transcript"].length, "messages",
+);
+await app.prompt("In one short sentence: what have we talked about so far?", "chat", fork.id);
+
+console.log("\n--- turn 8: rewinding to a message -------------------------------------");
+const before = reopened["transcript"].length;
+const point = reopened["transcript"].filter((item) => item.kind === "user" && item.entryId).slice(-1)[0];
+console.log("rewinding to:", JSON.stringify(point?.text?.slice(0, 48)));
+const editorSet = [];
+seen.length = 0;
+await app.rewind(point.id, reopened.id);
+for (const event of seen) if (event.type === "editor.set") editorSet.push(event.text.slice(0, 48));
+console.log(
+  "transcript:", before, "->", reopened["transcript"].length,
+  "· handle now", reopened.resumeRef?.slice(0, 8),
+  "· composer:", JSON.stringify(editorSet[0] ?? ""),
+);
+await app.prompt("In one short sentence: what have we talked about so far?", "chat", reopened.id);
+
 console.log("\n--- what the browser would have ------------------------------------");
 console.log("permission decisions:", decisions.join(", ") || "(nobody was asked)");
 const counts = {};

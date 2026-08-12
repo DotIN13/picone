@@ -36,10 +36,7 @@ import { piconeTools } from "./tools.ts";
  */
 
 const CLAUDE_CAPABILITIES: AgentCapabilities = {
-  // Rewinding in place would mean restarting the query against an earlier
-  // point, which is a different operation from Pi's walk of a session tree.
-  // Not wired; see docs/todo/claude-agent.md.
-  rewind: false,
+  rewind: true,
   fork: true,
   // `/compact` is a command rather than an API, but it is a real one.
   compact: true,
@@ -92,7 +89,7 @@ export class ClaudeBackend implements AgentBackend {
   readonly capabilities = CLAUDE_CAPABILITIES;
 
   private query!: Query;
-  private readonly input = new InputQueue();
+  private input = new InputQueue();
   private workspace: Workspace;
   private streaming = false;
   private disposed = false;
@@ -144,6 +141,20 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   private async init(): Promise<void> {
+    const wanted = this.workspace.file.models?.claude;
+    this.currentModelId = wanted?.model;
+    this.currentEffort = wanted?.thinking;
+    await this.startQuery(this.context.resumeRef);
+  }
+
+  /**
+   * Open a query, resuming a session or starting this one.
+   *
+   * Called again by a rewind (§53), which is why it is separate from `init`:
+   * going back to an earlier point means a new query against a shorter
+   * history, and everything else about the session stays as it is.
+   */
+  private async startQuery(resume: string | undefined): Promise<void> {
     const executable = claudeExecutable();
     if (!executable) {
       throw new Error(
@@ -151,10 +162,9 @@ export class ClaudeBackend implements AgentBackend {
       );
     }
 
-    const { cwd, id, resumeRef } = this.context;
-    const wanted = this.workspace.file.models?.claude;
-    this.currentModelId = wanted?.model;
-    this.currentEffort = wanted?.thinking;
+    const { cwd, id } = this.context;
+    const resumeRef = resume;
+    this.input = new InputQueue();
 
     const options: Options = {
       cwd,
@@ -241,7 +251,7 @@ export class ClaudeBackend implements AgentBackend {
     };
 
     this.query = query({ prompt: this.input.stream(), options });
-    void this.pump();
+    void this.pump(this.query);
 
     /*
      * The id is known before anything runs: it is ours for a new session and
@@ -308,10 +318,11 @@ export class ClaudeBackend implements AgentBackend {
     return out;
   }
 
-  /** Drain the SDK's stream for as long as the session is open. */
-  private async pump(): Promise<void> {
+  /** Drain one query's stream for as long as that query is the session's. */
+  private async pump(owned: Query): Promise<void> {
     try {
-      for await (const message of this.query) {
+      for await (const message of owned) {
+        if (this.query !== owned) return;
         handleClaudeMessage(this.host.translator, message, this.toolNames, {
           sessionId: (id) => (this.sessionId = id),
           init: (init) => {
@@ -342,17 +353,19 @@ export class ClaudeBackend implements AgentBackend {
             this.endTurn();
           },
         });
-        if (message.type === "user" && !message.parent_tool_use_id && message.uuid) {
-          // Claude says outright which entry a message became, where Pi has to
-          // be inferred from (§53).
+        // Claude says outright which entry a message became, where Pi has to
+        // infer it (§53) — but only some "user" messages are things a user
+        // said. A tool result is one too, as far as the API is concerned.
+        if (message.type === "user" && !message.parent_tool_use_id && message.uuid && isPrompt(message)) {
           this.noteUserEntry(message.uuid);
         }
       }
     } catch (error) {
-      if (this.disposed) return;
+      if (this.disposed || this.query !== owned) return;
       this.host.translator.notice(`Claude stopped: ${(error as Error).message}`, "error");
       this.host.translator.setState("idle");
     } finally {
+      if (this.query !== owned) return;
       /*
        * Whatever happened, nobody is still waiting for this turn. A caller
        * blocked on `prompt` when the CLI dies would otherwise wait for a
@@ -508,6 +521,34 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   /**
+   * Go back to just before a message, in this session (§53).
+   *
+   * Claude has no way to walk a session tree in place, but it can copy one up
+   * to a point — so a rewind is a fork you stay in: the history up to that
+   * message becomes a new session, and this session's query is reopened
+   * against it. The abandoned path stays on disk under the old id, which is
+   * the same bargain Pi's rewind makes.
+   */
+  async rewindTo(entryRef: string): Promise<{ cancelled: boolean; editorText?: string }> {
+    if (this.streaming) throw new Error("Stop Claude before rewinding.");
+    const { resumeRef } = await this.forkFrom(entryRef);
+    if (!resumeRef) return { cancelled: true };
+
+    const previous = this.query;
+    this.input.close();
+    await this.startQuery(resumeRef);
+    try {
+      previous.close();
+    } catch {
+      // A query that has already ended is not a problem worth raising.
+    }
+    this.sessionId = resumeRef;
+    this.persisted = true;
+    // The shell has the message's text and puts it back in the composer.
+    return { cancelled: false };
+  }
+
+  /**
    * The same point in a session of its own (§53).
    *
    * `forkSession` copies the transcript into a new session id, remapping every
@@ -558,6 +599,23 @@ export class ClaudeBackend implements AgentBackend {
       // Closing a query that has already ended is not a problem worth raising.
     }
   }
+}
+
+/**
+ * Whether a `user` message is something the human said.
+ *
+ * Tool results come back as user messages carrying `tool_result` blocks, and
+ * so does anything the harness synthesises. Tagging one of those as the entry
+ * a message became put §53's handle in the middle of a turn: a fork taken
+ * there cut between an assistant's tool call and its result, and quietly
+ * carried across the message it was supposed to fork before.
+ */
+function isPrompt(message: Extract<SDKMessage, { type: "user" }>): boolean {
+  if (message.isSynthetic) return false;
+  const content = message.message.content;
+  if (typeof content === "string") return true;
+  if (!Array.isArray(content)) return false;
+  return !content.some((block) => (block as { type?: string }).type === "tool_result");
 }
 
 function userMessage(text: string): SDKUserMessage {
