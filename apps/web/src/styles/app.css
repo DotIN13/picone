@@ -1527,6 +1527,15 @@ body[data-dragging-path] {
   font-size: calc(11px * var(--font-scale));
 }
 
+/* How long a running call has been going (§58). Tabular, because it is a
+   number that changes in place and should not shuffle the row as it does. */
+[data-slot="toolcall-elapsed"] {
+  flex: none;
+  color: var(--v2-text-text-faint);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(11px * var(--font-scale));
+}
+
 /*
  * A tool's structured result, laid out by shape (§56). Prose-sized rather than
  * monospace: these are values to read, not output to scan — the JSON fallback

@@ -30,6 +30,9 @@ export class EventTranslator {
   private assistantText = "";
   private assistantThinking = "";
   private readonly toolCalls = new Map<string, ToolCall>();
+  /** When each running call started, for the age it reports (§58). */
+  private readonly startedAt = new Map<string, number>();
+  private ticker: ReturnType<typeof setInterval> | null = null;
   private state: AgentState = "idle";
 
   constructor(private readonly hooks: TranslatorHooks) {}
@@ -107,8 +110,56 @@ export class EventTranslator {
       status: "running",
     };
     this.toolCalls.set(id, toolCall);
+    this.startedAt.set(id, Date.now());
+    this.tick();
     this.setState("tool");
     this.hooks.emit({ type: "tool.started", toolCall });
+  }
+
+  /**
+   * Age every running call, once a second, for as long as one is running.
+   *
+   * Ours rather than the agent's, which is the only way it works for both. Pi
+   * streams a tool's output as it appears and Claude's SDK does not — it has a
+   * `tool_progress` message, but the fields say `task_id` and `subagent_type`
+   * and it never arrived for an ordinary `Bash`, verified with a fifteen-second
+   * sleep. Meanwhile the one thing anybody wants while waiting is whether the
+   * thing is slow or wedged, and that is a number we already have: we know when
+   * the call started.
+   *
+   * Emitted, never committed, so a minute-long call costs a minute of repaints
+   * and nothing on disk.
+   */
+  private tick(): void {
+    if (this.ticker) return;
+    this.ticker = setInterval(() => {
+      if (this.toolCalls.size === 0) {
+        this.stopTicking();
+        return;
+      }
+      const now = Date.now();
+      for (const [id, toolCall] of this.toolCalls) {
+        const started = this.startedAt.get(id);
+        if (started === undefined) continue;
+        const elapsed = Math.round((now - started) / 1000);
+        if (elapsed === toolCall.elapsed) continue;
+        toolCall.elapsed = elapsed;
+        this.hooks.emit({ type: "tool.updated", toolCall: { ...toolCall } });
+      }
+    }, 1000);
+  }
+
+  private stopTicking(): void {
+    if (!this.ticker) return;
+    clearInterval(this.ticker);
+    this.ticker = null;
+  }
+
+  /** Stop the clock. Called when the session goes. */
+  dispose(): void {
+    this.stopTicking();
+    this.toolCalls.clear();
+    this.startedAt.clear();
   }
 
   /** Output while the tool is still running. Ignored for a call we never saw. */
@@ -141,6 +192,10 @@ export class EventTranslator {
     if (result.patch) toolCall.patch = result.patch;
     if (result.details !== undefined) toolCall.details = result.details;
     this.toolCalls.delete(id);
+    this.startedAt.delete(id);
+    if (this.toolCalls.size === 0) this.stopTicking();
+    // A finished call is not still going, whatever it said a second ago.
+    delete toolCall.elapsed;
     this.hooks.emit({ type: "tool.completed", toolCall: { ...toolCall } });
     this.hooks.commit({ kind: "tool", id: toolCall.id, toolCall: { ...toolCall }, at: now() });
     this.setState("thinking");
@@ -152,7 +207,7 @@ export class EventTranslator {
    */
   toolElapsed(id: string, seconds: number): void {
     const toolCall = this.toolCalls.get(id);
-    if (!toolCall) return;
+    if (!toolCall || toolCall.elapsed === seconds) return;
     toolCall.elapsed = seconds;
     this.hooks.emit({ type: "tool.updated", toolCall: { ...toolCall } });
   }

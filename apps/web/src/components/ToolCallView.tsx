@@ -47,6 +47,14 @@ export function ToolCallView(props: { toolCall: ToolCall }) {
           </span>
           <span data-slot="toolcall-name">{props.toolCall.name}</span>
           <span data-slot="toolcall-title">{props.toolCall.title}</span>
+          {/*
+            How long it has been going, for an agent that reports liveness
+            rather than output (§58). Only while running, and only past a few
+            seconds: on a fast call it would be a number that flashed.
+          */}
+          <Show when={props.toolCall.status === "running" && (props.toolCall.elapsed ?? 0) >= 3}>
+            <span data-slot="toolcall-elapsed">{props.toolCall.elapsed}s</span>
+          </Show>
           <Show when={todo()}>
             {(list) => {
               const progress = () => todoProgress(list().tasks);

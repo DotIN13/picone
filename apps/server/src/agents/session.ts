@@ -696,6 +696,7 @@ ${pointers}` : text;
   dispose(): void {
     for (const [, entry] of this.pending) entry.resolve("deny");
     this.pending.clear();
+    this.translator?.dispose();
     this.backend?.dispose();
   }
 

@@ -278,6 +278,13 @@ export class ClaudeBackend implements AgentBackend {
      * can still be reopened.
      */
     this.sessionId = resumeRef ?? id;
+    /*
+     * A session we were asked to resume already exists — that is what the
+     * handle means. Waiting for a turn to say so left a freshly reopened
+     * session unable to fork, rewind or be renamed until somebody said
+     * something, all three failing quietly.
+     */
+    this.persisted = Boolean(resumeRef);
 
     /*
      * A resumed session may have been renamed elsewhere — in a terminal, or by
