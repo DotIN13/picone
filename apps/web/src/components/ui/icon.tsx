@@ -46,6 +46,7 @@ import User from "lucide-solid/icons/user";
 import Workflow from "lucide-solid/icons/workflow";
 import TriangleAlert from "lucide-solid/icons/triangle-alert";
 import X from "lucide-solid/icons/x";
+import { ClaudeMark, PiMark } from "./agent-marks.tsx";
 
 /**
  * Lucide, imported one icon at a time so the bundle only carries what is used.
@@ -53,6 +54,10 @@ import X from "lucide-solid/icons/x";
  * touches a call site.
  */
 const ICONS = {
+  // The two that are not Lucide's: one mark per agent (§58), drawn to sit in
+  // this set rather than beside it.
+  "agent-pi": PiMark,
+  "agent-claude": ClaudeMark,
   "arrow-up": ArrowUp,
   alert: TriangleAlert,
   bell: Bell,

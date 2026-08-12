@@ -1,9 +1,9 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import type { SessionSummary } from "@picone/protocol";
-import { deleteSession, newSession, openSession, renameSession, state } from "../store.ts";
+import { deleteSession, openSession, renameSession, state } from "../store.ts";
 import { IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
-import { AgentMark, NewSessionButton } from "./NewSessionButton.tsx";
+import { agentIcon, agentLabel, NewSessionButton } from "./NewSessionButton.tsx";
 import { Spinner } from "./ui/primitives.tsx";
 
 /**
@@ -84,11 +84,20 @@ export function SessionList() {
               >
                 <button type="button" data-slot="session-open" onClick={() => void openSession(session.id)}>
                   <span data-slot="session-head">
-                    <Show when={busy(session.id)}>
+                    {/* The agent leads the row (§58). Whatever is having the
+                        conversation is the first thing about it, and while it
+                        is working the spinner says so in the same place. */}
+                    <Show
+                      when={busy(session.id)}
+                      fallback={
+                        <span data-slot="session-agent" title={agentLabel(session.agent)}>
+                          <Icon name={agentIcon(session.agent)} size={13} />
+                        </span>
+                      }
+                    >
                       <Spinner size={8} />
                     </Show>
                     <span data-slot="session-title">{session.title}</span>
-                    <AgentMark agent={session.agent} />
                     <Show when={session.forkedFrom}>
                       <span data-slot="session-fork" title="Forked from another session">
                         <Icon name="git-branch" size={9} />

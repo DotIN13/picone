@@ -4,14 +4,13 @@ import {
   closeTab,
   mentionPath,
   moveTab,
-  newSession,
   sessionSummary,
   setActiveTab,
   state,
   toggleSidebar,
 } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
-import { AgentMark } from "./NewSessionButton.tsx";
+import { agentIcon, NewSessionButton } from "./NewSessionButton.tsx";
 import { Spinner } from "./ui/primitives.tsx";
 
 interface DropTarget {
@@ -186,15 +185,19 @@ export function TabBar() {
                 <Show
                   when={tab.kind === "session" && sessionBusy(tab.id)}
                   fallback={
-                    <Icon name={tab.kind === "session" ? "comment" : "file"} size={13} class="shrink-0 opacity-70" />
+                    // A session tab shows its agent rather than a speech
+                    // bubble: every session is a conversation, so the bubble
+                    // said nothing that the tab did not already say (§58).
+                    <Icon
+                      name={tab.kind === "session" ? agentIcon(sessionSummary(tab.id)?.agent) : "file"}
+                      size={13}
+                      class="shrink-0 opacity-70"
+                    />
                   }
                 >
                   <Spinner size={9} />
                 </Show>
                 <span class="truncate">{tab.name}</span>
-                <Show when={tab.kind === "session"}>
-                  <AgentMark agent={sessionSummary(tab.id)?.agent} />
-                </Show>
                 <Show when={tab.kind === "file" && commentCount(tab.id) > 0}>
                   <span data-slot="tab-badge">{commentCount(tab.id)}</span>
                 </Show>
@@ -212,9 +215,7 @@ export function TabBar() {
         </For>
       </div>
 
-      <button type="button" data-slot="tab-new" aria-label="New session" title="New session" onClick={() => void newSession()}>
-        <Icon name="plus" size={14} />
-      </button>
+      <NewSessionButton variant="tab" />
 
       <Show when={!state.compact && state.activeSessionId && activeSessionState() !== "idle"}>
         <span data-slot="tabbar-status">

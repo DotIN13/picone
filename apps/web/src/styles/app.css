@@ -3379,41 +3379,37 @@ body[data-dragging-path] {
 /* ---------------------------------------------------------------------------
  * Choosing an agent (§58)
  *
- * The plus stays the plus: one click, the workspace's usual agent. The caret
- * beside it is a second, narrower button sharing its hover — a split button
- * rather than two, so it reads as one control with a second opinion.
+ * The `+` is the choice. It opens a menu of the agents installed rather than
+ * hiding the interesting half behind a caret, and the same button appears in
+ * the sidebar and on the tab bar, so both behave the same way.
  * ------------------------------------------------------------------------ */
 
-[data-component="new-session"] {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-}
-
-[data-slot="new-session-more"] {
-  display: flex;
+[data-slot="sidebar-new"] {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
+  width: 24px;
   height: 24px;
+  flex: none;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--v2-icon-icon-muted);
   cursor: pointer;
 }
 
-[data-slot="new-session-more"]:hover,
-[data-slot="new-session-more"][data-expanded] {
+[data-slot="sidebar-new"]:hover,
+[data-slot="sidebar-new"][data-expanded] {
   background: var(--v2-background-bg-hover);
   color: var(--v2-icon-icon-base);
 }
 
-[data-component="agent-popover"] {
+[data-component="agent-menu"] {
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
-  min-width: 200px;
+  min-width: 208px;
+  max-width: 268px;
   padding: 4px;
   border-radius: 8px;
   background: var(--v2-background-bg-layer-01);
@@ -3426,54 +3422,84 @@ body[data-dragging-path] {
   font-size: calc(11px * var(--font-scale));
 }
 
+/* Mark, name, tick — then whatever the row has to add underneath it. */
 [data-slot="agent-option"] {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   gap: 2px 8px;
   align-items: center;
   padding: 7px 8px;
-  border: none;
   border-radius: 6px;
-  background: transparent;
   color: var(--v2-text-text-base);
   font-size: calc(13px * var(--font-scale));
-  text-align: left;
   cursor: pointer;
+  outline: none;
 }
 
-[data-slot="agent-option"]:hover:not(:disabled) {
+[data-slot="agent-option"][data-highlighted]:not([data-disabled]) {
   background: var(--v2-background-bg-hover);
 }
 
-[data-slot="agent-option"]:disabled {
+[data-slot="agent-option"][data-disabled] {
   color: var(--v2-text-text-faint);
   cursor: default;
 }
 
-/* The reason an agent cannot be used sits under its name, in the row itself:
-   a disabled option that does not say why is a dead end. */
-[data-slot="agent-reason"] {
-  grid-column: 1 / -1;
+[data-slot="agent-name"] {
+  font-weight: 500;
+}
+
+/* As a sheet the rows fill the width and sit apart from each other, and the
+   Dialog supplies the heading the menu draws itself. */
+[data-component="agent-menu"][data-sheet] {
+  min-width: 0;
+  max-width: none;
+  padding: 0 0 4px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-component="agent-menu"][data-sheet] [data-slot="agent-option"] {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: calc(15px * var(--font-scale));
+  padding: 11px 10px;
+}
+
+[data-component="agent-menu"][data-sheet] [data-slot="agent-option"]:active:not(:disabled) {
+  background: var(--v2-background-bg-hover);
+}
+
+/* A finger needs a bigger row than a pointer does. */
+@media (pointer: coarse) {
+  [data-slot="agent-option"] {
+    min-height: 44px;
+  }
+}
+
+/* The model it would run, or the reason it cannot run: either way it belongs
+   under the name rather than beside it. */
+[data-slot="agent-note"] {
+  grid-column: 2 / -1;
   color: var(--v2-text-text-faint);
   font-size: calc(11px * var(--font-scale));
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-/* Which agent a session belongs to, where a row or a tab has room for one
-   character and not a word. Drawn only for sessions that are not the
-   workspace's usual agent — marking everything marks nothing. */
-[data-slot="agent-mark"] {
-  flex: none;
+/* The agent in front of a session's name, where a row previously had nothing
+   and a tab had a speech bubble that told you it was a conversation. */
+[data-slot="session-agent"] {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  border-radius: 4px;
-  background: var(--v2-background-bg-layer-03);
-  color: var(--v2-text-text-muted);
-  font-size: calc(9px * var(--font-scale));
-  font-weight: 600;
-  line-height: 1;
+  flex: none;
+  color: var(--v2-icon-icon-muted);
+}
+
+[data-slot="session-open"][aria-current] [data-slot="session-agent"],
+[data-slot="session-row"][data-active] [data-slot="session-agent"] {
+  color: var(--v2-icon-icon-base);
 }
