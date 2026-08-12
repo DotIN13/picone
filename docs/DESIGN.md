@@ -2759,9 +2759,17 @@ turn.
 `upToMessageId` is inclusive, and Picone forks from *before* a message so the
 new session opens with it in the composer. The cut is therefore the entry
 before ours, which means the entry recorded against a message has to be the
-right one. Tool results arrive as `user` messages too, so tagging the wrong one
-put the handle in the middle of a turn — a fork taken there cut between an
-assistant's tool call and its result, and quietly carried across the message it
+right one — and getting it is harder than it looks. Neither live route offers
+it: the SDK does not echo a prompt back on the stream, only replaying them when
+a session is resumed, and the CLI leaves `user_message_uuid` off the result.
+What does have them is the session file, so Claude's `syncEntryIds` reads it
+back and pairs prompts against the transcript from the end, exactly as Pi's
+pairs against its branch, stopping the moment an entry does not start with what
+was displayed.
+
+Tool results arrive as `user` messages too, which is the trap: tagging one puts
+the handle in the middle of a turn, and a fork taken there cuts between an
+assistant's tool call and its result — quietly carrying across the message it
 was supposed to fork before. Only a message the human actually sent is tagged.
 
 ### Not built
