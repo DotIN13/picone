@@ -127,7 +127,7 @@ interface State {
   comments: FileComment[];
   mcp: McpServerState[];
   models: ModelOption[];
-  /** Which agents this server can start a session with (§57). */
+  /** Which agents this server can start a session with (§58). */
   agents: AgentAvailability[];
   voice: { input: boolean; output: boolean };
   /** Settings shared by every workspace. */
@@ -437,7 +437,7 @@ function addSessionTab(sessionId: string, name: string): void {
 export async function openSession(sessionId: string): Promise<void> {
   const summary = sessionSummary(sessionId);
   // Sessions of both agents live in one list, so opening one may change which
-  // catalogue the model picker should be showing (§57).
+  // catalogue the model picker should be showing (§58).
   if (summary?.agent && summary.agent !== loadedFor) void loadModels(summary.agent);
   if (!state.tabs.some((tab) => tab.id === sessionId)) {
     addSessionTab(sessionId, summary?.title ?? "Session");
@@ -466,7 +466,7 @@ export async function newSession(agent?: AgentKind): Promise<void> {
   addSessionTab(session.id, session.title);
   setState({ activeTabId: session.id, activeSessionId: session.id });
   // Told rather than derived: the session list arrives over the socket, and
-  // asking which agent this is before it lands gets the old answer (§57).
+  // asking which agent this is before it lands gets the old answer (§58).
   await loadModels(session.agent);
 }
 
@@ -580,7 +580,7 @@ export function setActiveTab(id: string): void {
   if (tab.kind === "session" && state.activeSessionId !== id) {
     setState("activeSessionId", id);
     void api.selectSession(id).catch(() => {});
-    // The tab that just came forward may belong to the other agent (§57).
+    // The tab that just came forward may belong to the other agent (§58).
     const agent = sessionSummary(id)?.agent;
     if (agent && agent !== loadedFor) void loadModels(agent);
   }

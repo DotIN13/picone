@@ -3,7 +3,7 @@ import type { EventTranslator } from "../agents/translator.ts";
 
 /**
  * The Claude Agent SDK's message stream, in the terms the transcript is
- * assembled in (DESIGN §30, §57).
+ * assembled in (DESIGN §30, §58).
  *
  * The SDK says the same things Pi does in a different order and a different
  * shape. Text and thinking arrive as `stream_event` deltas; a tool call arrives
@@ -39,7 +39,7 @@ export function handleClaudeMessage(
 
     case "stream_event": {
       // A subagent's stream is its own conversation; showing it inline would
-      // interleave two voices in one transcript (§57).
+      // interleave two voices in one transcript (§58).
       if (message.parent_tool_use_id) return;
       const event = message.event as {
         type: string;

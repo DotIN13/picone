@@ -25,7 +25,7 @@ import { handleClaudeMessage } from "./events.ts";
 import { piconeTools } from "./tools.ts";
 
 /**
- * Claude Code behind one Picone session (§57).
+ * Claude Code behind one Picone session (§58).
  *
  * One `query()` per loaded session, in streaming-input mode, held open for the
  * life of the session rather than one per turn. Streaming input is what makes
@@ -267,7 +267,7 @@ export class ClaudeBackend implements AgentBackend {
         source: "",
       }));
       /*
-       * What the session is running, for the picker (§57). `default` is a real
+       * What the session is running, for the picker (§58). `default` is a real
        * entry in the catalogue rather than a placeholder — it is what the CLI
        * itself shows before a model is chosen — and it stays the label until
        * somebody chooses, because the wire id the stream later reports
@@ -456,7 +456,7 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   /**
-   * The models this session could switch to (§57).
+   * The models this session could switch to (§58).
    *
    * Claude's effort levels and Picone's thinking levels are nearly the same
    * list, so a model's supported efforts go straight into `thinkingLevels` and
@@ -542,7 +542,7 @@ function userMessage(text: string): SDKUserMessage {
 
 /**
  * Picone's thinking levels and Claude's effort levels are nearly the same list
- * (§57). The two Claude does not have — `off` and `minimal` — are the low end,
+ * (§58). The two Claude does not have — `off` and `minimal` — are the low end,
  * so they clamp to `low` rather than being dropped.
  */
 function effortLevel(thinking: string | undefined): "low" | "medium" | "high" | "xhigh" | "max" | undefined {

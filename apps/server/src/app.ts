@@ -518,7 +518,7 @@ export class App {
   }
 
   /**
-   * Which agent a new session gets when nobody says (§57): what the workspace
+   * Which agent a new session gets when nobody says (§58): what the workspace
    * was last told, and Pi before it has been told anything.
    */
   private defaultAgent(): AgentKind {
@@ -688,7 +688,7 @@ export class App {
 
     const workspace = this.requireWorkspace();
     // Per agent: the two do not share a catalogue, so one slot could only ever
-    // be right for one of them (§57).
+    // be right for one of them (§58).
     const session = this.target(sessionId);
     const next: WorkspaceFile = {
       ...workspace.file,
@@ -703,7 +703,7 @@ export class App {
   }
 
   /**
-   * Claude's model list, which only a running Claude session can produce (§57).
+   * Claude's model list, which only a running Claude session can produce (§58).
    * The active session first, since the picker is nearly always open over it.
    */
   claudeModels(): ModelOption[] {

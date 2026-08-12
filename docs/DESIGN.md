@@ -360,10 +360,13 @@ The server provides transport and product semantics. Pi owns the agent loop.
 
 ---
 
-## 8. Pi adapter
+## 8. The agent adapter
 
-The integration is thin. `SessionRuntime` (`pi/runtime.ts`) wraps one
-`AgentSession`:
+A session is a shell around an agent. The shell — `agents/session.ts`, still
+called `SessionRuntime` — owns everything that is Picone's rather than any
+agent's: the transcript and its rows in the database, the permission gate, the
+title, and what a message picks up on its way past (§16, §52). The agent owns
+the conversation: history, context, compaction, tool execution.
 
 ```ts
 class SessionRuntime {
@@ -378,11 +381,11 @@ class SessionRuntime {
   answerExtensionUi(answer): void
 
   setModel(provider, model, thinking?): Promise<void>
-  updatePermissions(permissions): void
-  notifyWorkspaceChange(text): Promise<void>
+  updateWorkspace(workspace): void
 
   snapshot(): AgentEvent
   commands(): SlashCommand[]
+  capabilities: AgentCapabilities
   dispose(): void
 }
 ```
@@ -391,8 +394,26 @@ class SessionRuntime {
 differ for structured input — a file comment is a long structured block to the
 model and a compact card to the human.
 
-The frontend never sees a Pi type. Everything crosses the boundary as the
-protocol in §30.
+Between the two is `agents/backend.ts`: `AgentBackend` for what an agent must
+do, `AgentHost` for what it may call back into. Two backends implement it, Pi
+(§41) and Claude (§58), and the shell knows nothing about either — which is the
+only real test of how thin §41's claim was. It was thinner than expected in the
+places that matter and thicker in one: the *transcript* turned out to be shared
+and the *stream* to be specific, so `agents/translator.ts` holds the rules for
+assembling a conversation and each backend only reads its own agent's events
+into it. Those rules — flush the assistant's text before a tool call so the
+transcript reads in the order things happened, commit a message only if it said
+something — took a while to get right and are not agent-specific.
+
+**Capabilities travel with a session.** Agents differ: Pi can rewind to a
+message in place and draw an extension's own interface, Claude can restore the
+*files* at a message and has no extensions at all. Rather than each surface
+knowing which agent supports what, every session carries an `AgentCapabilities`
+and the browser draws only what exists. A rewind button that answers "not
+supported for this session" is worse than no rewind button.
+
+The frontend never sees a Pi type or an SDK type. Everything crosses the
+boundary as the protocol in §30.
 
 ---
 
@@ -2619,3 +2640,121 @@ drop target that accepts everything cannot tell you what it accepted.
   point of being unreliable; a custom stack is a bigger thing than this.
 * **No rich text.** Bold, links and lists are not in the model, and a paste that
   contains them contributes its text. The field is a sentence with names in it.
+
+---
+
+## 58. A second agent
+
+Picone ran Pi and only Pi. Claude Code is the second, chosen per session, and
+the reason to add one is not a preference between them: the app's own surfaces
+— comments (§16), the permission gate (§9), mentions (§52), the file tree,
+voice (§29) — are agent-neutral ideas that only one agent could benefit from,
+and a second backend is the only honest test of the seam in §8.
+
+**One `query()` per loaded session, in streaming-input mode, held open.** Not
+one per turn. Streaming input is what makes `interrupt()`, `setModel()`,
+`getContextUsage()` and the hooks available at all; a fresh query per message
+would re-pay process start every turn and lose every one of them. A turn is a
+push into a queue the SDK's input generator drains. The cost is a `claude`
+child process per *loaded* session, which is what §38's eviction is for, and
+why `dispose` closes the query.
+
+**The permission gate is two surfaces, and it has to be.** `canUseTool` looks
+like the hook to use and is not: it is never consulted for a tool the CLI
+approves by itself — a `Read` goes straight through — and a bare name in
+`allowedTools` shadows it entirely. A `PreToolUse` hook *is* consulted for
+every call, and a `deny` from it is final, arriving at the model as an error
+with our sentence in it. But a hook cannot *grant*: an allowed `Write` still
+came back `permission_denied`, because the CLI's own layer has nobody to prompt
+in a headless session. So the hook decides — it is the only surface that sees
+everything — and `canUseTool` carries the decision out for the calls that would
+otherwise have been prompted. Both receive the same `toolUseID`, so the hook
+records its verdict under that id and the callback looks it up rather than
+asking the human twice.
+
+This leaves the CLI's own deny rules in force underneath ours, which
+`bypassPermissions` would not. A bug in our hook fails closed.
+
+`classifyToolCall` needed almost nothing: it matches lower-cased names, so
+`Bash`, `Read`, `Write`, `Edit`, `MultiEdit`, `Glob` and `Grep` classify
+correctly on the first try — an accident of having written the policy around
+what a tool *does*. `NotebookEdit` was the exception, because it names its file
+`notebook_path` and nothing else does, so its target was never checked against
+the writable roots.
+
+**Picone's own tools** — `resolve_comment`, `list_open_comments`, `speak` —
+go in as an in-process MCP server and reach the model as
+`mcp__picone__resolve_comment`. They are marked `alwaysLoad`: left deferred
+behind tool search, the model spends a call finding `resolve_comment` before it
+can resolve anything, and a comment the agent cannot close is a comment that
+stays open (§23). Their descriptions are copied from `pi/tools.ts` deliberately
+— the wording is the part that matters and should not drift between agents.
+
+**The session id is ours.** Picone's session ids are already UUIDs and the SDK
+accepts one, so a session is the same id on both sides with no mapping table.
+It is only offered back as a *resume handle* once a turn has completed under
+it: resuming an id the CLI never wrote does not fail loudly, it fails the turn
+that tries, quietly, as `error_during_execution` with an empty result.
+
+**What is not shared.** Claude spawns its own MCP connections from the same
+workspace configuration, so a server used by both agents runs twice — sharing
+would need a bridge between two tool systems. `settingSources: ["user",
+"project"]` brings in the user's own `~/.claude` skills, subagents and
+`CLAUDE.md`, which is the analogue of Pi discovering the user's global skills;
+isolation is not total either way, since plugins and CLI defaults are not
+settings.
+
+**The workspace description** (§6) and each memory directory's own `AGENTS.md`
+(§50) are appended to the `claude_code` system prompt preset, and every root
+the workspace opens — hidden ones included (§3) — goes in as an additional
+directory, so the agent can reach what the file tree deliberately does not
+show.
+
+### Choosing one
+
+Per session, not per workspace: the same project is worth asking two different
+agents about, and a conversation cannot change its mind halfway through — the
+history belongs to whoever has been having it. The `+` stays one click and
+takes the workspace's usual agent; the caret beside it chooses, and choosing
+also sets the workspace default, the same bargain the model picker makes.
+`/new claude` does the same from the composer.
+
+An agent that cannot run is listed with its reason rather than hidden. "No
+Claude executable found" is a thing to go and fix; a missing menu entry is a
+thing to wonder about.
+
+Sessions of both kinds live in one list, so a row and a tab carry a
+one-character mark — and only when the session is *not* the workspace's usual
+agent, because marking everything marks nothing.
+
+The model is stored per agent (`models: { pi, claude }`) because the two do not
+share a catalogue: `sonnet` means nothing to Pi and `deepseek-v4-flash` means
+nothing to Claude, so one slot could only ever be right for one of them. The
+older single `model` key is still read as Pi's. Claude's catalogue can only
+come from a live session, so `/api/models` takes an agent and asks the running
+session; its effort levels map onto Picone's thinking levels, which are nearly
+the same list.
+
+### Finding the executable
+
+The SDK is a thin client for a native binary it installs as an optional
+dependency — 283 MB per platform — and it does *not* look on `PATH`: without
+that package it fails with "Native CLI binary for win32-x64 not found" rather
+than falling back. So the looking is ours: `PICONE_CLAUDE_PATH`, then `PATH`,
+then nothing, which leaves the SDK to find its own copy and say so if there
+isn't one. A machine that already has Claude Code — which is most machines that
+would want this — needs neither the download nor the disk.
+
+### Not built
+
+* **No rewind to a message, and no fork.** Claude's `resume` +
+  `resumeSessionAt` rebuilds by restarting the query rather than navigating a
+  tree in place: a different operation with a different cost. `capabilities`
+  says false and the buttons do not appear.
+* **No HTML export**, and no automatic-compaction switch — Claude decides that
+  for itself, so there is nothing to offer.
+* **No extension UI** (§55). `onUserDialog` and `onElicitation` are the nearest
+  thing and they are MCP surfaces, not extension surfaces.
+* **File checkpointing is not wired.** `rewindFiles` would restore the files at
+  a message, which is the half §53 does not do — the best reason to come back
+  to this.

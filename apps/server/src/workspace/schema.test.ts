@@ -29,7 +29,7 @@ test("an agent nobody has heard of is refused rather than dropped", () => {
 });
 
 test("the single model slot still means Pi's", () => {
-  // Older files say `model` and nothing else; that has to keep working (§57).
+  // Older files say `model` and nothing else; that has to keep working (§58).
   const { file, errors } = validateWorkspaceFile({
     version: 1,
     name: "w",

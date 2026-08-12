@@ -4,7 +4,7 @@ import { classifyToolCall } from "./policy.ts";
 
 /**
  * The gate was written around Pi's tool names and has to hold for Claude's,
- * which are the same tools in title case (§57). Nothing here is about Claude
+ * which are the same tools in title case (§58). Nothing here is about Claude
  * in particular: a tool is classified by what it does.
  */
 test("Claude's file tools classify like Pi's", () => {

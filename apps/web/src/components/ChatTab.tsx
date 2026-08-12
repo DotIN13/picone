@@ -340,7 +340,7 @@ export function ChatTab(props: { sessionId: string }) {
 }
 
 function ChatRow(props: { item: ChatItem }) {
-  // What this session's agent can do with a past message (§57).
+  // What this session's agent can do with a past message (§58).
   const canRewind = () => activeCapabilities()?.rewind ?? true;
   const canFork = () => activeCapabilities()?.fork ?? true;
 
@@ -366,7 +366,7 @@ function ChatRow(props: { item: ChatItem }) {
 
             {/* Only where the agent has a node to go back to (§53). Messages
                 from before the session tree was tracked have no entry id, and
-                an agent may not do this at all (§57) — an affordance that
+                an agent may not do this at all (§58) — an affordance that
                 cannot work is worse than none. */}
             <Show when={item().entryId && (canRewind() || canFork())}>
               <div data-slot="msg-actions">

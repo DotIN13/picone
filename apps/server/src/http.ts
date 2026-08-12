@@ -447,7 +447,7 @@ export function createApiRouter(app: App): Router {
   // --- misc ------------------------------------------------------------------
 
   /**
-   * The models one agent offers (§57). Pi has a catalogue of its own; Claude
+   * The models one agent offers (§58). Pi has a catalogue of its own; Claude
    * can only be asked through a live session, so the answer comes from the
    * session that is running rather than from a registry.
    */
@@ -465,7 +465,7 @@ export function createApiRouter(app: App): Router {
     }),
   );
 
-  /** Which agents a session can be started with, and why not (§57). */
+  /** Which agents a session can be started with, and why not (§58). */
   router.get(
     "/agents",
     asyncRoute(async (_req, res) => {

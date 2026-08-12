@@ -127,7 +127,7 @@ function writeTargets(args: Record<string, unknown>): string[] {
 
 /**
  * `agent` is the name on the card. It used to be the literal string "Pi",
- * which read as a lie the moment a second agent asked for something (§57) —
+ * which read as a lie the moment a second agent asked for something (§58) —
  * the human is being asked to trust *this* agent with *this* command, and
  * which agent it is matters more than the sentence reads.
  */

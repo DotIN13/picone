@@ -17,7 +17,7 @@ export interface GateHooks {
 }
 
 export interface GatePaths {
-  /** What to call the agent on a permission card (§57). */
+  /** What to call the agent on a permission card (§58). */
   agent?: string;
   /** Resolves relative tool arguments the way the session's own tools would. */
   cwd: string;

@@ -774,7 +774,7 @@ export type ClientMessage =
   | { type: "session_stats"; sessionId?: string }
   /** Write the session out as HTML, through Pi's exporter. */
   | { type: "session_export"; sessionId?: string }
-  /** `agent` picks the backend; omitted takes the workspace's default (§57). */
+  /** `agent` picks the backend; omitted takes the workspace's default (§58). */
   | { type: "new_session"; title?: string; agent?: AgentKind }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
   /** A keystroke for an open `custom` component, already in terminal form. */

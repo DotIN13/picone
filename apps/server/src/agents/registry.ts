@@ -2,7 +2,7 @@ import type { AgentKind } from "@picone/protocol";
 import type { AgentBackend, AgentBackendContext } from "./backend.ts";
 
 /**
- * Which agents exist, and how to start one (§57).
+ * Which agents exist, and how to start one (§58).
  *
  * The backends are imported lazily and one at a time. Pi and the Claude SDK
  * each pull a large dependency tree, and a workspace that only ever uses one of

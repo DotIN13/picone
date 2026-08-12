@@ -5,7 +5,7 @@ filename — so finishing one never renumbers the rest.
 
 | | |
 |---|---|
-| [Picone runs one agent, and it is Pi](claude-agent.md) | the adapter claims to be thin; a second agent is the only way to find out |
+| [Claude sessions are missing half of §53](claude-agent.md) | no rewind, no fork, and file checkpointing unwired |
 | [Thin test coverage](automated-tests.md) | only the reference detector has tests; the rest is verified by hand |
 | [Web bundle is one 870 kB chunk](bundle-size.md) | CodeMirror loads whether or not a file is opened |
 | [MCP streamable-HTTP is unverified](mcp-http-transport.md) | written from the spec, exercised only over stdio |

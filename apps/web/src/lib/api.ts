@@ -105,7 +105,7 @@ export const api = {
       `/sessions/${id}/messages?before=${encodeURIComponent(before)}&limit=${limit}`,
     ),
 
-  /** Per agent: the two do not share a catalogue (§57). */
+  /** Per agent: the two do not share a catalogue (§58). */
   models: (agent?: AgentKind) => request<{ models: ModelOption[] }>(`/models${agent ? `?agent=${agent}` : ""}`),
   /** Which agents a session can be started with, and why not. */
   agents: () => request<{ agents: AgentAvailability[] }>("/agents"),
@@ -123,7 +123,7 @@ export const api = {
     }),
 };
 
-/** An agent the server offers, with the reason when it cannot be used (§57). */
+/** An agent the server offers, with the reason when it cannot be used (§58). */
 export interface AgentAvailability {
   kind: AgentKind;
   name: string;

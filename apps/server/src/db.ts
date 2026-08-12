@@ -65,7 +65,7 @@ export function openDb(): DatabaseSync {
   } catch {
     /* already migrated */
   }
-  // Which agent is behind a session (§57). Every row written before there was
+  // Which agent is behind a session (§58). Every row written before there was
   // a choice was Pi, which is what the default says.
   try {
     db.exec(`ALTER TABLE sessions ADD COLUMN agent TEXT NOT NULL DEFAULT 'pi'`);

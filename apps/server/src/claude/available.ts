@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 /**
- * Finding the Claude CLI (§57).
+ * Finding the Claude CLI (§58).
  *
  * The SDK is a thin client for a native binary it normally installs as an
  * optional dependency — 283 MB of it, per platform. It does not look on `PATH`:

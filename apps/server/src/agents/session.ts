@@ -40,7 +40,7 @@ const TAIL = 120;
 export interface SessionRuntimeOptions {
   id: string;
   title: string;
-  /** Which agent is behind it (§57). */
+  /** Which agent is behind it (§58). */
   agent: AgentKind;
   workspace: Workspace;
   /** A session file or id from a previous run, if this session already ran. */
@@ -271,7 +271,7 @@ export class SessionRuntime {
   }
 
   /**
-   * What the agent receives on top of what was typed (§57, §16).
+   * What the agent receives on top of what was typed (§58, §16).
    *
    * Two additions, both about things the message names rather than describes: a
    * pointer to any memory subject it mentions, and the open comments on any
@@ -530,7 +530,7 @@ ${pointers}` : text;
     return this.backend?.model();
   }
 
-  /** The models this session's agent offers, when it is the only source (§57). */
+  /** The models this session's agent offers, when it is the only source (§58). */
   modelOptions(): ModelOption[] {
     return this.backend?.modelOptions?.() ?? [];
   }

@@ -259,7 +259,7 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
 
   /**
    * Which agent new sessions start with, and the model each agent was last
-   * given (§57). Per agent because they do not share a catalogue.
+   * given (§58). Per agent because they do not share a catalogue.
    */
   let agent: WorkspaceFile["agent"];
   if (raw.agent !== undefined) {

@@ -6,7 +6,7 @@ import { Icon } from "./ui/icon.tsx";
 import { IconButton } from "./ui/button.tsx";
 
 /**
- * Start a session, with a choice of agent (§57).
+ * Start a session, with a choice of agent (§58).
  *
  * The click is the common case and stays one click: it starts a session with
  * whatever the workspace last used. The caret beside it is for the other case,

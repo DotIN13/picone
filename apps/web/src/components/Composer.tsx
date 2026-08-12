@@ -220,7 +220,7 @@ export function Composer() {
 
   /**
    * The app's own commands, minus the ones this session's agent cannot do
-   * (§57). Compaction, reload and export are all agent-dependent, and offering
+   * (§58). Compaction, reload and export are all agent-dependent, and offering
    * one that answers "not supported" is worse than not offering it.
    */
   const appCommands = createMemo(() => {
@@ -290,7 +290,7 @@ export function Composer() {
   });
 
   /**
-   * A file or directory handed over by the tree or the tab bar (§57).
+   * A file or directory handed over by the tree or the tab bar (§58).
    *
    * Appended rather than inserted at the caret: a drop has no caret to speak
    * of, and a path landing in the middle of a half-typed word is not what
@@ -308,7 +308,7 @@ export function Composer() {
   const runAppCommand = (name: string, argument?: string): boolean => {
     switch (name) {
       case "new":
-        // `/new claude` starts one with that agent (§57); `/new` takes the
+        // `/new claude` starts one with that agent (§58); `/new` takes the
         // workspace's usual one, which is what it has always done.
         void newSession(argument === "claude" || argument === "pi" ? argument : undefined);
         return true;
