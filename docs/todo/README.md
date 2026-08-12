@@ -5,7 +5,7 @@ filename — so finishing one never renumbers the rest.
 
 | | |
 |---|---|
-| [Claude sessions are missing half of §53](claude-agent.md) | no rewind, no fork, and file checkpointing unwired |
+| [What Claude sessions still cannot do](claude-agent.md) | file checkpoints unwired, and one MCP server connected twice |
 | [Thin test coverage](automated-tests.md) | only the reference detector has tests; the rest is verified by hand |
 | [Web bundle is one 870 kB chunk](bundle-size.md) | CodeMirror loads whether or not a file is opened |
 | [MCP streamable-HTTP is unverified](mcp-http-transport.md) | written from the spec, exercised only over stdio |

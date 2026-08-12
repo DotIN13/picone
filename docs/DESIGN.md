@@ -2745,12 +2745,27 @@ then nothing, which leaves the SDK to find its own copy and say so if there
 isn't one. A machine that already has Claude Code — which is most machines that
 would want this — needs neither the download nor the disk.
 
+### Rewinding without a tree
+
+Pi walks its session file, which is a tree (§53). Claude's is a line, and the
+SDK's session API copies one up to a point rather than navigating it — so a
+**fork** is `forkSession(upToMessageId)`, and a **rewind is a fork you stay
+in**: the history up to that message becomes a new session and this session's
+query reopens against it. The abandoned path stays on disk under the old id,
+which is the same bargain Pi's rewind makes, and the session's resume handle
+changes, which is why it is written back after a rewind as well as after a
+turn.
+
+`upToMessageId` is inclusive, and Picone forks from *before* a message so the
+new session opens with it in the composer. The cut is therefore the entry
+before ours, which means the entry recorded against a message has to be the
+right one. Tool results arrive as `user` messages too, so tagging the wrong one
+put the handle in the middle of a turn — a fork taken there cut between an
+assistant's tool call and its result, and quietly carried across the message it
+was supposed to fork before. Only a message the human actually sent is tagged.
+
 ### Not built
 
-* **No rewind to a message, and no fork.** Claude's `resume` +
-  `resumeSessionAt` rebuilds by restarting the query rather than navigating a
-  tree in place: a different operation with a different cost. `capabilities`
-  says false and the buttons do not appear.
 * **No HTML export**, and no automatic-compaction switch — Claude decides that
   for itself, so there is nothing to offer.
 * **No extension UI** (§55). `onUserDialog` and `onElicitation` are the nearest

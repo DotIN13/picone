@@ -1,27 +1,9 @@
-# Claude sessions are missing half of §53
+# What Claude sessions still cannot do
 
 Picone runs two agents now (§8, §58): a session is a shell around an
-`AgentBackend`, and Claude Code is behind one as of this branch. What works is
-in DESIGN; what is left is here.
-
-## Rewind and fork
-
-`capabilities.rewind` and `capabilities.fork` are false for Claude, so the
-buttons under a message do not appear. Pi navigates its session tree in place;
-the SDK's equivalent is `resume` + `resumeSessionAt: <uuid>` + `resumeDropsTurn`,
-which rebuilds the conversation by **restarting the query**. That is a different
-operation with a different cost, and it needs:
-
-* the query torn down and rebuilt behind the same `SessionRuntime`, without the
-  shell noticing more than it does for a model switch;
-* `resumeDropsTurn` set to the prompt uuid being discarded, or the CLI refuses
-  the resume when anything else landed in the dropped range — a queued message,
-  a task notification;
-* the same transcript truncation the shell already does for Pi.
-
-Fork is the easier half: `forkSession: true` with a `sessionId` of our own
-choosing gives a branched session from a point, which is exactly
-`backend.forkFrom`.
+`AgentBackend`, and Claude Code is behind one. What works is in DESIGN — including
+rewind and fork, which turned out to be the same operation twice — and what is
+left is here.
 
 ## File checkpointing
 
