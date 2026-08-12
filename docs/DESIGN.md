@@ -2784,6 +2784,46 @@ then nothing, which leaves the SDK to find its own copy and say so if there
 isn't one. A machine that already has Claude Code — which is most machines that
 would want this — needs neither the download nor the disk.
 
+### Planning, and the gate that has to mean it
+
+Claude Code has three modes; Picone offers one of them, and enforces it itself.
+
+**Plan mode** is a switch beside the model picker — the same kind of decision
+about the next turn — drawn only for an agent whose `capabilities.modes` says it
+has one. In it, the agent reads and thinks and changes nothing, and says what it
+would do instead.
+
+The enforcement is the interesting part, and it is why this is a *Picone* mode
+rather than a flag passed through. Claude Code's own plan mode refuses edit
+tools; but Picone is its permission surface, so when the workspace said files
+may be written, our gate cheerfully authorised the write and a plan-only turn
+created a file. Observed, not theorised. So the session's gate refuses writes
+while planning — and refuses `ExitPlanMode` too, because left allowed the agent
+reported it had exited and then met a block it could not explain: the switch is
+the human's, and Picone had not moved.
+
+Two exceptions, both deliberate. A write inside the agent's *own* directories is
+still allowed, because `~/.claude/plans` is where the plan itself goes and a
+planning mode that cannot record a plan is not one — a backend may declare the
+directories that are its own rather than the workspace's, and they appear in a
+refusal message like any other root. And `acceptEdits`, the third mode, is
+absent: it stops the *CLI* asking about edits, which changes nothing when our
+gate asks anyway, and `permissions.files` is the setting that already means it.
+Two switches for one decision is how they come to disagree.
+
+### How long a tool has been running
+
+Pi streams a tool's output as it appears (`tool_execution_update`), and the SDK
+does not. It has a `tool_progress` message, but its fields say `task_id` and
+`subagent_type`, and a fifteen-second `sleep` produced no progress frames at
+all — it is about subagents, not tool calls.
+
+So the clock is Picone's, in the translator, which is why it works for both
+agents: a running call is aged once a second from the moment it started, shown
+past three seconds so a fast call never flashes a number, and dropped when it
+finishes. What anybody wants while waiting is whether the thing is slow or
+wedged, and that is a number we already had.
+
 ### Rewinding without a tree
 
 Pi walks its session file, which is a tree (§53). Claude's is a line, and the
@@ -2810,6 +2850,30 @@ Tool results arrive as `user` messages too, which is the trap: tagging one puts
 the handle in the middle of a turn, and a fork taken there cuts between an
 assistant's tool call and its result — quietly carrying across the message it
 was supposed to fork before. Only a message the human actually sent is tagged.
+
+### What used to happen in silence
+
+Three things the adapter now says out loud, because a session that stops working
+for a knowable reason should give it. An **API retry** — a turn that stalls for
+twenty seconds and carries on otherwise looks like a hang. An
+**authentication failure**, which is the reason a working session stopped
+working. And the **command list changing** under a session, since ours is cached
+from the init frame and a stale `/` menu offers things that are gone; that one
+pushes a fresh `session.commands` rather than a notice.
+
+### The name, in both directions
+
+Claude keeps its own title for a session (§26), so the two are reconciled the
+way Pi's are: a rename here calls `renameSession` so the name lands in the
+session file, and a resumed session takes the file's `customTitle` if it has
+one. Only `customTitle` — the `summary` beside it is auto-generated from the
+first prompt, and taking that would rename every session to its own opening line
+the moment it was reopened. A name is something somebody chose.
+
+This is also where a nasty little bug lived: a resumed session was marked
+not-yet-persisted until its next turn, which quietly disabled fork, rewind
+*and* rename until somebody said something. Resuming a handle means the session
+exists — that is what the handle is.
 
 ### Not built
 

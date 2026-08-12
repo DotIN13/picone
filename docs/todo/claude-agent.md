@@ -24,6 +24,17 @@ already written twice for the same reason.
 
 ## Smaller things
 
+* **No streaming tool output.** The SDK does not forward it — `tool_progress` is
+  about subagents, and a fifteen-second `sleep` produced nothing. Picone shows
+  how long a call has been running instead, which is most of what the output was
+  being read for, but it is not the same thing.
+* **`acceptEdits` and `bypassPermissions`** are not offered as modes. The first
+  duplicates `permissions.files`; the second would take Picone's gate out of the
+  loop, which is the one thing the gate is for.
+* **`ExitPlanMode` is refused rather than asked about.** A permission card for
+  "leave plan mode" would be better than a refusal the agent has to read —
+  §10's card is the right shape for it, but it needs a category that is not
+  files, shell or git.
 * **`/compact` is sent as a prompt**, since Claude has no compaction API. It
   works and it appears in the transcript as a user message, which is not quite
   a lie but is not the way Pi's compaction reads either.
