@@ -320,8 +320,7 @@ export class ClaudeBackend implements AgentBackend {
             this.lastResult = result;
             this.persisted = true;
             this.streaming = false;
-            this.turnDone?.();
-            this.turnDone = null;
+            this.endTurn();
           },
         });
         if (message.type === "user" && !message.parent_tool_use_id && message.uuid) {
@@ -332,12 +331,24 @@ export class ClaudeBackend implements AgentBackend {
       }
     } catch (error) {
       if (this.disposed) return;
-      this.streaming = false;
-      this.turnDone?.();
-      this.turnDone = null;
       this.host.translator.notice(`Claude stopped: ${(error as Error).message}`, "error");
       this.host.translator.setState("idle");
+    } finally {
+      /*
+       * Whatever happened, nobody is still waiting for this turn. A caller
+       * blocked on `prompt` when the CLI dies would otherwise wait for a
+       * result that is never coming, and the socket handler waits with it.
+       */
+      this.streaming = false;
+      this.endTurn();
     }
+  }
+
+  /** Release whoever is waiting for the current turn, at most once. */
+  private endTurn(): void {
+    const done = this.turnDone;
+    this.turnDone = null;
+    done?.();
   }
 
   /**
@@ -376,8 +387,7 @@ export class ClaudeBackend implements AgentBackend {
   async abort(): Promise<void> {
     await this.query.interrupt();
     this.streaming = false;
-    this.turnDone?.();
-    this.turnDone = null;
+    this.endTurn();
   }
 
   get isStreaming(): boolean {
@@ -491,6 +501,7 @@ export class ClaudeBackend implements AgentBackend {
 
   dispose(): void {
     this.disposed = true;
+    this.endTurn();
     this.input.close();
     try {
       this.query?.close();

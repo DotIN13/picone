@@ -110,6 +110,29 @@ console.log("\nfile now reads:", JSON.stringify(existsSync(target) ? readFileSyn
 console.log("\n--- turn 3: something the human refuses ------------------------------");
 await app.prompt(`Run the shell command "echo hello" and tell me what it printed.`, "chat", session.id);
 
+console.log("\n--- turn 4: a comment on a file, and the agent closing it ------------");
+const comment = await app.addComment({
+  path: target,
+  matcher: "nothing yet",
+  lineStart: 3,
+  lineEnd: 3,
+  body: "Replace this line with one sentence about what this file is for, then resolve this comment.",
+});
+console.log("comment:", comment.id.slice(0, 8), "·", comment.status);
+// The injection returns before the turn ends, so wait for the queue to clear.
+for (let i = 0; i < 60 && app.comments().some((c) => c.status === "open"); i++) {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+console.log("comments now:", app.comments().map((c) => `${c.id.slice(0, 8)}:${c.status}`).join(", "));
+console.log("file now reads:", JSON.stringify(readFileSync(target, "utf8")));
+
+console.log("\n--- turn 5: interrupting a long answer -------------------------------");
+const long = app.prompt("Count slowly from 1 to 200, one number per line.", "chat", session.id);
+await new Promise((resolve) => setTimeout(resolve, 4000));
+await app.abort(session.id);
+await long;
+console.log("aborted; the session is", session.state);
+
 console.log("\n--- what the browser would have ------------------------------------");
 console.log("permission decisions:", decisions.join(", ") || "(nobody was asked)");
 const counts = {};

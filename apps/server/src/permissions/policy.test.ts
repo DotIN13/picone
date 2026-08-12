@@ -34,3 +34,11 @@ test("the card names the agent that is asking", () => {
   // Nobody said who, so it does not claim to know.
   assert.match(classifyToolCall("Bash", { command: "ls" }).title, /^The agent wants/);
 });
+
+test("the card does not say the tool's name twice", () => {
+  // "Claude wants to use the Edit tool on Edit C:\..." — the title carries the
+  // tool, so the detail is the thing it would be used on.
+  const call = classifyToolCall("Edit", { file_path: "a.ts", old_string: "x", new_string: "y" }, "Claude");
+  assert.equal(call.title, "Claude wants to use the Edit tool on");
+  assert.equal(call.detail, "a.ts");
+});

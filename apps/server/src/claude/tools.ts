@@ -74,7 +74,21 @@ export function piconeTools(host: AgentHost, workspace: Workspace): McpSdkServer
     );
   }
 
-  return createSdkMcpServer({ name: "picone", version: "0.1.0", tools });
+  /*
+   * `alwaysLoad` because these three are not optional extras: a comment the
+   * agent cannot close is a comment that stays open (§23). Left deferred, the
+   * model spends a tool call searching for `resolve_comment` before it can use
+   * it — which it did, correctly and slowly, the first time this ran.
+   */
+  return createSdkMcpServer({
+    name: "picone",
+    version: "0.1.0",
+    alwaysLoad: true,
+    instructions:
+      "Picone is the workspace this session is running inside. It carries the user's file comments; " +
+      "resolve each one as you deal with it rather than in a batch at the end.",
+    tools,
+  });
 }
 
 function truncate(text: string, max = 160): string {

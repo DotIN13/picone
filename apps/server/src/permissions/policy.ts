@@ -163,7 +163,9 @@ export function classifyToolCall(toolName: string, input: unknown, agent = "The 
   if (writing || READ_TOOLS.has(name)) {
     return {
       category: "files",
-      detail: `${toolName} ${target}`.trim(),
+      // The title already names the tool; repeating it read as "wants to use
+      // the Edit tool on Edit C:\…".
+      detail: target || toolName,
       title: `${agent} wants to use the ${toolName} tool on`,
       writes: writing ? writeTargets(args) : [],
     };
