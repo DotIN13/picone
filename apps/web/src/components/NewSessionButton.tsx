@@ -1,8 +1,10 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, type JSX } from "solid-js";
+import { DropdownMenu } from "@kobalte/core/dropdown-menu";
 import type { AgentKind } from "@picone/protocol";
 import { newSession, state } from "../store.ts";
 import { Icon, type IconName } from "./ui/icon.tsx";
 import { Dialog } from "./ui/primitives.tsx";
+import type { AgentAvailability } from "../lib/api.ts";
 
 /** The mark for each agent (§58), decided in one place. */
 export function agentIcon(agent: AgentKind | undefined): IconName {
@@ -21,11 +23,12 @@ export function agentLabel(agent: AgentKind | undefined): string {
  * nobody would find and made the sidebar's `+` and the tab bar's `+` behave
  * differently from each other.
  *
- * A dialog rather than a menu, and a box per agent rather than a row: choosing
- * what will be having the conversation is not the same kind of act as picking
- * an item off a list, and each agent is worth the space to show its mark, what
- * it is called and what it would run. It stays centred on a phone (§47) — the
- * bottom sheet is for something long enough to scroll.
+ * Two shapes for one list. A pointer gets a menu under the button it came
+ * from, which is what a small choice looks like on a desktop and costs nothing
+ * to dismiss. A finger gets a dialog with a box per agent: a menu item sized
+ * for a cursor is a poor target, and an anchored popover on a phone opens
+ * against the edge of the screen with the keyboard about to arrive. Both are
+ * the same rows with the same words.
  *
  * With one agent installed there is nothing to choose, so the `+` starts a
  * session outright.
@@ -34,6 +37,8 @@ export function NewSessionButton(props: { variant?: "sidebar" | "tab" }) {
   const [open, setOpen] = createSignal(false);
   const choices = () => state.agents;
   const preferred = (): AgentKind => state.workspace?.file.agent ?? "pi";
+  /** Touch devices — phones and tablets alike — get the dialog. */
+  const touch = () => state.coarse || state.compact;
 
   /** What that agent would run, from what the workspace remembers (§58). */
   const model = (agent: AgentKind): string | undefined => {
@@ -51,57 +56,95 @@ export function NewSessionButton(props: { variant?: "sidebar" | "tab" }) {
   const size = () => (props.variant === "tab" ? 14 : 13);
   const many = () => choices().length > 1;
 
-  return (
+  /** One agent, said the same way in both shapes. */
+  const row = (agent: AgentAvailability): JSX.Element => (
     <>
-      <button
-        type="button"
-        data-slot={slot()}
-        aria-label="New session"
-        title="New session"
-        aria-haspopup={many() ? "dialog" : undefined}
-        onClick={() => (many() ? setOpen(true) : void start())}
-      >
-        <Icon name="plus" size={size()} />
-      </button>
-
-      <Dialog
-        open={open()}
-        onOpenChange={setOpen}
-        title="New session"
-        description="Which agent should have this conversation?"
-        width="min(440px, calc(100 * var(--vw) - 32px))"
-        centred
-      >
-        <div data-component="agent-grid">
-          <For each={choices()}>
-            {(agent) => (
-              <button
-                type="button"
-                data-slot="agent-card"
-                data-current={agent.kind === preferred() ? "" : undefined}
-                disabled={!agent.available}
-                onClick={() => void start(agent.kind)}
-              >
-                <Show when={agent.kind === preferred()}>
-                  <span data-slot="agent-card-tick" title="The workspace's usual agent">
-                    <Icon name="check" size={11} />
-                  </span>
-                </Show>
-                <span data-slot="agent-card-mark">
-                  <Icon name={agentIcon(agent.kind)} size={22} />
-                </span>
-                <span data-slot="agent-card-name">{agent.name}</span>
-                {/* What you would get, or why you cannot have it. */}
-                <Show when={agent.available} fallback={<span data-slot="agent-note">{agent.reason}</span>}>
-                  <Show when={model(agent.kind)} fallback={<span data-slot="agent-note">default model</span>}>
-                    {(name) => <span data-slot="agent-note">{name()}</span>}
-                  </Show>
-                </Show>
-              </button>
-            )}
-          </For>
-        </div>
-      </Dialog>
+      <Icon name={agentIcon(agent.kind)} size={16} />
+      <span data-slot="agent-card-text">
+        <span data-slot="agent-card-name">
+          {agent.name}
+          <Show when={agent.kind === preferred()}>
+            <span data-slot="agent-default">default</span>
+          </Show>
+        </span>
+        {/* What you would get, or why you cannot have it. */}
+        <Show when={agent.available} fallback={<span data-slot="agent-note">{agent.reason}</span>}>
+          <span data-slot="agent-note">{model(agent.kind) ?? "default model"}</span>
+        </Show>
+      </span>
     </>
+  );
+
+  return (
+    <Show
+      when={many()}
+      fallback={
+        <button type="button" data-slot={slot()} aria-label="New session" title="New session" onClick={() => void start()}>
+          <Icon name="plus" size={size()} />
+        </button>
+      }
+    >
+      <Show
+        when={touch()}
+        fallback={
+          <DropdownMenu open={open()} onOpenChange={setOpen} placement="bottom-start" gutter={6}>
+            <DropdownMenu.Trigger data-slot={slot()} aria-label="New session" title="New session">
+              <Icon name="plus" size={size()} />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content data-component="agent-menu">
+                <div data-slot="agent-heading">New session with</div>
+                <For each={choices()}>
+                  {(agent) => (
+                    <DropdownMenu.Item
+                      data-slot="agent-option"
+                      disabled={!agent.available}
+                      onSelect={() => void start(agent.kind)}
+                    >
+                      {row(agent)}
+                    </DropdownMenu.Item>
+                  )}
+                </For>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu>
+        }
+      >
+        <button
+          type="button"
+          data-slot={slot()}
+          aria-label="New session"
+          title="New session"
+          aria-haspopup="dialog"
+          onClick={() => setOpen(true)}
+        >
+          <Icon name="plus" size={size()} />
+        </button>
+        <Dialog
+          open={open()}
+          onOpenChange={setOpen}
+          title="New session"
+          description="Choose the agent for this conversation."
+          width="min(460px, calc(100 * var(--vw) - 32px))"
+          centred
+        >
+          <div data-component="agent-grid">
+            <For each={choices()}>
+              {(agent) => (
+                <button
+                  type="button"
+                  data-slot="agent-card"
+                  data-current={agent.kind === preferred() ? "" : undefined}
+                  disabled={!agent.available}
+                  onClick={() => void start(agent.kind)}
+                >
+                  {row(agent)}
+                </button>
+              )}
+            </For>
+          </div>
+        </Dialog>
+      </Show>
+    </Show>
   );
 }
