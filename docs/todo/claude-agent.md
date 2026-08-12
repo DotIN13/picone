@@ -24,6 +24,12 @@ already written twice for the same reason.
 
 ## Smaller things
 
+* **The command list refreshes lazily.** The `commands_changed` handler is
+  written from the message shape, but writing a `.claude/commands/*.md` under a
+  live session did not produce one — the list only came back with `/reload`,
+  which does pick it up (`apps/server/scripts/claude-notices.mjs`). The retry and
+  authentication notices are in the same position: written, and waiting for the
+  world to produce the conditions.
 * **No streaming tool output.** The SDK does not forward it — `tool_progress` is
   about subagents, and a fifteen-second `sleep` produced nothing. Picone shows
   how long a call has been running instead, which is most of what the output was
