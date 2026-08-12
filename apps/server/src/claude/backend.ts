@@ -126,6 +126,8 @@ export class ClaudeBackend implements AgentBackend {
   private currentEffort: string | undefined;
   /** Resolves when the running turn produces its `result` message. */
   private turnDone: (() => void) | null = null;
+  /** A turn the human stopped, whose result is still on its way. */
+  private abandoned = false;
 
   private constructor(private readonly context: AgentBackendContext) {
     this.workspace = context.workspace;
@@ -320,6 +322,23 @@ export class ClaudeBackend implements AgentBackend {
             this.lastResult = result;
             this.persisted = true;
             this.streaming = false;
+            /*
+             * The result for a turn somebody stopped arrives *after* the
+             * interrupt returns, by which time the next message may already
+             * have been sent — so an unclaimed result would resolve the wrong
+             * turn and complain about an ending the human asked for.
+             */
+            if (this.abandoned) {
+              this.abandoned = false;
+              return;
+            }
+            if (result.subtype !== "success") {
+              const detail = "result" in result && typeof result.result === "string" ? result.result : "";
+              this.host.translator.notice(
+                detail || `The turn ended early: ${result.subtype.replace(/_/g, " ")}.`,
+                detail ? "error" : "warn",
+              );
+            }
             this.endTurn();
           },
         });
@@ -385,6 +404,7 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   async abort(): Promise<void> {
+    this.abandoned = this.streaming;
     await this.query.interrupt();
     this.streaming = false;
     this.endTurn();

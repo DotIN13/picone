@@ -133,6 +133,19 @@ await app.abort(session.id);
 await long;
 console.log("aborted; the session is", session.state);
 
+console.log("\n--- turn 6: the session is evicted and reopened ----------------------");
+await app.prompt("Remember the number 4242. Reply with just: stored.", "chat", session.id);
+const ref = session.resumeRef;
+// What eviction does (§38), and what a server restart does the slow way.
+// `sessions` is private to the App; reaching in is what a script may do and
+// the server may not.
+session.dispose();
+app["sessions"].delete(session.id);
+await app.selectSession(session.id);
+const reopened = app.activeSession();
+console.log("reopened:", reopened?.id === session.id, "· same resume handle:", reopened?.resumeRef === ref);
+await app.prompt("What number did I ask you to remember? Reply with just the number.", "chat", reopened.id);
+
 console.log("\n--- what the browser would have ------------------------------------");
 console.log("permission decisions:", decisions.join(", ") || "(nobody was asked)");
 const counts = {};

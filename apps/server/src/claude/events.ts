@@ -89,11 +89,8 @@ export function handleClaudeMessage(
     case "result": {
       translator.endAssistant();
       translator.setState("idle");
-      if (message.subtype !== "success" && "result" in message && typeof message.result === "string") {
-        translator.notice(message.result, "error");
-      } else if (message.subtype !== "success") {
-        translator.notice(`The turn ended early: ${message.subtype.replace(/_/g, " ")}.`, "warn");
-      }
+      // Whether an unsuccessful ending is worth saying out loud is the
+      // backend's call: it knows whether the human just pressed stop.
       hooks.result?.(message);
       return;
     }
