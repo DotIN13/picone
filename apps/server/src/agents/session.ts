@@ -28,6 +28,9 @@ import { EventTranslator } from "./translator.ts";
 /** What a session is called before anything has named it. */
 export const DEFAULT_TITLE = "New session";
 
+/** What each agent is called where a human reads it — a permission card, mostly. */
+export const AGENT_NAMES: Record<AgentKind, string> = { pi: "Pi", claude: "Claude" };
+
 /**
  * How much of a session is held in memory and sent on connect. Larger than the
  * browser's own window so scrolling back a page usually costs nothing.
@@ -156,6 +159,7 @@ export class SessionRuntime {
       },
       {
         cwd,
+        agent: AGENT_NAMES[this.agent],
         // Read live rather than captured: adding a directory to the workspace,
         // or making a memory store writable, has to take effect without
         // rebuilding the session.
@@ -188,8 +192,7 @@ export class SessionRuntime {
       services: this.options.services,
     });
 
-    const ref = this.backend.resumeRef();
-    if (ref) this.options.onResumeRef(this.id, ref);
+    this.rememberResumeRef();
     this.backend.syncEntryIds?.();
     this.publishContext();
     this.reconcileName();
@@ -256,6 +259,9 @@ export class SessionRuntime {
   }
 
   private afterTurn(): void {
+    // A session becomes resumable once it has said something: Pi writes its
+    // file on the first reply, and Claude's id is only good after a turn.
+    this.rememberResumeRef();
     this.backend.syncEntryIds?.();
     if (this.entriesTagged) {
       this.entriesTagged = false;
@@ -602,6 +608,16 @@ ${pointers}` : text;
     this.baseSeq = 0;
     this.seq = items.length;
     items.forEach((item, index) => appendMessage(this.id, index, item));
+  }
+
+  /** The last handle written to the database, so it is written once. */
+  private storedRef: string | undefined;
+
+  private rememberResumeRef(): void {
+    const ref = this.backend?.resumeRef();
+    if (!ref || ref === this.storedRef) return;
+    this.storedRef = ref;
+    this.options.onResumeRef(this.id, ref);
   }
 
   /**

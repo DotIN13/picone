@@ -107,6 +107,15 @@ export class ClaudeBackend implements AgentBackend {
   private readonly allowed = new Set<string>();
   private lastResult: Extract<SDKMessage, { type: "result" }> | null = null;
   private sessionId: string | undefined;
+  /**
+   * Whether the CLI has actually written this session down.
+   *
+   * The id is known before anything happens, but resuming one the CLI never
+   * wrote fails the turn that tries — quietly, as `error_during_execution` with
+   * an empty result. So the id is only offered as a resume handle once a turn
+   * has completed under it.
+   */
+  private persisted = false;
   private commandList: SlashCommand[] = [];
   /** Skills as the init frame reports them, and subagents beside them (§34). */
   private skills: ResourceInfo[] = [];
@@ -301,6 +310,7 @@ export class ClaudeBackend implements AgentBackend {
           },
           result: (result) => {
             this.lastResult = result;
+            this.persisted = true;
             this.streaming = false;
             this.turnDone?.();
             this.turnDone = null;
@@ -464,11 +474,11 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   /**
-   * The session id, which is Picone's own for a new session and whatever was
-   * resumed for an old one.
+   * The session id, once there is a session to resume — see `persisted`. A
+   * session that was opened and closed without a word is not one.
    */
   resumeRef(): string | undefined {
-    return this.sessionId ?? this.context.resumeRef ?? this.context.id;
+    return this.persisted ? this.sessionId : this.context.resumeRef;
   }
 
   dispose(): void {

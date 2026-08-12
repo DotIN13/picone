@@ -241,6 +241,24 @@ const cases = {
     );
   },
 
+  /**
+   * Q5. Picone records the session id as soon as the session exists, so a
+   * session that was closed before it ever said anything will be resumed by an
+   * id the CLI has never written. Does that fail, and how loudly?
+   */
+  async ghost() {
+    const id = randomUUID();
+    log("resuming a session that was never written:", id);
+    try {
+      const result = await turn("Say OK.", { resume: id, maxTurns: 1 });
+      log("result:", result?.subtype, JSON.stringify(result?.result ?? "").slice(0, 120));
+      log("A5. Resuming an unknown id is survivable — it starts a conversation rather than failing.");
+    } catch (error) {
+      log("threw:", String(error).slice(0, 200));
+      log("A5. Resuming an unknown id throws, so the backend needs to fall back to a fresh session.");
+    }
+  },
+
   /** Where the CLI came from, with the 283 MB platform package left uninstalled. */
   async exe() {
     writeFileSync(path.join(scratch, "package.json"), "{}\n");

@@ -65,6 +65,13 @@ export function openDb(): DatabaseSync {
   } catch {
     /* already migrated */
   }
+  // Which agent is behind a session (§57). Every row written before there was
+  // a choice was Pi, which is what the default says.
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN agent TEXT NOT NULL DEFAULT 'pi'`);
+  } catch {
+    /* already migrated */
+  }
 
   return db;
 }
@@ -74,10 +81,19 @@ export function openDb(): DatabaseSync {
 export function insertSession(workspaceId: string, s: SessionSummary): void {
   openDb()
     .prepare(
-      `INSERT INTO sessions (id, workspace_id, title, session_file, created_at, updated_at, forked_from)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, workspace_id, title, session_file, created_at, updated_at, forked_from, agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(s.id, workspaceId, s.title, s.sessionFile ?? null, s.createdAt, s.updatedAt, s.forkedFrom ?? null);
+    .run(
+      s.id,
+      workspaceId,
+      s.title,
+      s.resumeRef ?? s.sessionFile ?? null,
+      s.createdAt,
+      s.updatedAt,
+      s.forkedFrom ?? null,
+      s.agent ?? "pi",
+    );
 }
 
 export function updateSession(id: string, patch: { title?: string; sessionFile?: string }): void {
@@ -108,7 +124,7 @@ export function touchSession(id: string): void {
 export function listSessions(workspaceId: string): SessionSummary[] {
   const rows = openDb()
     .prepare(
-      `SELECT id, title, session_file, created_at, updated_at, forked_from
+      `SELECT id, title, session_file, created_at, updated_at, forked_from, agent
        FROM sessions WHERE workspace_id = ?`,
     )
     .all(workspaceId) as Array<Record<string, unknown>>;
@@ -119,6 +135,8 @@ export function listSessions(workspaceId: string): SessionSummary[] {
       return {
         id: String(r.id),
         title: String(r.title),
+        agent: r.agent === "claude" ? ("claude" as const) : ("pi" as const),
+        resumeRef: r.session_file == null ? undefined : String(r.session_file),
         sessionFile: r.session_file == null ? undefined : String(r.session_file),
         createdAt: String(r.created_at),
         updatedAt: said?.at ?? String(r.created_at),

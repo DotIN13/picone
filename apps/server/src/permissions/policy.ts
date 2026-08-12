@@ -5,8 +5,8 @@ import type { PermissionCategory } from "@picone/protocol";
  * useful and is never confined to the workspace; writing is confined, so the
  * two sets cannot stay one (DESIGN §9).
  */
-const READ_TOOLS = new Set(["read", "ls", "grep", "find", "glob"]);
-const WRITE_TOOLS = new Set(["write", "edit", "multiedit"]);
+const READ_TOOLS = new Set(["read", "ls", "grep", "find", "glob", "notebookread"]);
+const WRITE_TOOLS = new Set(["write", "edit", "multiedit", "notebookedit"]);
 
 /**
  * Tools that execute processes. `bash` is Pi's built-in, but extensions and
@@ -110,6 +110,9 @@ function writeTargets(args: Record<string, unknown>): string[] {
     push(record.path);
     push(record.file_path);
     push(record.filePath);
+    // Claude's NotebookEdit names its target this way and nothing else does,
+    // so without it a notebook write was never checked against the roots.
+    push(record.notebook_path);
   };
 
   fromRecord(args);
@@ -122,7 +125,13 @@ function writeTargets(args: Record<string, unknown>): string[] {
   return [...new Set(out)];
 }
 
-export function classifyToolCall(toolName: string, input: unknown): Classification {
+/**
+ * `agent` is the name on the card. It used to be the literal string "Pi",
+ * which read as a lie the moment a second agent asked for something (§57) —
+ * the human is being asked to trust *this* agent with *this* command, and
+ * which agent it is matters more than the sentence reads.
+ */
+export function classifyToolCall(toolName: string, input: unknown, agent = "The agent"): Classification {
   const args = (input ?? {}) as Record<string, unknown>;
   const name = toolName.toLowerCase();
 
@@ -132,7 +141,7 @@ export function classifyToolCall(toolName: string, input: unknown): Classificati
     return {
       category: classifyShellCommand(command),
       detail: command || toolName,
-      title: "Pi wants to run",
+      title: `${agent} wants to run`,
       cwd: typeof args.cwd === "string" ? args.cwd : undefined,
       // A shell command can write anywhere and finding out would mean parsing
       // shell, which is a losing game. It is gated by its category alone.
@@ -155,12 +164,12 @@ export function classifyToolCall(toolName: string, input: unknown): Classificati
     return {
       category: "files",
       detail: `${toolName} ${target}`.trim(),
-      title: `Pi wants to use the ${toolName} tool on`,
+      title: `${agent} wants to use the ${toolName} tool on`,
       writes: writing ? writeTargets(args) : [],
     };
   }
 
-  return { category: null, detail: toolName, title: `Pi wants to use ${toolName}`, writes: [] };
+  return { category: null, detail: toolName, title: `${agent} wants to use ${toolName}`, writes: [] };
 }
 
 /**

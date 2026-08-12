@@ -17,6 +17,8 @@ export interface GateHooks {
 }
 
 export interface GatePaths {
+  /** What to call the agent on a permission card (§57). */
+  agent?: string;
   /** Resolves relative tool arguments the way the session's own tools would. */
   cwd: string;
   /**
@@ -83,7 +85,7 @@ export class PermissionGate {
   }
 
   async check(toolName: string, input: unknown): Promise<GateDecision> {
-    const { category, detail, title, cwd, writes } = classifyToolCall(toolName, input);
+    const { category, detail, title, cwd, writes } = classifyToolCall(toolName, input, this.paths.agent);
 
     // Location before category. `files: allow` means "writes inside the
     // workspace", which is what anyone reading that setting assumes it means —
