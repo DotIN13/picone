@@ -3406,18 +3406,19 @@ body[data-dragging-path] {
   color: var(--v2-icon-icon-base);
 }
 
+/* Stacked, now that a row is one line: two short boxes side by side would be
+   two narrow boxes with nothing in them. */
 [data-component="agent-grid"] {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 [data-slot="agent-card"] {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 11px 12px;
+  padding: 12px;
   border: 1px solid var(--v2-border-border-muted);
   border-radius: 8px;
   background: transparent;
@@ -3452,17 +3453,12 @@ body[data-dragging-path] {
   opacity: 0.55;
 }
 
-[data-slot="agent-card-text"] {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
 [data-slot="agent-card-name"] {
   display: flex;
   align-items: baseline;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
   color: var(--v2-text-text-base);
   font-size: calc(13px * var(--font-scale));
   font-weight: 500;
@@ -3474,19 +3470,16 @@ body[data-dragging-path] {
   font-weight: 400;
 }
 
-/* The model it would run, or the reason it cannot run. One line for a model
-   id, wrapping only when it is a sentence explaining an absence. */
+/* What that agent would run, at the end of the row. Never wraps: the row is a
+   line, and a model id that will not fit is worth less than the shape of the
+   list. The full reason an agent is unavailable is on the row's `title`. */
 [data-slot="agent-note"] {
+  justify-self: end;
   color: var(--v2-text-text-faint);
   font-size: calc(11px * var(--font-scale));
-  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-[data-slot="agent-card"]:disabled [data-slot="agent-note"] {
-  white-space: normal;
 }
 
 /* A finger needs a bigger target than a pointer does. */
@@ -3503,8 +3496,9 @@ body[data-dragging-path] {
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
-  min-width: 212px;
-  max-width: 300px;
+  /* Wide enough for a name and a model id on one line, and no wider. */
+  min-width: 236px;
+  max-width: min(340px, calc(100 * var(--vw) - 24px));
   padding: 4px;
   border-radius: 8px;
   background: var(--v2-background-bg-layer-01);
@@ -3519,7 +3513,7 @@ body[data-dragging-path] {
 
 [data-slot="agent-option"] {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
   padding: 7px 8px;

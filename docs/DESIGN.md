@@ -2724,8 +2724,10 @@ gets a menu under the button it came from, which is what a small choice looks
 like on a desktop and costs nothing to dismiss. A finger — phone or tablet —
 gets a dialog with a box per agent, because a menu item sized for a cursor is a
 poor target and an anchored popover on a phone opens against the edge of the
-screen with the keyboard on its way. Both draw the same rows: the mark, the
-name, and the model that agent would run.
+screen with the keyboard on its way. Both draw the same rows, and a row is one
+line: the mark, the name, and — at the end — the model that agent would run.
+Stacked under the name it gave every row two lines and made a choice between two
+things look like a settings page.
 
 Quietly, in both. An early version was centred posters with tinted tiles under
 the icons, a coloured border on the current one and a hover that repainted the
@@ -2744,17 +2746,18 @@ rather than only that something is. That replaced the generic spinner in four
 places — the session list, the tabs, the status pill and the chat's working
 row.
 
-The still marks are the products' own — Claude Code's mark, and the Pi glyph
-from `pi.dev` — with their fills dropped so they take the colour of the text
-beside them. Claude *Code* rather than the Claude chat symbol, because that is
-the product this backend drives. The moving ones are drawn here, in each
-agent's idiom: Pi's logo as a character-cell grid building in reading order,
+The still marks are the published symbols — Anthropic's Claude burst (CC0,
+Wikimedia Commons) and the Pi glyph from `pi.dev` — with their fills dropped so
+they take the colour of the text beside them. The burst rather than the blockier
+Claude Code lockup, because it is the shape the working frames grow into: a
+session that starts working then changes from still to moving rather than from
+one drawing to another. The moving ones are drawn here, in each agent's idiom: Pi's logo as a character-cell grid building in reading order,
 Claude's asterisk growing through the frames its own CLI cycles, in its own
 clay — the one place a mark is not simply the text colour, because a thing in
 motion may as well say whose motion it is.
 
-Sizing them is not arithmetic. The four drawings share nothing: Claude Code's
-mark is 24 wide and 15 tall, the Pi glyph occupies 59% of its 800 box, the tile
+Sizing them is not arithmetic. The four drawings share nothing: the burst fills
+its 100 box edge to edge, the Pi glyph occupies 59% of its 800 box, the tile
 grid is 23 of 24 units, and a text glyph is whatever the font says. Each
 declares its own ink — a rectangle, not a square — and its longer side is
 scaled into one 24-unit frame, which is what stops a mark changing size the

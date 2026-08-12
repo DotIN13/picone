@@ -56,22 +56,25 @@ export function NewSessionButton(props: { variant?: "sidebar" | "tab" }) {
   const size = () => (props.variant === "tab" ? 14 : 13);
   const many = () => choices().length > 1;
 
-  /** One agent, said the same way in both shapes. */
+  /**
+   * One agent on one line, said the same way in both shapes: the mark, the
+   * name, and — pushed to the end — what it would run. Stacking the model
+   * under the name gave every row two lines and made a choice between two
+   * things look like a settings page.
+   */
   const row = (agent: AgentAvailability): JSX.Element => (
     <>
       <Icon name={agentIcon(agent.kind)} size={16} />
-      <span data-slot="agent-card-text">
-        <span data-slot="agent-card-name">
-          {agent.name}
-          <Show when={agent.kind === preferred()}>
-            <span data-slot="agent-default">default</span>
-          </Show>
-        </span>
-        {/* What you would get, or why you cannot have it. */}
-        <Show when={agent.available} fallback={<span data-slot="agent-note">{agent.reason}</span>}>
-          <span data-slot="agent-note">{model(agent.kind) ?? "default model"}</span>
+      <span data-slot="agent-card-name">
+        {agent.name}
+        <Show when={agent.kind === preferred()}>
+          <span data-slot="agent-default">default</span>
         </Show>
       </span>
+      {/* What you would get, or why you cannot have it. */}
+      <Show when={agent.available} fallback={<span data-slot="agent-note">unavailable</span>}>
+        <span data-slot="agent-note">{model(agent.kind) ?? "default model"}</span>
+      </Show>
     </>
   );
 
@@ -99,6 +102,7 @@ export function NewSessionButton(props: { variant?: "sidebar" | "tab" }) {
                     <DropdownMenu.Item
                       data-slot="agent-option"
                       disabled={!agent.available}
+                      title={agent.reason}
                       onSelect={() => void start(agent.kind)}
                     >
                       {row(agent)}
@@ -136,6 +140,7 @@ export function NewSessionButton(props: { variant?: "sidebar" | "tab" }) {
                   data-slot="agent-card"
                   data-current={agent.kind === preferred() ? "" : undefined}
                   disabled={!agent.available}
+                  title={agent.reason}
                   onClick={() => void start(agent.kind)}
                 >
                   {row(agent)}
