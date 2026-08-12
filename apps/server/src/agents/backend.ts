@@ -87,7 +87,7 @@ export interface AgentBackend {
    * something to address (through `host.tagEntry`). Pi has to infer the
    * mapping; Claude is told it outright.
    */
-  syncEntryIds?(): void;
+  syncEntryIds?(): void | Promise<void>;
 }
 
 /**

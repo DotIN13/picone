@@ -193,8 +193,8 @@ export class SessionRuntime {
     });
 
     this.rememberResumeRef();
-    this.backend.syncEntryIds?.();
-    this.publishContext();
+    void this.backend.syncEntryIds?.();
+    void this.publishContext();
     this.reconcileName();
   }
 
@@ -233,7 +233,7 @@ export class SessionRuntime {
       this.translator.setState("idle");
     }
 
-    this.afterTurn();
+    await this.afterTurn();
   }
 
   /** Explicit steering — used by voice and comments during an active run. */
@@ -248,7 +248,7 @@ export class SessionRuntime {
     } catch (err) {
       this.translator.notice(`Steering failed: ${(err as Error).message}`, "error");
     }
-    this.afterTurn();
+    await this.afterTurn();
   }
 
   /** The transcript keeps what was typed; only the model-facing copy grows. */
@@ -258,16 +258,16 @@ export class SessionRuntime {
     this.options.emit(this.id, { type: "user.message", id: item.id, text: shown, source, at: item.at });
   }
 
-  private afterTurn(): void {
+  private async afterTurn(): Promise<void> {
     // A session becomes resumable once it has said something: Pi writes its
     // file on the first reply, and Claude's id is only good after a turn.
     this.rememberResumeRef();
-    this.backend.syncEntryIds?.();
+    await this.backend.syncEntryIds?.();
     if (this.entriesTagged) {
       this.entriesTagged = false;
       this.options.emit(this.id, this.snapshot());
     }
-    void this.publishContext();
+    await this.publishContext();
   }
 
   /**

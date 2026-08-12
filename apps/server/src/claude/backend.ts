@@ -353,12 +353,7 @@ export class ClaudeBackend implements AgentBackend {
             this.endTurn();
           },
         });
-        // Claude says outright which entry a message became, where Pi has to
-        // infer it (§53) — but only some "user" messages are things a user
-        // said. A tool result is one too, as far as the API is concerned.
-        if (message.type === "user" && !message.parent_tool_use_id && message.uuid && isPrompt(message)) {
-          this.noteUserEntry(message.uuid);
-        }
+
       }
     } catch (error) {
       if (this.disposed || this.query !== owned) return;
@@ -384,16 +379,43 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   /**
-   * The uuid of the message the human just sent, against the last untagged user
-   * item in the transcript. The SDK replays *its* copy of the prompt, which is
-   * the model-facing text — so the newest untagged one is the match, in the
-   * same order they were sent.
+   * Tag each user message with the entry it became (§53).
+   *
+   * Read back from the session file rather than taken off the stream, because
+   * neither carries it live: the SDK does not echo a prompt back (it only
+   * replays them when resuming) and this CLI leaves `user_message_uuid` off
+   * the result. What the file does have is every prompt, in order, with the
+   * uuid a fork or a rewind needs.
+   *
+   * Paired from the end like Pi's (§8): the transcript in memory is only the
+   * tail (§14), so the two sequences share a suffix rather than a prefix. The
+   * check is that the entry starts with what we displayed — the model-facing
+   * copy has mentions appended (§52) — and the moment they disagree it stops.
    */
-  private noteUserEntry(uuid: string): void {
+  async syncEntryIds(): Promise<void> {
+    if (!this.persisted || !this.sessionId) return;
+    const { getSessionMessages } = await import("@anthropic-ai/claude-agent-sdk");
+    let prompts: Array<{ uuid: string; text: string }>;
+    try {
+      const messages = await getSessionMessages(this.sessionId, { dir: this.context.cwd });
+      prompts = messages
+        .filter((message) => message.type === "user" && isPrompt(message.message))
+        .map((message) => ({ uuid: message.uuid, text: promptText(message.message) }));
+    } catch {
+      // A session file that cannot be read costs a rewind affordance, which is
+      // the right way to be wrong.
+      return;
+    }
+
     const items = this.host.userMessages();
-    const untagged = items.filter((item) => !item.entryId);
-    const item = untagged[untagged.length - 1];
-    if (item) this.host.tagEntry(item.id, uuid);
+    for (let offset = 1; offset <= Math.min(prompts.length, items.length); offset++) {
+      const entry = prompts[prompts.length - offset];
+      const item = items[items.length - offset];
+      if (!entry || !item) break;
+      if (item.entryId === entry.uuid) continue;
+      if (!entry.text.trimStart().startsWith(item.text.trimStart())) break;
+      this.host.tagEntry(item.id, entry.uuid);
+    }
   }
 
   // --- the conversation ---------------------------------------------------------
@@ -602,20 +624,28 @@ export class ClaudeBackend implements AgentBackend {
 }
 
 /**
- * Whether a `user` message is something the human said.
+ * Whether a stored `user` entry is something the human said.
  *
- * Tool results come back as user messages carrying `tool_result` blocks, and
- * so does anything the harness synthesises. Tagging one of those as the entry
- * a message became put §53's handle in the middle of a turn: a fork taken
- * there cut between an assistant's tool call and its result, and quietly
- * carried across the message it was supposed to fork before.
+ * Tool results are user messages too, as far as the API is concerned, and an
+ * entry tagged against one puts §53's handle in the middle of a turn.
  */
-function isPrompt(message: Extract<SDKMessage, { type: "user" }>): boolean {
-  if (message.isSynthetic) return false;
-  const content = message.message.content;
+function isPrompt(message: unknown): boolean {
+  const content = (message as { content?: unknown } | undefined)?.content;
   if (typeof content === "string") return true;
   if (!Array.isArray(content)) return false;
   return !content.some((block) => (block as { type?: string }).type === "tool_result");
+}
+
+/** The text of a stored prompt, whichever shape it was written in. */
+function promptText(message: unknown): string {
+  const content = (message as { content?: unknown } | undefined)?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((block) =>
+      (block as { type?: string }).type === "text" ? String((block as { text?: string }).text ?? "") : "",
+    )
+    .join("");
 }
 
 function userMessage(text: string): SDKUserMessage {
