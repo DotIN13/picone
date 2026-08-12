@@ -37,7 +37,6 @@ const app = new App();
 
 /** Everything the browser would have been sent, in order. */
 const seen = [];
-app.hub.subscribe = app.hub.subscribe; // keep the shape honest if it changes
 const original = app.hub.publish.bind(app.hub);
 app.hub.publish = (sessionId, event) => {
   seen.push(event);

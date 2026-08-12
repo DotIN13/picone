@@ -26,3 +26,9 @@ Thumbs.db
 
 # The development server's own data directory (see apps/server/scripts/dev.mjs).
 .dev-data/
+
+# Scratch output from driving the browser during a check — a screenshot or an
+# accessibility snapshot, written into the repo root because that is where the
+# devtools bridge is allowed to write.
+.shot.png
+.snap.txt
