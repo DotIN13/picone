@@ -350,6 +350,12 @@ export class App {
     this.activeSessionId = id;
     this.publishSessionList();
     this.publishCommands(id);
+    /*
+     * Including the empty transcript. Without it the browser has no snapshot
+     * for this session and cannot know there is nothing before it, so a
+     * brand-new session offered to fetch earlier messages it has never had.
+     */
+    this.publishSnapshot(id);
     return runtime;
   }
 

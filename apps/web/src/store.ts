@@ -436,6 +436,9 @@ function addSessionTab(sessionId: string, name: string): void {
 /** Open (or focus) a session as a tab and make it the target for input. */
 export async function openSession(sessionId: string): Promise<void> {
   const summary = sessionSummary(sessionId);
+  // Sessions of both agents live in one list, so opening one may change which
+  // catalogue the model picker should be showing (§57).
+  if (summary?.agent && summary.agent !== loadedFor) void loadModels(summary.agent);
   if (!state.tabs.some((tab) => tab.id === sessionId)) {
     addSessionTab(sessionId, summary?.title ?? "Session");
   }
@@ -462,9 +465,9 @@ export async function newSession(agent?: AgentKind): Promise<void> {
   const { session } = await api.createSession("New session", agent);
   addSessionTab(session.id, session.title);
   setState({ activeTabId: session.id, activeSessionId: session.id });
-  // A different agent has a different catalogue, and the picker is about to
-  // be looking at it (§57).
-  await loadModels();
+  // Told rather than derived: the session list arrives over the socket, and
+  // asking which agent this is before it lands gets the old answer (§57).
+  await loadModels(session.agent);
 }
 
 /** Which agent the session on screen is having its conversation with. */
@@ -485,11 +488,15 @@ export function activeCapabilities(): AgentCapabilities | undefined {
  * Claude's list can only come from a live session, so this is asked again when
  * the active session changes rather than once at startup.
  */
-export async function loadModels(): Promise<void> {
-  const agent = activeAgent();
+let loadedFor: AgentKind | null = null;
+
+export async function loadModels(agent = activeAgent()): Promise<void> {
+  loadedFor = agent;
   try {
     const { models } = await api.models(agent);
-    setState("models", models);
+    // A slower earlier request must not overwrite a later one: switching tabs
+    // quickly would otherwise leave the picker showing the other agent's list.
+    if (loadedFor === agent) setState("models", models);
   } catch {
     // The picker falls back to showing whatever the session is already using.
   }
@@ -573,6 +580,9 @@ export function setActiveTab(id: string): void {
   if (tab.kind === "session" && state.activeSessionId !== id) {
     setState("activeSessionId", id);
     void api.selectSession(id).catch(() => {});
+    // The tab that just came forward may belong to the other agent (§57).
+    const agent = sessionSummary(id)?.agent;
+    if (agent && agent !== loadedFor) void loadModels(agent);
   }
 }
 

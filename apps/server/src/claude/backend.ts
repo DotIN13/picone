@@ -264,6 +264,14 @@ export class ClaudeBackend implements AgentBackend {
         description: agent.description,
         source: "",
       }));
+      /*
+       * What the session is running, for the picker (§57). `default` is a real
+       * entry in the catalogue rather than a placeholder — it is what the CLI
+       * itself shows before a model is chosen — and it stays the label until
+       * somebody chooses, because the wire id the stream later reports
+       * (`claude-sonnet-4-6`) is not one of the rows a human picked from.
+       */
+      this.currentModelId ??= this.models.some((model) => model.value === "default") ? "default" : undefined;
     } catch (error) {
       this.host.translator.notice(`Claude started but did not report itself: ${(error as Error).message}`, "warn");
     }
@@ -305,7 +313,7 @@ export class ClaudeBackend implements AgentBackend {
         handleClaudeMessage(this.host.translator, message, this.toolNames, {
           sessionId: (id) => (this.sessionId = id),
           init: (init) => {
-            this.currentModelId = init.model ?? this.currentModelId;
+            this.currentModelId ??= init.model;
             this.skills = (init.skills ?? []).map((skill) => ({ name: skill, source: "" }));
           },
           result: (result) => {

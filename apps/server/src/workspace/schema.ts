@@ -6,6 +6,7 @@ import type {
   WorkspaceDirRef,
   WorkspaceFile,
   WorkspaceMcpConfig,
+  WorkspaceModel,
   WorkspaceResources,
 } from "@picone/protocol";
 
@@ -241,16 +242,46 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
     }
   }
 
-  let model: WorkspaceFile["model"];
-  if (raw.model !== undefined) {
-    if (!isRecord(raw.model)) {
-      errors.push(`"model" must be an object`);
+  const modelEntry = (value: unknown, field: string): WorkspaceModel | undefined => {
+    if (value === undefined) return undefined;
+    if (!isRecord(value)) {
+      errors.push(`"${field}" must be an object`);
+      return undefined;
+    }
+    return {
+      provider: typeof value.provider === "string" ? value.provider : undefined,
+      model: typeof value.model === "string" ? value.model : undefined,
+      thinking: typeof value.thinking === "string" ? value.thinking : undefined,
+    };
+  };
+
+  const model = modelEntry(raw.model, "model");
+
+  /**
+   * Which agent new sessions start with, and the model each agent was last
+   * given (§57). Per agent because they do not share a catalogue.
+   */
+  let agent: WorkspaceFile["agent"];
+  if (raw.agent !== undefined) {
+    if (raw.agent === "pi" || raw.agent === "claude") agent = raw.agent;
+    else errors.push(`"agent" must be "pi" or "claude" (got ${JSON.stringify(raw.agent)})`);
+  }
+
+  let models: WorkspaceFile["models"];
+  if (raw.models !== undefined) {
+    if (!isRecord(raw.models)) {
+      errors.push(`"models" must be an object keyed by agent`);
     } else {
-      model = {
-        provider: typeof raw.model.provider === "string" ? raw.model.provider : undefined,
-        model: typeof raw.model.model === "string" ? raw.model.model : undefined,
-        thinking: typeof raw.model.thinking === "string" ? raw.model.thinking : undefined,
-      };
+      const out: NonNullable<WorkspaceFile["models"]> = {};
+      for (const [name, entry] of Object.entries(raw.models)) {
+        if (name !== "pi" && name !== "claude") {
+          errors.push(`"models.${name}" is not an agent this version knows about`);
+          continue;
+        }
+        const parsed = modelEntry(entry, `models.${name}`);
+        if (parsed) out[name] = parsed;
+      }
+      if (Object.keys(out).length > 0) models = out;
     }
   }
 
@@ -283,6 +314,8 @@ export function validateWorkspaceFile(raw: unknown): ValidationResult {
       memory,
       mcp,
       permissions,
+      agent,
+      models,
       model,
       voice,
     },
