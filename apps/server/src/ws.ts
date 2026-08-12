@@ -112,7 +112,7 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
       break;
 
     case "new_session":
-      await app.createSession(message.title ?? "New session");
+      await app.createSession(message.title ?? "New session", message.agent);
       break;
 
     case "rewind":
@@ -128,7 +128,7 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
       break;
 
     case "session_stats":
-      app.reportStats(message.sessionId);
+      await app.reportStats(message.sessionId);
       break;
 
     case "session_export":

@@ -188,6 +188,18 @@ export interface WorkspaceFile {
   memory?: MemoryDirs;
   mcp?: Record<string, WorkspaceMcpConfig>;
   permissions?: WorkspacePermissions;
+  /**
+   * Which agent a new session starts with. Set by choosing one, the same way
+   * choosing a model sets `models` — the file stays the persistent policy (§34).
+   */
+  agent?: AgentKind;
+  /**
+   * The model each agent was last given. Per agent because they do not share
+   * a catalogue: `sonnet` means nothing to Pi and `openai/gpt-5` means nothing
+   * to Claude, so one slot could only ever be right for one of them.
+   */
+  models?: Partial<Record<AgentKind, WorkspaceModel>>;
+  /** The single slot this replaced. Still read, and still means Pi's model. */
   model?: WorkspaceModel;
   voice?: WorkspaceVoice;
 }
@@ -361,11 +373,57 @@ export interface SessionModel {
   thinking?: string;
 }
 
+/**
+ * Which agent is behind a session.
+ *
+ * Chosen per session rather than per workspace: the same project is worth
+ * asking two different agents about, and a conversation cannot change its mind
+ * halfway through — the history belongs to whoever has been having it.
+ */
+export type AgentKind = "pi" | "claude";
+
+/**
+ * What a session's agent can actually do.
+ *
+ * Agents differ in ways the UI has to respect. Rather than each surface
+ * knowing which agent supports what, every session says so and the browser
+ * draws only the affordances that exist: a rewind button that answers "not
+ * supported" is worse than no rewind button.
+ */
+export interface AgentCapabilities {
+  /** Going back to just before a message, in place (§53). */
+  rewind: boolean;
+  /** The same point in a session of its own (§53). */
+  fork: boolean;
+  /** Summarising the conversation on demand (§54). */
+  compact: boolean;
+  /** Compacting on its own when the context fills, as a switch (§54). */
+  autoCompaction: boolean;
+  /** Rebuilding the session's resources and prompt from the settings (§34). */
+  reload: boolean;
+  /** Writing the session out as HTML (§36). */
+  exportHtml: boolean;
+  /** Drawing an extension's own interface (§55). */
+  extensionUi: boolean;
+  /** Restoring the files, not just the conversation, to an earlier message. */
+  fileCheckpoints: boolean;
+}
+
 export interface SessionSummary {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
+  /** Which agent is behind it. Absent on rows written before there was a choice. */
+  agent?: AgentKind;
+  /** What that agent can do, once the session is loaded. */
+  capabilities?: AgentCapabilities;
+  /**
+   * What the agent needs to pick this session up again: Pi's session file, or
+   * Claude's session id. `sessionFile` is the same thing under Pi's name, kept
+   * for the rows that already have one.
+   */
+  resumeRef?: string;
   /** Pi session file backing this session, when persisted. */
   sessionFile?: string;
   /** Model this session is actually running, once it has been created. */
@@ -716,7 +774,8 @@ export type ClientMessage =
   | { type: "session_stats"; sessionId?: string }
   /** Write the session out as HTML, through Pi's exporter. */
   | { type: "session_export"; sessionId?: string }
-  | { type: "new_session"; title?: string }
+  /** `agent` picks the backend; omitted takes the workspace's default (§57). */
+  | { type: "new_session"; title?: string; agent?: AgentKind }
   | { type: "extension_ui_answer"; answer: ExtensionUiAnswer }
   /** A keystroke for an open `custom` component, already in terminal form. */
   | { type: "extension_ui_key"; id: string; data: string }

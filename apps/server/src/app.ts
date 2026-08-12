@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type {
   AgentEvent,
+  AgentKind,
   CommentStatus,
   ExtensionUiAnswer,
   FileComment,
   FileCommentInput,
   GlobalSettings,
   McpServerState,
+  ModelOption,
   PermissionDecision,
   Workspace,
   WorkspaceFile,
@@ -32,7 +34,7 @@ import { memoryRoots, resolveMemoryDirs } from "./memory/registry.ts";
 import { loadGlobalSettings, mergeMcp, saveGlobalSettings } from "./settings.ts";
 import nodePath from "node:path";
 import { expandPath } from "./util/paths.ts";
-import { SessionRuntime } from "./pi/runtime.ts";
+import { SessionRuntime } from "./agents/session.ts";
 import { createWorkspace, type CreateWorkspaceOptions } from "./workspace/create.ts";
 import { loadWorkspace } from "./workspace/loader.ts";
 import { resolvedPermissions, resolvedVoice } from "./workspace/schema.ts";
@@ -160,7 +162,7 @@ export class App {
     const mostRecent = known.find((s) => s.id === lastOpened) ?? known[0];
     if (mostRecent) {
       try {
-        await this.activateSession(mostRecent.id, mostRecent.title, mostRecent.sessionFile);
+        await this.activateSession(mostRecent.id, mostRecent.title, mostRecent.agent ?? "pi", mostRecent.sessionFile);
       } catch (err) {
         console.warn(`[picone] could not reopen session ${mostRecent.id}: ${(err as Error).message}`);
         await this.createSession("New session");
@@ -330,10 +332,18 @@ export class App {
     return session;
   }
 
-  async createSession(title = "New session"): Promise<SessionRuntime> {
+  async createSession(title = "New session", agent?: AgentKind): Promise<SessionRuntime> {
     const workspace = this.requireWorkspace();
     const id = randomUUID();
-    const runtime = await this.buildSession(id, title, undefined);
+    const kind = agent ?? this.defaultAgent();
+    const runtime = await this.buildSession(id, title, kind, undefined);
+
+    // Choosing an agent sets the workspace's default, the same way choosing a
+    // model does: the file is the persistent policy (§34).
+    if (agent && agent !== workspace.file.agent) {
+      const updated = this.adopt(writeWorkspaceFile(workspace.path, { ...workspace.file, agent }));
+      this.hub.publish(null, { type: "workspace.updated", workspace: updated });
+    }
 
     insertSession(workspace.path, runtime.summary());
     this.sessions.set(id, runtime);
@@ -362,7 +372,7 @@ export class App {
       const workspace = this.requireWorkspace();
       const known = listSessions(workspace.path).find((s) => s.id === id);
       if (!known) throw new Error(`Unknown session ${id}`);
-      await this.activateSession(known.id, known.title, known.sessionFile);
+      await this.activateSession(known.id, known.title, known.agent ?? "pi", known.sessionFile);
     } else {
       this.activeSessionId = id;
     }
@@ -380,7 +390,7 @@ export class App {
     this.hub.publish(id, runtime.snapshot());
     // With the transcript, because the context reading is emitted on change and
     // a browser that has just reconnected has missed every change so far.
-    runtime.publishContext();
+    void runtime.publishContext();
   }
 
   async removeSession(id: string): Promise<void> {
@@ -436,8 +446,8 @@ export class App {
     });
   }
 
-  private async activateSession(id: string, title: string, sessionFile?: string): Promise<void> {
-    const runtime = await this.buildSession(id, title, sessionFile);
+  private async activateSession(id: string, title: string, agent: AgentKind, resumeRef?: string): Promise<void> {
+    const runtime = await this.buildSession(id, title, agent, resumeRef);
     this.sessions.set(id, runtime);
     this.activeSessionId = id;
     this.evictIdleSessions();
@@ -464,32 +474,49 @@ export class App {
     }
   }
 
-  private async buildSession(id: string, title: string, sessionFile?: string): Promise<SessionRuntime> {
+  private async buildSession(
+    id: string,
+    title: string,
+    agent: AgentKind,
+    resumeRef?: string,
+  ): Promise<SessionRuntime> {
     const workspace = this.requireWorkspace();
     return SessionRuntime.create({
       id,
       title,
+      agent,
       workspace,
-      sessionFile,
+      resumeRef,
       emit: (sessionId, event) => this.hub.publish(sessionId, event),
-      extraTools: () => this.mcp.tools(),
-      globalSkillPaths: this.settings.skills.map((skill) => expandPath(skill.path)),
-      toolHooks: {
-        resolveComment: (commentId) => {
+      services: {
+        globalSkillPaths: () => this.settings.skills.map((skill) => expandPath(skill.path)),
+        piTools: () => this.mcp.tools(),
+        mcpConfigs: () => mergeMcp(this.settings.mcp, workspace.file.mcp).merged,
+      },
+      comments: {
+        resolve: (commentId) => {
           const comment = resolveComment(commentId);
           if (comment) this.hub.publish(null, { type: "comment.updated", comment });
           return comment;
         },
-        openComments: () => listComments(workspace.path).filter((c) => c.status === "open"),
+        open: () => listComments(workspace.path).filter((c) => c.status === "open"),
       },
-      onSessionFile: (sessionId, file) => updateSession(sessionId, { sessionFile: file }),
-      // Pi renamed the session — from `/name` in a terminal, or an extension.
+      onResumeRef: (sessionId, ref) => updateSession(sessionId, { sessionFile: ref }),
+      // The agent renamed the session — from `/name` in a terminal, or an extension.
       onTitle: (sessionId, title) => {
         updateSession(sessionId, { title });
         this.publishSessionList();
       },
       onActivity: () => this.scheduleSessionList(),
     });
+  }
+
+  /**
+   * Which agent a new session gets when nobody says (§57): what the workspace
+   * was last told, and Pi before it has been told anything.
+   */
+  private defaultAgent(): AgentKind {
+    return this.workspace?.file.agent ?? "pi";
   }
 
   /**
@@ -600,9 +627,9 @@ export class App {
     this.hub.publish(null, { type: "workspace.updated", workspace: this.requireWorkspace() });
   }
 
-  /** Pi's own tally for the session, as a transcript notice (DESIGN §36). */
-  reportStats(sessionId?: string): void {
-    this.target(sessionId).reportStats();
+  /** The agent's own tally for the session, as a transcript notice (§36). */
+  async reportStats(sessionId?: string): Promise<void> {
+    await this.target(sessionId).reportStats();
   }
 
   /** Write the session out as HTML, through Pi's own exporter. */
@@ -624,11 +651,11 @@ export class App {
    */
   async fork(itemId: string, sessionId?: string): Promise<SessionRuntime> {
     const source = this.target(sessionId);
-    const { sessionFile, text, history } = source.forkPoint(itemId);
+    const { resumeRef, text, history } = source.forkPoint(itemId);
 
     const workspace = this.requireWorkspace();
     const id = randomUUID();
-    const runtime = await this.buildSession(id, forkTitle(source.title), sessionFile ?? undefined);
+    const runtime = await this.buildSession(id, forkTitle(source.title), source.agent, resumeRef ?? undefined);
     runtime.forkedFrom = source.id;
     runtime.seedTranscript(history);
 
@@ -654,12 +681,34 @@ export class App {
     await this.target(sessionId).setModel(provider, model, thinking);
 
     const workspace = this.requireWorkspace();
-    const next: WorkspaceFile = { ...workspace.file, model: { provider, model, thinking } };
-    if (JSON.stringify(next.model) !== JSON.stringify(workspace.file.model)) {
+    // Per agent: the two do not share a catalogue, so one slot could only ever
+    // be right for one of them (§57).
+    const session = this.target(sessionId);
+    const next: WorkspaceFile = {
+      ...workspace.file,
+      models: { ...workspace.file.models, [session.agent]: { provider, model, thinking } },
+      ...(session.agent === "pi" ? { model: { provider, model, thinking } } : {}),
+    };
+    if (JSON.stringify(next.models) !== JSON.stringify(workspace.file.models)) {
       const updated = this.adopt(writeWorkspaceFile(workspace.path, next));
       this.hub.publish(null, { type: "workspace.updated", workspace: updated });
     }
     this.publishSessionList();
+  }
+
+  /**
+   * Claude's model list, which only a running Claude session can produce (§57).
+   * The active session first, since the picker is nearly always open over it.
+   */
+  claudeModels(): ModelOption[] {
+    const active = this.activeSession();
+    const candidates = active ? [active, ...this.sessions.values()] : [...this.sessions.values()];
+    for (const session of candidates) {
+      if (session.agent !== "claude") continue;
+      const models = session.modelOptions();
+      if (models.length) return models;
+    }
+    return [];
   }
 
   commands(sessionId?: string) {

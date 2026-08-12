@@ -351,7 +351,8 @@ export function createApiRouter(app: App): Router {
   router.post(
     "/sessions",
     asyncRoute(async (req, res) => {
-      const session = await app.createSession(String(req.body?.title ?? "New session"));
+      const agent = req.body?.agent === "claude" || req.body?.agent === "pi" ? req.body.agent : undefined;
+      const session = await app.createSession(String(req.body?.title ?? "New session"), agent);
       res.json({ session: session.summary() });
     }),
   );
@@ -445,13 +446,31 @@ export function createApiRouter(app: App): Router {
 
   // --- misc ------------------------------------------------------------------
 
+  /**
+   * The models one agent offers (§57). Pi has a catalogue of its own; Claude
+   * can only be asked through a live session, so the answer comes from the
+   * session that is running rather than from a registry.
+   */
   router.get(
     "/models",
-    asyncRoute(async (_req, res) => {
+    asyncRoute(async (req, res) => {
+      if (req.query.agent === "claude") {
+        res.json({ models: app.claudeModels() });
+        return;
+      }
       const { ModelRuntime } = await import("@earendil-works/pi-coding-agent");
       const runtime = await ModelRuntime.create();
       const available = await runtime.getAvailable();
       res.json({ models: available.map(describeModel) });
+    }),
+  );
+
+  /** Which agents a session can be started with, and why not (§57). */
+  router.get(
+    "/agents",
+    asyncRoute(async (_req, res) => {
+      const { availableAgents } = await import("./agents/registry.ts");
+      res.json({ agents: await availableAgents() });
     }),
   );
 
