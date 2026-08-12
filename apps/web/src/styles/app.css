@@ -3539,6 +3539,104 @@ body[data-dragging-path] {
   opacity: 0.55;
 }
 
+/* ---------------------------------------------------------------------------
+ * The agent marks, still and moving (§58)
+ *
+ * Each agent's mark doubles as the sign that it is working: a session that is
+ * thinking shows *its own* mark in motion rather than a generic spinner, so a
+ * list of sessions says who is busy as well as that something is. The keyframes
+ * live here rather than inside each SVG — one copy however many marks are on
+ * screen — and both stop for anyone who has asked motion to stop.
+ * ------------------------------------------------------------------------ */
+
+[data-component="agent-mark"] {
+  flex: none;
+}
+
+/* Pi: a character-cell grid, built in reading order and let go again. */
+.pi-tile {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+[data-component="agent-mark"][data-busy] .pi-tile {
+  animation: pi-build 1.35s cubic-bezier(0.22, 0.8, 0.3, 1) infinite;
+}
+
+@keyframes pi-build {
+  0% {
+    opacity: 0.08;
+    transform: scale(0.25);
+  }
+
+  20%,
+  55% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  78% {
+    opacity: 0.15;
+    transform: scale(0.55);
+  }
+
+  100% {
+    opacity: 0.08;
+    transform: scale(0.25);
+  }
+}
+
+/* Claude: the asterisk, and the six frames it grows through. */
+/* Sized in the glyph's own 20-unit box, which the frame then scales like any
+   other drawing — so the moving mark is exactly as big as the still one. */
+.claude-glyph {
+  fill: currentColor;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 20px;
+  dominant-baseline: central;
+  text-anchor: middle;
+}
+
+/* Working, it is Claude's own colour — the one place in the app where a mark
+   is not simply the text colour, because a thing in motion may as well say
+   whose motion it is. */
+[data-component="agent-mark"][data-busy] .claude-glyph {
+  fill: #d97757;
+}
+
+.claude-frame {
+  opacity: 0;
+  animation: claude-cycle 720ms steps(1, end) infinite;
+}
+
+@keyframes claude-cycle {
+  0%,
+  16.666% {
+    opacity: 1;
+  }
+
+  16.667%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="agent-mark"][data-busy] .pi-tile {
+    animation: none;
+  }
+
+  .claude-frame {
+    animation: none;
+    opacity: 0;
+  }
+
+  /* The frame it rests on, so a still mark is still a mark. */
+  .claude-frame:nth-child(5) {
+    opacity: 1;
+  }
+}
+
 /* The agent in front of a session's name, where a row previously had nothing
    and a tab had a speech bubble that told you it was a conversation. */
 [data-slot="session-agent"] {

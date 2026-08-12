@@ -1,11 +1,22 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { ChatItem } from "@picone/protocol";
-import { activeCapabilities, forkAt, loadEarlier, openFile, rewindTo, state, surfaceOf, transcriptOf } from "../store.ts";
+import {
+  activeCapabilities,
+  forkAt,
+  loadEarlier,
+  openFile,
+  rewindTo,
+  sessionSummary,
+  state,
+  surfaceOf,
+  transcriptOf,
+} from "../store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
 import { PermissionCard } from "./PermissionCard.tsx";
 import { Icon } from "./ui/icon.tsx";
+import { AgentMark } from "./ui/agent-marks.tsx";
 import { Spinner, Tag } from "./ui/primitives.tsx";
 
 export function ChatTab(props: { sessionId: string }) {
@@ -323,7 +334,7 @@ export function ChatTab(props: { sessionId: string }) {
             <div data-slot="chat-working">
               <Show
                 when={surfaceOf(props.sessionId).workingFrames}
-                fallback={<Spinner />}
+                fallback={<AgentMark agent={sessionSummary(props.sessionId)?.agent} size={15} busy />}
               >
                 {(frames) => <Show when={frames().length > 0}>
                   <span data-slot="chat-working-frame">{frames()[0]}</span>

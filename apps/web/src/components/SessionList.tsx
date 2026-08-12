@@ -3,8 +3,8 @@ import type { SessionSummary } from "@picone/protocol";
 import { deleteSession, openSession, renameSession, state } from "../store.ts";
 import { IconButton } from "./ui/button.tsx";
 import { Icon } from "./ui/icon.tsx";
-import { agentIcon, agentLabel, NewSessionButton } from "./NewSessionButton.tsx";
-import { Spinner } from "./ui/primitives.tsx";
+import { agentLabel, NewSessionButton } from "./NewSessionButton.tsx";
+import { AgentMark } from "./ui/agent-marks.tsx";
 
 /**
  * Sessions in this workspace (DESIGN §27).
@@ -84,19 +84,12 @@ export function SessionList() {
               >
                 <button type="button" data-slot="session-open" onClick={() => void openSession(session.id)}>
                   <span data-slot="session-head">
-                    {/* The agent leads the row (§58). Whatever is having the
-                        conversation is the first thing about it, and while it
-                        is working the spinner says so in the same place. */}
-                    <Show
-                      when={busy(session.id)}
-                      fallback={
-                        <span data-slot="session-agent" title={agentLabel(session.agent)}>
-                          <Icon name={agentIcon(session.agent)} size={13} />
-                        </span>
-                      }
-                    >
-                      <Spinner size={8} />
-                    </Show>
+                    {/* The agent leads the row (§58), and while it is working
+                        that same mark is what moves — so the list says who is
+                        busy, not merely that something is. */}
+                    <span data-slot="session-agent" title={agentLabel(session.agent)}>
+                      <AgentMark agent={session.agent} size={13} busy={busy(session.id)} />
+                    </span>
                     <span data-slot="session-title">{session.title}</span>
                     <Show when={session.forkedFrom}>
                       <span data-slot="session-fork" title="Forked from another session">

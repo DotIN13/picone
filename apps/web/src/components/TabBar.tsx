@@ -10,8 +10,8 @@ import {
   toggleSidebar,
 } from "../store.ts";
 import { Icon } from "./ui/icon.tsx";
-import { agentIcon, NewSessionButton } from "./NewSessionButton.tsx";
-import { Spinner } from "./ui/primitives.tsx";
+import { NewSessionButton } from "./NewSessionButton.tsx";
+import { AgentMark } from "./ui/agent-marks.tsx";
 
 interface DropTarget {
   id: string;
@@ -182,20 +182,20 @@ export function TabBar() {
                   if (event.button === 1) closeTab(tab.id);
                 }}
               >
+                {/* A session tab shows its agent rather than a speech bubble:
+                    every session is a conversation, so the bubble said nothing
+                    the tab did not already say — and the mark moves while that
+                    agent is working (§58). */}
                 <Show
-                  when={tab.kind === "session" && sessionBusy(tab.id)}
-                  fallback={
-                    // A session tab shows its agent rather than a speech
-                    // bubble: every session is a conversation, so the bubble
-                    // said nothing that the tab did not already say (§58).
-                    <Icon
-                      name={tab.kind === "session" ? agentIcon(sessionSummary(tab.id)?.agent) : "file"}
-                      size={13}
-                      class="shrink-0 opacity-70"
-                    />
-                  }
+                  when={tab.kind === "session"}
+                  fallback={<Icon name="file" size={13} class="shrink-0 opacity-70" />}
                 >
-                  <Spinner size={9} />
+                  <AgentMark
+                    agent={sessionSummary(tab.id)?.agent}
+                    size={13}
+                    busy={sessionBusy(tab.id)}
+                    class="shrink-0 opacity-70"
+                  />
                 </Show>
                 <span class="truncate">{tab.name}</span>
                 <Show when={tab.kind === "file" && commentCount(tab.id) > 0}>
@@ -219,7 +219,8 @@ export function TabBar() {
 
       <Show when={!state.compact && state.activeSessionId && activeSessionState() !== "idle"}>
         <span data-slot="tabbar-status">
-          <Spinner size={9} />
+          {/* Whose work it is, as well as that there is some. */}
+          <AgentMark agent={sessionSummary(state.activeSessionId!)?.agent} size={13} busy />
           {activeSessionState() === "tool" ? "running tools" : "working"}
         </span>
       </Show>
