@@ -2714,10 +2714,24 @@ show.
 
 Per session, not per workspace: the same project is worth asking two different
 agents about, and a conversation cannot change its mind halfway through — the
-history belongs to whoever has been having it. The `+` stays one click and
-takes the workspace's usual agent; the caret beside it chooses, and choosing
-also sets the workspace default, the same bargain the model picker makes.
-`/new claude` does the same from the composer.
+history belongs to whoever has been having it. The `+` opens the choice, from
+the sidebar and the tab bar alike, and choosing also sets the workspace
+default — the same bargain the model picker makes. `/new claude` does it from
+the composer.
+
+**Two shapes for one list, split by pointer rather than by width.** A mouse
+gets a menu under the button it came from, which is what a small choice looks
+like on a desktop and costs nothing to dismiss. A finger — phone or tablet —
+gets a dialog with a box per agent, because a menu item sized for a cursor is a
+poor target and an anchored popover on a phone opens against the edge of the
+screen with the keyboard on its way. Both draw the same rows: the mark, the
+name, and the model that agent would run.
+
+Quietly, in both. An early version was centred posters with tinted tiles under
+the icons, a coloured border on the current one and a hover that repainted the
+box, which reads as an advertisement rather than a control. The workspace's
+usual agent is stated — a muted `default` beside its name — and hovering brings
+the border and the mark up to full strength without a fill.
 
 An agent that cannot run is listed with its reason rather than hidden. "No
 Claude executable found" is a thing to go and fix; a missing menu entry is a
