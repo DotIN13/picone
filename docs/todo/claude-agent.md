@@ -39,11 +39,32 @@ that any bare name in `allowedTools` shadows the callback entirely. A
 tool result. So Picone's gate hangs off the hook, and `canUseTool` is at most a
 backstop.
 
-**Not verified.** Whether a write or a shell call needs a permissive
-`canUseTool` beside the hook or is denied by the CLI's own prompt path in the
-absence of a TTY; whether a hook that blocks for a minute waiting for a human
-survives; whether `sessionId` + `resume` round-trips across a server restart.
-Those three are Phase 0.
+**Verified in phase 0** (`apps/server/scripts/claude-spike.mjs`, four cases):
+
+* *The hook can refuse but not grant.* An allowing `PreToolUse` hook is not
+  enough on its own — a `Write` still produced a `permission_denied` frame and
+  never happened, because the CLI's own layer has nobody to prompt.
+* *Hook plus `canUseTool` is the gate.* With both, the hook sees every call
+  (including the reads the callback is never consulted about) and the callback
+  grants what the CLI would otherwise ask about; the write landed. Both surfaces
+  carry the same `toolUseID`, so one human decision covers both and nobody is
+  asked twice.
+* *A slow human is fine.* A hook held for 45 s was awaited, not raced: the turn
+  completed normally after 53 s.
+* *Our own UUID is the session id.* Passing Picone's `randomUUID()` as
+  `sessionId` and then `resume`-ing it **from a second process** brought the
+  conversation back — the model recalled a number from the first turn. No
+  mapping table.
+* *The SDK does not look on `PATH`.* Without the platform package it fails with
+  "Native CLI binary for win32-x64 not found" rather than falling back, so the
+  resolution order below is ours to implement. Pointed at the `claude.exe`
+  already on this machine it ran fine, CLI 2.1.228 against SDK 0.3.228, on a
+  14 MB install instead of 297 MB.
+
+One trap worth writing down: the model resolves a bare relative path against the
+drive root on Windows, so an early version of the write probe failed with
+`EPERM: mkdir 'C:'` and looked exactly like a permission refusal. The
+difference is the `permission_denied` frame, which only the real refusal has.
 
 ---
 
@@ -199,12 +220,17 @@ of having written the policy around what a tool *does*. Four gaps to close in
 * Every card title says "Pi wants to run". It has to take the agent's name.
 
 **Where Claude's own permission layer goes.** It is still running underneath
-ours. Phase 0 decides between two shapes: hook as the gate with a permissive
-`canUseTool` beside it as the backstop for whatever the CLI would otherwise
-prompt for, or `permissionMode: "bypassPermissions"` so that Picone's gate is
-unambiguously the only one. The second is more honest about who owns the
-decision — §9 says Picone does — and more dangerous if our hook ever fails open.
-Prefer the first if it works.
+ours, and phase 0 settled how the two fit: the hook decides, and `canUseTool`
+carries the decision out. The hook is the only surface that sees every call, so
+it is where `PermissionGate.check` runs; it can refuse, and a refusal is final.
+It cannot *grant*, so the calls the CLI would have prompted about — writes,
+shell — need the callback to say yes as well. Both receive the same
+`toolUseID`, so the hook records its verdict under that id and the callback
+looks it up rather than asking a second time.
+
+`bypassPermissions` is therefore not needed, which is the better outcome: the
+CLI's own deny rules stay in force underneath ours, and a bug in our hook fails
+closed rather than open.
 
 **The world the agent sees.** `cwd` is the workspace cwd, exactly as Pi's is;
 `additionalDirectories` gets every other root, hidden ones included (§3), so
@@ -332,11 +358,9 @@ established. `session_file` stays for the rows that have one.
 
 ## Phases
 
-**0 — Spike.** A script under `apps/server/scripts/`, wired to nothing, that
-runs one Claude turn against a scratch directory with the `PreToolUse` gate in
-place and prints the translated `AgentEvent`s. It exists to answer the three
-unverified questions above. A day at most, and it either de-risks the rest or
-changes it.
+**0 — Spike.** *Done* — `apps/server/scripts/claude-spike.mjs`, wired to
+nothing, four cases, run by hand. It answered the questions above and changed
+the permission design before any of it was built.
 
 **1 — The seam.** Extract `Session`, `AgentBackend`, `AgentHost`; move today's
 runtime into `PiBackend`; make `EventTranslator`'s assembly public. No behaviour
@@ -364,7 +388,7 @@ proxy that would let both agents share one connection.
 
 ## Costs and risks, plainly
 
-**283 MB.** The SDK is 4 MB but pulls a platform binary as an optional
+**283 MB, avoided.** The SDK is 4 MB but pulls a platform binary as an optional
 dependency — `@anthropic-ai/claude-agent-sdk-win32-x64` is 283 MB on this
 machine. Three ways out, and the plan takes all three in order: make the SDK
 itself an optional dependency so a Picone without it still builds and runs, with
