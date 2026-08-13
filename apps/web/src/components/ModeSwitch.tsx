@@ -65,7 +65,6 @@ export function ModeSwitch() {
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content data-component="mode-menu">
-            <div data-slot="mode-heading">How it may act</div>
             <For each={available()}>
               {(entry) => (
                 <DropdownMenu.Item
