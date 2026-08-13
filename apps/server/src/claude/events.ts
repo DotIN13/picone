@@ -33,6 +33,8 @@ export function handleClaudeMessage(
   translator: EventTranslator,
   message: SDKMessage,
   names: ToolNames,
+  /** Calls Picone answered itself (§59): shown as a question, not as a tool. */
+  answered: Set<string>,
   hooks: ClaudeStreamHooks = {},
 ): void {
   switch (message.type) {
@@ -76,6 +78,8 @@ export function handleClaudeMessage(
       for (const block of message.message.content) {
         if (block.type !== "tool_use") continue;
         names.set(block.id, block.name);
+        // A question the human is about to be asked is not a tool call to draw.
+        if (isAsking(block.name)) continue;
         translator.toolStarted(block.id, block.name, block.input);
       }
       return;
@@ -88,6 +92,11 @@ export function handleClaudeMessage(
       for (const block of content) {
         if (block.type !== "tool_result") continue;
         const id = String(block.tool_use_id);
+        // Ours to answer, so its refusal is not a failure to report.
+        if (answered.delete(id) || isAsking(names.get(id) ?? "")) {
+          names.delete(id);
+          continue;
+        }
         translator.toolFinished(id, names.get(id) ?? "tool", {
           isError: Boolean(block.is_error),
           output: resultText(block.content),
@@ -202,6 +211,11 @@ function handleSystem(
     default:
       return;
   }
+}
+
+/** The tools that are questions, which Picone asks in its own surface (§59). */
+function isAsking(name: string): boolean {
+  return name === "AskUserQuestion" || name === "ExitPlanMode";
 }
 
 /** A tool result's content: a string, or the usual blocks. */

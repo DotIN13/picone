@@ -477,6 +477,11 @@ export function activeAgent(): AgentKind {
   return (id ? sessionSummary(id)?.agent : undefined) ?? state.workspace?.file.agent ?? "pi";
 }
 
+/** The human's answer to something the agent asked (§59). Empty means skipped. */
+export function answerAsk(askId: string, answer: string[]): void {
+  socket.send({ type: "ask_response", askId, answer });
+}
+
 /** How the session on screen is allowed to act (§58). */
 export function activeMode(): AgentMode {
   const id = state.activeSessionId;
@@ -1213,6 +1218,39 @@ function applyFrame(frame: ServerFrame): void {
             onClick: () => void openSession(sid),
           });
         }
+      }
+      break;
+
+    /*
+     * The agent is asking something (§59). Announced like a permission request
+     * and for the same reason: the conversation has stopped for you, and it may
+     * have stopped while you were looking at something else.
+     */
+    case "ask.requested":
+      if (sid) {
+        upsert(sid, { kind: "ask", id: event.ask.id, ask: event.ask, at: event.ask.createdAt });
+        setState("agentStates", sid, "waiting_permission");
+        if (state.app.notifications.permissionNeeded) {
+          notify(state.app.notifications, {
+            title: `${sessionName(sid)} is asking`,
+            body: event.ask.question,
+            tag: `ask:${sid}`,
+            onClick: () => void openSession(sid),
+          });
+        }
+      }
+      break;
+
+    case "ask.resolved":
+      if (sid) {
+        setState(
+          "transcripts",
+          sid,
+          (item) => item.kind === "ask" && item.id === event.askId,
+          produce((item) => {
+            if (item.kind === "ask") item.answer = event.answer;
+          }),
+        );
       }
       break;
 

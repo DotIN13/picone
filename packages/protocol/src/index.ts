@@ -599,6 +599,43 @@ export interface FileCommentInput {
 }
 
 // ---------------------------------------------------------------------------
+// Asking the human something (DESIGN §59)
+// ---------------------------------------------------------------------------
+
+/**
+ * A decision the agent needs from the human, in the transcript.
+ *
+ * The same shape as a permission card (§10) and for the same reason: an agent
+ * that needs an answer should ask where the conversation is, not in a dialog
+ * over the top of it, and the answer should still be there tomorrow. A
+ * permission request is the special case Picone had first — one question, three
+ * fixed answers — and this is the general one.
+ */
+export interface AgentAsk {
+  id: string;
+  /**
+   * `question` is the agent asking something it cannot work out; `plan` is it
+   * proposing a plan and asking to act on it (§58).
+   */
+  kind: "question" | "plan";
+  /** The question itself, as the agent phrased it. */
+  question: string;
+  /** A short label for the subject — the agent's own summary of what this is about. */
+  header?: string;
+  /** The plan, or whatever else the answer should be given in view of. */
+  detail?: string;
+  options: AgentAskOption[];
+  /** Whether more than one option may be chosen. */
+  multiple?: boolean;
+  createdAt: string;
+}
+
+export interface AgentAskOption {
+  label: string;
+  description?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Permissions (DESIGN §10)
 // ---------------------------------------------------------------------------
 
@@ -676,6 +713,8 @@ export type ChatItem =
   | { kind: "assistant"; id: string; text: string; thinking?: string; at: string }
   | { kind: "tool"; id: string; toolCall: ToolCall; at: string }
   | { kind: "permission"; id: string; request: PermissionRequest; decision?: PermissionDecision; at: string }
+  /** Something the agent asked, and what was answered (§59). */
+  | { kind: "ask"; id: string; ask: AgentAsk; answer?: string[]; at: string }
   | { kind: "notice"; id: string; text: string; level: "info" | "warn" | "error"; at: string };
 
 // ---------------------------------------------------------------------------
@@ -703,6 +742,9 @@ export type AgentEvent =
   | { type: "tool.updated"; toolCall: ToolCall }
   | { type: "tool.completed"; toolCall: ToolCall }
   | { type: "permission.requested"; request: PermissionRequest }
+  /** The agent is asking something and is waiting for the answer (§59). */
+  | { type: "ask.requested"; ask: AgentAsk }
+  | { type: "ask.resolved"; askId: string; answer: string[] }
   | { type: "permission.resolved"; requestId: string; decision: PermissionDecision }
   | { type: "file.changed"; path: string; mtime: number }
   | { type: "comment.created"; comment: FileComment }
@@ -786,6 +828,8 @@ export type ClientMessage =
   | { type: "steer"; text: string; sessionId?: string }
   | { type: "abort"; sessionId?: string }
   | { type: "permission_response"; requestId: string; decision: PermissionDecision }
+  /** The human's answer to something the agent asked (§59). Empty means dismissed. */
+  | { type: "ask_response"; askId: string; answer: string[] }
   | { type: "file_comment"; input: Omit<FileCommentInput, "type" | "commentId"> }
   | { type: "resolve_comment"; commentId: string; status: CommentStatus }
   | { type: "watch_file"; path: string }

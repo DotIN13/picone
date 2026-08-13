@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type {
+  AgentAsk,
   AgentCapabilities,
   AgentMode,
   AgentEvent,
@@ -123,6 +124,15 @@ export interface AgentHost {
    * be a while — the caller must be willing to wait.
    */
   askPermission(toolName: string, input: unknown): Promise<{ allowed: boolean; reason?: string }>;
+  /**
+   * Ask the human something and wait for the answer (§59).
+   *
+   * Resolves with the labels chosen, or an empty list if it was dismissed —
+   * which the caller must handle, because a human walking away is not an
+   * answer and pretending otherwise is how an agent ends up acting on a
+   * decision nobody made.
+   */
+  ask(ask: Omit<AgentAsk, "id" | "createdAt">): Promise<string[]>;
   /** The composer's contents, for an agent that can read or patch the editor. */
   editorText(): string;
   openComments(): FileComment[];

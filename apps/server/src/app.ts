@@ -736,6 +736,11 @@ export class App {
     for (const session of this.sessions.values()) session.respondToPermission(requestId, decision);
   }
 
+  /** The human's answer to something an agent asked (§59). */
+  answerAsk(askId: string, answer: string[]): void {
+    for (const session of this.sessions.values()) session.answerAsk(askId, answer);
+  }
+
   /** Ids are unique across sessions, so the right runtime claims the answer. */
   answerExtensionUi(answer: ExtensionUiAnswer): void {
     for (const session of this.sessions.values()) session.answerExtensionUi(answer);

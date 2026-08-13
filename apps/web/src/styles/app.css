@@ -1045,61 +1045,6 @@
 }
 
 /* ── Permission card ── */
-[data-component="permission"] {
-  border-radius: 8px;
-  padding: 12px;
-  background: var(--v2-state-bg-warning);
-  box-shadow: 0 0 0 0.5px var(--v2-state-border-warning);
-}
-
-[data-component="permission"][data-resolved] {
-  background: var(--v2-background-bg-layer-01);
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
-}
-
-[data-slot="permission-head"] {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 9px;
-  color: var(--v2-state-fg-warning);
-}
-
-[data-component="permission"][data-resolved] [data-slot="permission-head"] {
-  color: var(--v2-text-text-muted);
-}
-
-[data-slot="permission-detail"] {
-  margin: 0 0 9px;
-  padding: 9px 10px;
-  border-radius: 6px;
-  background: var(--v2-background-bg-base);
-  font-family: var(--v2-font-family-mono);
-  font-size: calc(12px * var(--font-scale));
-  white-space: pre-wrap;
-  overflow-x: auto;
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
-}
-
-[data-slot="permission-cwd"] {
-  margin-bottom: 9px;
-  font-size: calc(11.5px * var(--font-scale));
-  color: var(--v2-text-text-muted);
-}
-
-[data-slot="permission-actions"] {
-  display: flex;
-  gap: 8px;
-}
-
-[data-slot="permission-outcome"] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: calc(12px * var(--font-scale));
-  color: var(--v2-text-text-muted);
-}
-
 /* ── File tabs ── */
 /* The preview frame fills the pane; the page inside does its own scrolling. */
 [data-slot="file-preview"] {
@@ -3610,18 +3555,20 @@ body[data-dragging-path] {
   fill: #d97757;
 }
 
+/* Ten frames of 180ms: 1.8s to grow and shrink once. Each is visible for a
+   tenth of the cycle and hidden for the rest, offset by its own delay. */
 .claude-frame {
   opacity: 0;
-  animation: claude-cycle 720ms steps(1, end) infinite;
+  animation: claude-cycle 1800ms steps(1, end) infinite;
 }
 
 @keyframes claude-cycle {
   0%,
-  16.666% {
+  9.999% {
     opacity: 1;
   }
 
-  16.667%,
+  10%,
   100% {
     opacity: 0;
   }
@@ -3638,7 +3585,7 @@ body[data-dragging-path] {
   }
 
   /* The frame it rests on, so a still mark is still a mark. */
-  .claude-frame:nth-child(5) {
+  .claude-frame:nth-child(6) {
     opacity: 1;
   }
 }
@@ -3691,4 +3638,157 @@ body[data-dragging-path] {
 [data-slot="mode-switch"][data-on] {
   background: var(--v2-state-bg-info);
   color: var(--v2-text-text-base);
+}
+
+/* ---------------------------------------------------------------------------
+ * Something the agent asked (§59)
+ *
+ * The permission card's twin, in the informational tone rather than the warning
+ * one: a question is not a hazard. Same footprint, same resolved state, so the
+ * two read as one mechanism — the agent needs a decision and the conversation
+ * waits — and a transcript with both in it does not look like two inventions.
+ * ------------------------------------------------------------------------ */
+
+[data-component="ask"] {
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--v2-state-bg-info);
+  box-shadow: 0 0 0 0.5px var(--v2-state-border-info, var(--v2-border-border-muted));
+}
+
+/* A permission is a hazard where a question is not, so it keeps the warning
+   tone it always had while sharing everything else (§10). */
+[data-component="ask"][data-kind="permission"] {
+  background: var(--v2-state-bg-warning);
+  box-shadow: 0 0 0 0.5px var(--v2-state-border-warning);
+}
+
+[data-component="ask"][data-kind="permission"]:not([data-resolved]) [data-slot="ask-head"] {
+  color: var(--v2-state-fg-warning);
+}
+
+[data-component="ask"][data-resolved] {
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+[data-slot="ask-head"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: var(--v2-text-text-base);
+}
+
+[data-component="ask"][data-resolved] [data-slot="ask-head"] {
+  color: var(--v2-text-text-muted);
+}
+
+/* A command line is read character by character; a plan is read as prose. */
+[data-slot="ask-detail"][data-mono] {
+  font-family: var(--v2-font-family-mono);
+  font-size: calc(12px * var(--font-scale));
+  overflow-x: auto;
+}
+
+[data-slot="ask-where"] {
+  margin: -4px 0 10px;
+  color: var(--v2-text-text-muted);
+  font-size: calc(11.5px * var(--font-scale));
+}
+
+/* A plan is prose, not a command line: readable width, not monospace. */
+[data-slot="ask-detail"] {
+  margin: 0 0 10px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-base);
+  color: var(--v2-text-text-muted);
+  font-size: calc(12.5px * var(--font-scale));
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+/* One option per row: a label and the reason for it, which is the part that
+   makes the choice possible and the part a row of buttons cannot carry. */
+[data-slot="ask-options"] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-slot="ask-option"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-01);
+  color: var(--v2-text-text-base);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+[data-slot="ask-option"]:hover {
+  border-color: var(--v2-border-border-base);
+  background: var(--v2-background-bg-layer-02);
+}
+
+/* Refusing is not the same kind of act as allowing, and the row says so on
+   hover rather than by being a red button from the outset. */
+[data-slot="ask-option"][data-tone="danger"]:hover {
+  border-color: var(--v2-state-border-danger, var(--v2-border-border-base));
+}
+
+[data-slot="ask-option"][data-picked] {
+  border-color: var(--v2-border-border-brand, var(--v2-border-border-base));
+}
+
+[data-slot="ask-option-label"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 500;
+}
+
+/* Which one the agent put first, stated rather than preselected: a card that
+   arrives with an answer already chosen turns a question into a formality. */
+[data-slot="ask-suggested"] {
+  color: var(--v2-text-text-faint);
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 400;
+}
+
+[data-slot="ask-option-note"] {
+  color: var(--v2-text-text-muted);
+  font-size: calc(11.5px * var(--font-scale));
+  line-height: 1.4;
+}
+
+[data-slot="ask-actions"] {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+[data-slot="ask-outcome"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--v2-text-text-muted);
+  font-size: calc(12px * var(--font-scale));
+}
+
+@media (pointer: coarse) {
+  [data-slot="ask-option"] {
+    min-height: 48px;
+  }
 }

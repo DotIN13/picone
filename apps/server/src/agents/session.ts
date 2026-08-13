@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AgentAsk,
   AgentCapabilities,
   AgentEvent,
   AgentKind,
@@ -111,6 +112,8 @@ export class SessionRuntime {
     string,
     { resolve: (decision: PermissionDecision) => void; itemId: string }
   >();
+  /** Questions the agent is waiting on answers to (§59). */
+  private readonly asking = new Map<string, (answer: string[]) => void>();
 
   constructor(private readonly options: SessionRuntimeOptions) {
     this.id = options.id;
@@ -194,6 +197,7 @@ export class SessionRuntime {
       translator: this.translator,
       emit: (event) => this.options.emit(this.id, event),
       askPermission: (toolName, input) => this.askPermission(toolName, input),
+      ask: (ask) => this.ask(ask),
       editorText: () => this.editorText,
       openComments: () => this.options.comments.open(),
       resolveComment: (commentId) => this.options.comments.resolve(commentId),
@@ -319,6 +323,42 @@ ${pointers}` : text;
     await this.backend.abort();
     this.translator.flush();
     this.translator.setState("idle");
+  }
+
+  /**
+   * Ask the human something, in the transcript, and wait (§59).
+   *
+   * A row rather than a dialog: it is part of the conversation, it survives a
+   * reload, and it is still there afterwards saying what was decided. The state
+   * goes to `waiting_permission` because that is what the composer and the tab
+   * already read as "it is your turn".
+   */
+  private ask(request: Omit<AgentAsk, "id" | "createdAt">): Promise<string[]> {
+    const ask: AgentAsk = { ...request, id: randomUUID(), createdAt: new Date().toISOString() };
+    return new Promise<string[]>((resolve) => {
+      const item: ChatItem = { kind: "ask", id: ask.id, ask, at: ask.createdAt };
+      this.commit(item);
+      this.translator.setState("waiting_permission");
+      this.asking.set(ask.id, resolve);
+      this.options.emit(this.id, { type: "ask.requested", ask });
+    });
+  }
+
+  /** The human answered, or dismissed it — an empty list is the second one. */
+  answerAsk(askId: string, answer: string[]): void {
+    const resolve = this.asking.get(askId);
+    if (!resolve) return;
+    this.asking.delete(askId);
+
+    const item = this.transcript.find((i) => i.id === askId);
+    if (item?.kind === "ask") {
+      item.answer = answer;
+      appendMessage(this.id, this.seqOf(item), item);
+    }
+
+    this.options.emit(this.id, { type: "ask.resolved", askId, answer });
+    this.translator.setState("thinking");
+    resolve(answer);
   }
 
   respondToPermission(requestId: string, decision: PermissionDecision): void {
@@ -696,6 +736,9 @@ ${pointers}` : text;
   dispose(): void {
     for (const [, entry] of this.pending) entry.resolve("deny");
     this.pending.clear();
+    // A question nobody can answer any more is a question dismissed.
+    for (const [, resolve] of this.asking) resolve([]);
+    this.asking.clear();
     this.translator?.dispose();
     this.backend?.dispose();
   }

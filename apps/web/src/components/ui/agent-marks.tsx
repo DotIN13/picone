@@ -111,8 +111,18 @@ const TILES: Array<[number, number]> = [
 /** Ten tiles of 5 with 1 between them: 23 units square. */
 const TILE_INK = { x: 0, y: 0, w: 23, h: 23 };
 
-/** The frames Claude's asterisk grows through, and the one it rests on. */
-const FRAMES = ["·", "✢", "✳", "✶", "✻", "✽"];
+/**
+ * The frames Claude's asterisk grows through — and back down again.
+ *
+ * Six frames looping straight back to the dot flickered: the jump from the
+ * largest glyph to the smallest is a hard cut every cycle, which the eye reads
+ * as a fault rather than as motion. Growing and shrinking through the same
+ * frames makes it breathe, and at 180ms a frame the whole cycle is 1.8s
+ * instead of 0.7.
+ */
+const FRAMES = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+/** How long each frame is held. */
+const FRAME_MS = 180;
 /**
  * The box the glyph frames are scaled from.
  *
@@ -166,7 +176,7 @@ export function AgentMark(props: AgentMarkProps) {
                 class="claude-glyph claude-frame"
                 x={GLYPH_INK.w / 2}
                 y={GLYPH_INK.h / 2}
-                style={{ "animation-delay": `${index() * 120}ms` }}
+                style={{ "animation-delay": `${index() * FRAME_MS}ms` }}
               >
                 {frame}
               </text>

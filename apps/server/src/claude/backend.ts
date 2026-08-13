@@ -21,6 +21,13 @@ import type {
   Workspace,
 } from "@picone/protocol";
 import type { AgentBackend, AgentBackendContext, AgentHost } from "../agents/backend.ts";
+
+/** What a hook returns to refuse a call, which is the only shape it may take. */
+type PreToolUseDeny = {
+  hookEventName: "PreToolUse";
+  permissionDecision: "deny";
+  permissionDecisionReason: string;
+};
 import { memoryContextFiles } from "../memory/context.ts";
 import { workspaceContext } from "../workspace/loader.ts";
 import { claudeExecutable } from "./available.ts";
@@ -140,6 +147,11 @@ export class ClaudeBackend implements AgentBackend {
   private turnDone: (() => void) | null = null;
   /** A turn the human stopped, whose result is still on its way. */
   private abandoned = false;
+  /**
+   * Calls Picone answered itself (§59), whose refusal is an answer rather than
+   * a failure - so the transcript leaves them out.
+   */
+  private readonly answeredCalls = new Set<string>();
   /** How the agent is allowed to act (§58). */
   private currentMode: AgentMode = "default";
 
@@ -239,6 +251,17 @@ export class ClaudeBackend implements AgentBackend {
             hooks: [
               async (input, toolUseId) => {
                 if (input.hook_event_name !== "PreToolUse") return {};
+
+                /*
+                 * Two tools are questions rather than actions, and Picone
+                 * answers them itself (§59). Both are intercepted here because
+                 * the CLI has no interface of its own in a session like this:
+                 * allowed, `AskUserQuestion` comes straight back "dismissed
+                 * without an answer", which is verified rather than assumed.
+                 */
+                const answered = await this.intercept(input.tool_name, input.tool_input, toolUseId);
+                if (answered) return answered;
+
                 const decision = await this.host.askPermission(input.tool_name, input.tool_input);
                 if (decision.allowed) {
                   if (toolUseId) this.allowed.add(toolUseId);
@@ -369,7 +392,7 @@ export class ClaudeBackend implements AgentBackend {
     try {
       for await (const message of owned) {
         if (this.query !== owned) return;
-        handleClaudeMessage(this.host.translator, message, this.toolNames, {
+        handleClaudeMessage(this.host.translator, message, this.toolNames, this.answeredCalls, {
           sessionId: (id) => (this.sessionId = id),
           commands: (commands) => {
             this.commandList = commands;
@@ -532,6 +555,89 @@ export class ClaudeBackend implements AgentBackend {
 
   commands(): SlashCommand[] {
     return this.commandList;
+  }
+
+  /**
+   * A tool that is really a question (§59).
+   *
+   * Answered through Picone's own asking surface and refused as a *tool*, since
+   * a hook may allow or deny a call but never supply its result. The refusal
+   * carries the answer, which is how the model receives it — and the transcript
+   * leaves the refused call out, because the question card already says what
+   * was asked and what was chosen.
+   */
+  private async intercept(
+    toolName: string,
+    input: unknown,
+    toolUseId: string | undefined,
+  ): Promise<{ hookSpecificOutput: PreToolUseDeny } | null> {
+    const deny = (reason: string) => {
+      if (toolUseId) this.answeredCalls.add(toolUseId);
+      return {
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse" as const,
+          permissionDecision: "deny" as const,
+          permissionDecisionReason: reason,
+        },
+      };
+    };
+
+    if (toolName === "AskUserQuestion") {
+      const questions = (input as { questions?: unknown }).questions;
+      if (!Array.isArray(questions) || questions.length === 0) return null;
+      const answers: string[] = [];
+      for (const raw of questions) {
+        const question = raw as {
+          question?: string;
+          header?: string;
+          multiSelect?: boolean;
+          options?: Array<{ label?: string; description?: string }>;
+        };
+        const options = (question.options ?? [])
+          .filter((option) => typeof option.label === "string")
+          .map((option) => ({ label: String(option.label), description: option.description }));
+        if (options.length === 0) continue;
+        const chosen = await this.host.ask({
+          kind: "question",
+          question: question.question ?? "Which would you prefer?",
+          header: question.header,
+          options,
+          multiple: Boolean(question.multiSelect),
+        });
+        // Dismissed: say so rather than inventing a preference.
+        if (chosen.length === 0) {
+          return deny("The user dismissed the question without answering. Ask in your reply instead.");
+        }
+        answers.push(`${question.question ?? "Answer"} -> ${chosen.join(", ")}`);
+      }
+      if (answers.length === 0) return null;
+      return deny(`The user answered:\n${answers.join("\n")}`);
+    }
+
+    if (toolName === "ExitPlanMode" && this.currentMode === "plan") {
+      const plan = (input as { plan?: unknown }).plan;
+      const chosen = await this.host.ask({
+        kind: "plan",
+        question: "Go ahead with this plan?",
+        detail: typeof plan === "string" ? plan : undefined,
+        options: [
+          { label: "Go ahead", description: "Leave plan mode and start on it." },
+          { label: "Keep planning", description: "Stay in plan mode; say what should change." },
+        ],
+      });
+      if (chosen[0] === "Go ahead") {
+        await this.setMode("default");
+        this.host.translator.notice("Out of plan mode - the plan was approved.", "info");
+        return deny("The user approved the plan and took the session out of plan mode. Carry it out.");
+      }
+      return deny(
+        chosen.length === 0
+          ? "The user has not answered yet, and the session is still in plan mode. Wait for them."
+          : "The user wants to keep planning. Stay in plan mode and address what they say next.",
+      );
+    }
+
+    return null;
   }
 
   mode(): AgentMode {

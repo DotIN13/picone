@@ -119,6 +119,10 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
       await app.rewind(message.itemId, message.sessionId);
       break;
 
+    case "ask_response":
+      app.answerAsk(message.askId, message.answer);
+      break;
+
     case "set_mode":
       await app.setMode(message.mode, message.sessionId);
       break;

@@ -14,6 +14,7 @@ import {
 import { Markdown } from "./Markdown.tsx";
 import { MentionText } from "./MentionText.tsx";
 import { ToolCallView } from "./ToolCallView.tsx";
+import { AskCard } from "./AskCard.tsx";
 import { PermissionCard } from "./PermissionCard.tsx";
 import { Icon } from "./ui/icon.tsx";
 import { AgentMark } from "./ui/agent-marks.tsx";
@@ -456,6 +457,10 @@ function ChatRow(props: { item: ChatItem }) {
 
       <Match when={props.item.kind === "permission" ? props.item : null}>
         {(item) => <PermissionCard request={item().request} decision={item().decision} />}
+      </Match>
+
+      <Match when={props.item.kind === "ask" ? props.item : null}>
+        {(item) => <AskCard ask={item().ask} answer={item().answer} />}
       </Match>
 
       <Match when={props.item.kind === "notice" ? props.item : null}>
