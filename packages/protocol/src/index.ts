@@ -383,15 +383,21 @@ export interface SessionModel {
 export type AgentKind = "pi" | "claude";
 
 /**
- * How an agent is allowed to act this turn (§58).
+ * How an agent is allowed to act, for the rest of this session (§58).
  *
- * `default` is the ordinary loop. `plan` is Claude Code's planning mode: it
- * reads and thinks but changes nothing, and says what it would do instead —
- * useful before a large piece of work, and something Picone's own permission
- * settings cannot express, because they say what *may* happen rather than what
- * the agent should be trying to do.
+ * Claude Code's four, under Picone's own names — and they are not a message
+ * passed through to the agent. Picone *is* the permission surface, so a mode is
+ * a lens over the workspace's permissions (§9) that the gate applies:
+ *
+ * - `manual` — the workspace's settings, as written. Ask about what they say
+ *   to ask about.
+ * - `edit` — file writes inside the writable roots stop asking; shell and git
+ *   still follow the workspace.
+ * - `plan` — nothing is changed at all. It reads, thinks, and proposes.
+ * - `auto` — stop asking: anything the workspace says "ask" about is allowed.
+ *   An explicit `deny`, and the writable roots, still hold in every mode.
  */
-export type AgentMode = "default" | "plan";
+export type AgentMode = "manual" | "edit" | "plan" | "auto";
 
 /**
  * What a session's agent can actually do.
@@ -419,8 +425,8 @@ export interface AgentCapabilities {
   /** Restoring the files, not just the conversation, to an earlier message. */
   fileCheckpoints: boolean;
   /**
-   * The modes this agent can be put into, beyond `default`. Empty means the
-   * switch is not drawn at all.
+   * The modes this agent can be put into. Fewer than two means there is no
+   * choice to draw.
    */
   modes: AgentMode[];
 }

@@ -485,7 +485,7 @@ export function answerAsk(askId: string, answer: string[]): void {
 /** How the session on screen is allowed to act (§58). */
 export function activeMode(): AgentMode {
   const id = state.activeSessionId;
-  return (id ? sessionSummary(id)?.mode : undefined) ?? "default";
+  return (id ? sessionSummary(id)?.mode : undefined) ?? "manual";
 }
 
 /** Put it into a mode. The server answers with a notice and a fresh list. */

@@ -92,8 +92,11 @@ export interface AgentBackend {
   agentName?(): string | undefined;
   /** Push a name into the agent's own record of the session (§26). */
   rename?(title: string): string;
-  /** How the agent is currently allowed to act, when it has more than one way. */
-  mode?(): AgentMode;
+  /**
+   * The mode changed (§58). The shell has already applied it to the gate, which
+   * is where it does its real work; this is for whatever the agent's own loop
+   * needs to know about it.
+   */
   setMode?(mode: AgentMode): Promise<void>;
   /** Pi's automatic compaction switch (§54), which is Pi's own setting. */
   autoCompaction?: { get(): boolean; set(enabled: boolean): void };
@@ -133,6 +136,12 @@ export interface AgentHost {
    * decision nobody made.
    */
   ask(ask: Omit<AgentAsk, "id" | "createdAt">): Promise<string[]>;
+  /**
+   * Change the session's mode from the agent's side (§58) — approving a plan is
+   * the one thing that does this, because approving it is what leaving plan
+   * mode means. Goes through the shell so the gate changes with it.
+   */
+  setMode(mode: AgentMode): Promise<void>;
   /** The composer's contents, for an agent that can read or patch the editor. */
   editorText(): string;
   openComments(): FileComment[];

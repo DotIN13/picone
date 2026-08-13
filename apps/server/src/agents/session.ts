@@ -23,6 +23,7 @@ import { commentContext } from "../comments/matcher.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import path from "node:path";
 import { PermissionGate } from "../permissions/gate.ts";
+import { MODE_NOTES, permissionsForMode } from "../permissions/modes.ts";
 import { classifyToolCall } from "../permissions/policy.ts";
 import { isInside } from "../util/paths.ts";
 import { resolvedPermissions } from "../workspace/schema.ts";
@@ -157,7 +158,7 @@ export class SessionRuntime {
     });
 
     this.gate = new PermissionGate(
-      resolvedPermissions(workspace.file),
+      permissionsForMode(this.currentMode, resolvedPermissions(workspace.file)),
       {
         ask: (request) =>
           new Promise<PermissionDecision>((resolve) => {
@@ -198,6 +199,7 @@ export class SessionRuntime {
       emit: (event) => this.options.emit(this.id, event),
       askPermission: (toolName, input) => this.askPermission(toolName, input),
       ask: (ask) => this.ask(ask),
+      setMode: (mode) => this.setMode(mode),
       editorText: () => this.editorText,
       openComments: () => this.options.comments.open(),
       resolveComment: (commentId) => this.options.comments.resolve(commentId),
@@ -584,7 +586,8 @@ ${pointers}` : text;
    */
   updateWorkspace(workspace: Workspace): void {
     this.workspace = workspace;
-    this.gate.updatePermissions(resolvedPermissions(workspace.file));
+    // Through the mode, so an edit to the settings does not quietly undo it.
+    this.gate.updatePermissions(permissionsForMode(this.currentMode, resolvedPermissions(workspace.file)));
     this.backend.updateWorkspace(workspace);
   }
 
@@ -648,25 +651,34 @@ ${pointers}` : text;
     };
   }
 
-  /** How this session's agent is allowed to act (§58). */
+  /**
+   * How this session's agent is allowed to act (§58).
+   *
+   * Held here rather than read from the backend, because it governs *our* gate
+   * as much as the agent's own loop — the shell is the thing that has to know.
+   */
+  private currentMode: AgentMode = "manual";
+
   get mode(): AgentMode {
-    return this.backend?.mode?.() ?? "default";
+    return this.currentMode;
   }
 
   /**
-   * Change it. The notice is the point: a session that has quietly stopped
-   * touching anything, or quietly started, should say which it is.
+   * Change it: the gate first, then the agent, then say what it means.
+   *
+   * The notice is not decoration. A session that has quietly stopped asking
+   * about anything, or quietly stopped touching anything, should say so in the
+   * place the human is already reading.
    */
   async setMode(mode: AgentMode): Promise<void> {
-    if (!this.backend.setMode) throw new Error("This agent has only one mode.");
-    if (this.mode === mode) return;
-    await this.backend.setMode(mode);
-    this.translator.notice(
-      mode === "plan"
-        ? "Planning: it will read and think, and change nothing, until you take it out of plan mode."
-        : "Out of plan mode — it can act again.",
-      "info",
-    );
+    if (!this.backend.capabilities.modes.includes(mode)) {
+      throw new Error(`This agent has no ${mode} mode.`);
+    }
+    if (this.currentMode === mode) return;
+    this.currentMode = mode;
+    this.gate.updatePermissions(permissionsForMode(mode, resolvedPermissions(this.workspace.file)));
+    await this.backend.setMode?.(mode);
+    this.translator.notice(MODE_NOTES[mode], "info");
   }
 
   /** The models this session's agent offers, when it is the only source (§58). */

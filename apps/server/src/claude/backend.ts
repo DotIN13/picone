@@ -56,16 +56,16 @@ const CLAUDE_CAPABILITIES: AgentCapabilities = {
   exportHtml: false,
   extensionUi: false,
   fileCheckpoints: false,
-  /*
-   * Planning, and back again (§58).
-   *
-   * Claude Code cycles three modes; the third, `acceptEdits`, is deliberately
-   * absent. It stops the *CLI* asking about file edits, which changes nothing
-   * here because Picone's own gate asks anyway — the workspace's
-   * `permissions.files` is the setting that means that, and two switches for one
-   * decision is how they end up disagreeing.
-   */
-  modes: ["plan"],
+  // All four of Claude Code's, under Picone's names (§58).
+  modes: ["manual", "edit", "plan", "auto"],
+};
+
+/** Picone's names for the CLI's `permissionMode` (§58). */
+const CLI_MODE: Record<AgentMode, "default" | "acceptEdits" | "plan" | "auto"> = {
+  manual: "default",
+  edit: "acceptEdits",
+  plan: "plan",
+  auto: "auto",
 };
 
 /** Anthropic is the only provider behind this backend. */
@@ -152,8 +152,8 @@ export class ClaudeBackend implements AgentBackend {
    * a failure - so the transcript leaves them out.
    */
   private readonly answeredCalls = new Set<string>();
-  /** How the agent is allowed to act (§58). */
-  private currentMode: AgentMode = "default";
+  /** The mode the CLI was last told about, for its own use (§58). */
+  private currentMode: AgentMode = "manual";
 
   private constructor(private readonly context: AgentBackendContext) {
     this.workspace = context.workspace;
@@ -231,6 +231,7 @@ export class ClaudeBackend implements AgentBackend {
         // Picone's own tools (§23, §29), in-process rather than a subprocess.
         picone: piconeTools(this.host, this.workspace),
       },
+      permissionMode: CLI_MODE[this.currentMode],
       ...(this.currentModelId ? { model: this.currentModelId } : {}),
       ...(effortLevel(this.currentEffort) ? { effort: effortLevel(this.currentEffort) } : {}),
 
@@ -626,7 +627,9 @@ export class ClaudeBackend implements AgentBackend {
         ],
       });
       if (chosen[0] === "Go ahead") {
-        await this.setMode("default");
+        // Approving the plan is what leaving plan mode *means*, so the session
+        // goes back to asking normally rather than to whatever it was before.
+        await this.host.setMode("manual");
         this.host.translator.notice("Out of plan mode - the plan was approved.", "info");
         return deny("The user approved the plan and took the session out of plan mode. Carry it out.");
       }
@@ -640,20 +643,18 @@ export class ClaudeBackend implements AgentBackend {
     return null;
   }
 
-  mode(): AgentMode {
-    return this.currentMode;
-  }
-
   /**
-   * Put the session into planning, or take it out (§58).
+   * Tell the CLI which mode it is in (§58).
    *
-   * The CLI holds the mode, so this is a control request rather than a flag of
-   * ours — which also means a mode survives a rewind only because the mode is
-   * set again after the query restarts.
+   * Its own layer sits under ours: `acceptEdits` and `auto` stop it asking
+   * about things Picone has already decided, and `plan` makes it plan. The
+   * decision that matters was taken in the shell's gate before this ran, so a
+   * failure here loosens nothing — it only means the CLI keeps asking
+   * permissions we would have answered anyway.
    */
   async setMode(mode: AgentMode): Promise<void> {
-    await this.query.setPermissionMode(mode === "plan" ? "plan" : "default");
     this.currentMode = mode;
+    await this.query.setPermissionMode(CLI_MODE[mode]);
   }
 
   /**
@@ -742,7 +743,7 @@ export class ClaudeBackend implements AgentBackend {
     this.sessionId = resumeRef;
     this.persisted = true;
     // The mode belongs to the query, and this is a new one.
-    if (this.currentMode !== "default") await this.setMode(this.currentMode);
+    if (this.currentMode !== "manual") await this.setMode(this.currentMode);
     // The shell has the message's text and puts it back in the composer.
     return { cancelled: false };
   }

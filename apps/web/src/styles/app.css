@@ -3635,9 +3635,76 @@ body[data-dragging-path] {
   color: var(--v2-text-text-base);
 }
 
+[data-slot="mode-switch"][data-expanded] {
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-base);
+}
+
+/* Anything but manual is a standing change to how the session behaves, so it is
+   filled rather than merely labelled. */
 [data-slot="mode-switch"][data-on] {
   background: var(--v2-state-bg-info);
   color: var(--v2-text-text-base);
+}
+
+/* The menu of modes: each one says what it will actually do, because "auto" and
+   "edit" are not self-explanatory and the difference between them is the whole
+   decision. */
+[data-component="mode-menu"] {
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  min-width: 264px;
+  max-width: min(340px, calc(100 * var(--vw) - 24px));
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: var(--v2-elevation-floating);
+}
+
+[data-slot="mode-heading"] {
+  padding: 6px 8px 4px;
+  color: var(--v2-text-text-faint);
+  font-size: calc(11px * var(--font-scale));
+}
+
+[data-slot="mode-option"] {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 9px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: var(--v2-icon-icon-muted);
+  cursor: pointer;
+  outline: none;
+}
+
+[data-slot="mode-option"][data-highlighted] {
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-icon-icon-base);
+}
+
+[data-slot="mode-option-label"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--v2-text-text-base);
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 500;
+}
+
+[data-slot="mode-option-note"] {
+  grid-column: 2;
+  color: var(--v2-text-text-faint);
+  font-size: calc(11px * var(--font-scale));
+  line-height: 1.4;
+}
+
+@media (pointer: coarse) {
+  [data-slot="mode-option"] {
+    min-height: 48px;
+  }
 }
 
 /* ---------------------------------------------------------------------------
