@@ -524,8 +524,10 @@ export function Composer() {
               </button>
             </Show>
 
-            <ModelPicker />
+            {/* Before the model, because it is the larger decision: what the
+                agent may do at all, rather than which one is doing it. */}
             <ModeSwitch />
+            <ModelPicker />
 
             <div class="flex-1" />
 

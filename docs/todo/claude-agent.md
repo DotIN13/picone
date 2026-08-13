@@ -24,6 +24,12 @@ already written twice for the same reason.
 
 ## Smaller things
 
+* **The dialog protocol is unused.** `onUserDialog` with the `ask_user_question`
+  and `plan_review` kinds is the route the CLI means for these (§59); declaring
+  both emitted nothing, so they are intercepted in the hook instead. Worth
+  revisiting when the kinds are documented — the payloads and result shapes are
+  defined per kind and guessing at them is not worth it.
+
 * **The command list refreshes lazily.** The `commands_changed` handler is
   written from the message shape, but writing a `.claude/commands/*.md` under a
   live session did not produce one — the list only came back with `/reload`,
@@ -37,10 +43,6 @@ already written twice for the same reason.
 * **`acceptEdits` and `bypassPermissions`** are not offered as modes. The first
   duplicates `permissions.files`; the second would take Picone's gate out of the
   loop, which is the one thing the gate is for.
-* **`ExitPlanMode` is refused rather than asked about.** A permission card for
-  "leave plan mode" would be better than a refusal the agent has to read —
-  §10's card is the right shape for it, but it needs a category that is not
-  files, shell or git.
 * **`/compact` is sent as a prompt**, since Claude has no compaction API. It
   works and it appears in the transcript as a user message, which is not quite
   a lie but is not the way Pi's compaction reads either.

@@ -35,7 +35,7 @@ export function ModeSwitch() {
         }
         onClick={() => setMode(planning() ? "default" : "plan")}
       >
-        <Icon name="target" size={12} />
+        <Icon name="plan" size={13} />
         <span>plan</span>
       </button>
     </Show>

@@ -3643,112 +3643,149 @@ body[data-dragging-path] {
 /* ---------------------------------------------------------------------------
  * Something the agent asked (§59)
  *
- * The permission card's twin, in the informational tone rather than the warning
- * one: a question is not a hazard. Same footprint, same resolved state, so the
- * two read as one mechanism — the agent needs a decision and the conversation
- * waits — and a transcript with both in it does not look like two inventions.
+ * The card is a panel with an accent edge rather than a wash of colour: a whole
+ * tinted block shouts, and these arrive in the middle of a conversation that
+ * has to stay readable. The edge carries the tone — informational for a
+ * question, warning for a permission — and everything inside sits on the
+ * ordinary layers, so the transcript's rhythm survives.
  * ------------------------------------------------------------------------ */
 
 [data-component="ask"] {
-  border-radius: 8px;
-  padding: 12px;
-  background: var(--v2-state-bg-info);
-  box-shadow: 0 0 0 0.5px var(--v2-state-border-info, var(--v2-border-border-muted));
-}
-
-/* A permission is a hazard where a question is not, so it keeps the warning
-   tone it always had while sharing everything else (§10). */
-[data-component="ask"][data-kind="permission"] {
-  background: var(--v2-state-bg-warning);
-  box-shadow: 0 0 0 0.5px var(--v2-state-border-warning);
-}
-
-[data-component="ask"][data-kind="permission"]:not([data-resolved]) [data-slot="ask-head"] {
-  color: var(--v2-state-fg-warning);
-}
-
-[data-component="ask"][data-resolved] {
+  position: relative;
+  overflow: hidden;
+  padding: 13px 14px 13px 16px;
+  border-radius: 9px;
   background: var(--v2-background-bg-layer-01);
   box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+/* The edge. 3px, full height, and the only place the tone is stated. */
+[data-component="ask"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--v2-state-fg-info, var(--v2-text-text-brand));
+}
+
+[data-component="ask"][data-kind="permission"]::before {
+  background: var(--v2-state-fg-warning);
+}
+
+/* Answered, it stops asking for attention: the edge goes quiet and the panel
+   settles into the transcript. */
+[data-component="ask"][data-resolved]::before {
+  background: var(--v2-border-border-muted);
 }
 
 [data-slot="ask-head"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 9px;
+  margin-bottom: 10px;
   color: var(--v2-text-text-base);
+  font-size: calc(13.5px * var(--font-scale));
+  line-height: 1.4;
+}
+
+[data-slot="ask-head"] > [data-slot="icon-svg"] {
+  flex: none;
+  color: var(--v2-state-fg-info, var(--v2-text-text-brand));
+}
+
+[data-component="ask"][data-kind="permission"] [data-slot="ask-head"] > [data-slot="icon-svg"] {
+  color: var(--v2-state-fg-warning);
 }
 
 [data-component="ask"][data-resolved] [data-slot="ask-head"] {
   color: var(--v2-text-text-muted);
 }
 
-/* A command line is read character by character; a plan is read as prose. */
+[data-component="ask"][data-resolved] [data-slot="ask-head"] > [data-slot="icon-svg"] {
+  color: var(--v2-icon-icon-muted);
+}
+
+/* The subject, pushed to the end of the line where it reads as a label rather
+   than as part of the sentence. */
+[data-slot="ask-head"] > [data-component="tag"] {
+  margin-left: auto;
+}
+
+/* A plan is prose. A command line is read character by character. */
+[data-slot="ask-detail"] {
+  margin: 0 0 11px;
+  padding: 10px 11px;
+  border-radius: 7px;
+  background: var(--v2-background-bg-base);
+  color: var(--v2-text-text-muted);
+  font-size: calc(12.5px * var(--font-scale));
+  line-height: 1.55;
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
 [data-slot="ask-detail"][data-mono] {
   font-family: var(--v2-font-family-mono);
   font-size: calc(12px * var(--font-scale));
+  color: var(--v2-text-text-base);
   overflow-x: auto;
 }
 
 [data-slot="ask-where"] {
-  margin: -4px 0 10px;
-  color: var(--v2-text-text-muted);
+  margin: -5px 0 11px;
+  color: var(--v2-text-text-faint);
   font-size: calc(11.5px * var(--font-scale));
 }
 
-/* A plan is prose, not a command line: readable width, not monospace. */
-[data-slot="ask-detail"] {
-  margin: 0 0 10px;
-  padding: 9px 10px;
-  border-radius: 6px;
-  background: var(--v2-background-bg-base);
-  color: var(--v2-text-text-muted);
-  font-size: calc(12.5px * var(--font-scale));
-  line-height: 1.5;
-  white-space: pre-wrap;
-  max-height: 260px;
-  overflow-y: auto;
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-muted);
-}
-
-/* One option per row: a label and the reason for it, which is the part that
-   makes the choice possible and the part a row of buttons cannot carry. */
+/* One option per row: the label, the reason for it, and an edge that says the
+   row is the thing you press. */
 [data-slot="ask-options"] {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 [data-slot="ask-option"] {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 10px;
-  border: 1px solid var(--v2-border-border-muted);
-  border-radius: 6px;
-  background: var(--v2-background-bg-layer-01);
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1px 10px;
+  padding: 9px 11px;
+  border: none;
+  border-radius: 7px;
+  background: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-base);
   text-align: left;
   cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
   transition:
-    border-color 120ms ease,
-    background 120ms ease;
+    background 110ms ease,
+    box-shadow 110ms ease,
+    transform 110ms ease;
 }
 
 [data-slot="ask-option"]:hover {
-  border-color: var(--v2-border-border-base);
-  background: var(--v2-background-bg-layer-02);
+  background: var(--v2-background-bg-layer-03);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-base);
 }
 
-/* Refusing is not the same kind of act as allowing, and the row says so on
-   hover rather than by being a red button from the outset. */
-[data-slot="ask-option"][data-tone="danger"]:hover {
-  border-color: var(--v2-state-border-danger, var(--v2-border-border-base));
+/* Pressed, not lifted: a row that rises on hover drags the whole card with it,
+   and these are stacked. */
+[data-slot="ask-option"]:active {
+  transform: translateY(0.5px);
+}
+
+[data-slot="ask-option"]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--v2-border-border-base);
 }
 
 [data-slot="ask-option"][data-picked] {
-  border-color: var(--v2-border-border-brand, var(--v2-border-border-base));
+  background: var(--v2-state-bg-info);
+  box-shadow: inset 0 0 0 1px var(--v2-state-fg-info, var(--v2-border-border-base));
 }
 
 [data-slot="ask-option-label"] {
@@ -3756,39 +3793,79 @@ body[data-dragging-path] {
   align-items: center;
   gap: 6px;
   font-size: calc(13px * var(--font-scale));
-  font-weight: 500;
+  font-weight: 550;
 }
 
 /* Which one the agent put first, stated rather than preselected: a card that
    arrives with an answer already chosen turns a question into a formality. */
 [data-slot="ask-suggested"] {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--v2-background-bg-layer-04, var(--v2-background-bg-layer-03));
   color: var(--v2-text-text-faint);
-  font-size: calc(10px * var(--font-scale));
-  font-weight: 400;
+  font-size: calc(9.5px * var(--font-scale));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 [data-slot="ask-option-note"] {
+  grid-column: 1;
   color: var(--v2-text-text-muted);
   font-size: calc(11.5px * var(--font-scale));
-  line-height: 1.4;
+  line-height: 1.45;
+}
+
+/* The chevron sits in its own column so the note never runs under it, and only
+   colours up on hover — at rest it is a hint, not a decoration. */
+[data-slot="ask-option-go"] {
+  grid-row: 1 / -1;
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  color: var(--v2-icon-icon-muted);
+  opacity: 0.45;
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease;
+}
+
+[data-slot="ask-option"]:hover [data-slot="ask-option-go"] {
+  opacity: 1;
+  transform: translateX(1px);
+}
+
+/* Refusing is not the same kind of act as allowing, and the row says so on
+   hover rather than by being a red button from the outset. */
+[data-slot="ask-option"][data-tone="danger"]:hover {
+  background: var(--v2-state-bg-danger, var(--v2-background-bg-layer-03));
+  box-shadow: inset 0 0 0 1px var(--v2-state-border-danger, var(--v2-border-border-base));
 }
 
 [data-slot="ask-actions"] {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 9px;
 }
 
+/* What was decided, once it has been. Quiet, and the last word on the card. */
 [data-slot="ask-outcome"] {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-muted);
   font-size: calc(12px * var(--font-scale));
 }
 
+[data-slot="ask-outcome"] > [data-slot="icon-svg"] {
+  color: var(--v2-icon-icon-muted);
+}
+
 @media (pointer: coarse) {
   [data-slot="ask-option"] {
-    min-height: 48px;
+    min-height: 50px;
   }
 }

@@ -32,7 +32,7 @@ export function AskCard(props: { ask: AgentAsk; answer?: string[] }) {
   return (
     <div data-component="ask" data-kind={props.ask.kind} data-resolved={answered() ? "" : undefined}>
       <div data-slot="ask-head">
-        <Icon name={props.ask.kind === "plan" ? "target" : "comment"} size={14} />
+        <Icon name={props.ask.kind === "plan" ? "plan" : "comment"} size={14} />
         <span class="font-[530]">{props.ask.question}</span>
         <Show when={props.ask.header}>
           {(header) => <Tag tone={answered() ? "neutral" : "info"}>{header()}</Tag>}
@@ -75,6 +75,9 @@ export function AskCard(props: { ask: AgentAsk; answer?: string[] }) {
                     <Show when={option.description}>
                       {(description) => <span data-slot="ask-option-note">{description()}</span>}
                     </Show>
+                    <span data-slot="ask-option-go">
+                      <Icon name="chevron-right" size={13} />
+                    </span>
                   </button>
                 )}
               </For>

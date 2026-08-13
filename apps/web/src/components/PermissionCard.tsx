@@ -69,6 +69,9 @@ export function PermissionCard(props: { request: PermissionRequest; decision?: P
               >
                 <span data-slot="ask-option-label">{choice.label}</span>
                 <span data-slot="ask-option-note">{choice.note}</span>
+                <span data-slot="ask-option-go">
+                  <Icon name="chevron-right" size={13} />
+                </span>
               </button>
             )}
           </For>

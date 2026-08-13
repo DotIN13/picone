@@ -24,6 +24,7 @@ import Folder from "lucide-solid/icons/folder";
 import Globe from "lucide-solid/icons/globe";
 import ImageIcon from "lucide-solid/icons/image";
 import GitBranch from "lucide-solid/icons/git-branch";
+import ListChecks from "lucide-solid/icons/list-checks";
 import MessageSquare from "lucide-solid/icons/message-square";
 import Mic from "lucide-solid/icons/mic";
 import Minus from "lucide-solid/icons/minus";
@@ -80,6 +81,7 @@ const ICONS = {
   globe: Globe,
   image: ImageIcon,
   "git-branch": GitBranch,
+  plan: ListChecks,
   mic: Mic,
   minus: Minus,
   moon: Moon,

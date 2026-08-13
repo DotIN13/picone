@@ -2788,7 +2788,9 @@ would want this — needs neither the download nor the disk.
 
 Claude Code has three modes; Picone offers one of them, and enforces it itself.
 
-**Plan mode** is a switch beside the model picker — the same kind of decision
+**Plan mode** is a switch to the *left* of the model picker — the larger
+decision of the two, being what the agent may do at all rather than which one is
+doing it — the same kind of decision
 about the next turn — drawn only for an agent whose `capabilities.modes` says it
 has one. In it, the agent reads and thinks and changes nothing, and says what it
 would do instead.
@@ -2884,3 +2886,65 @@ exists — that is what the handle is.
 * **File checkpointing is not wired.** `rewindFiles` would restore the files at
   a message, which is the half §53 does not do — the best reason to come back
   to this.
+
+---
+
+## 59. Asking the human something
+
+A permission request (§10) was the first time an agent needed an answer before
+it could carry on. It is not the only one: Claude Code has a tool for asking a
+question outright, and plan mode ends with it proposing a plan and asking to act
+on it. All three are the same event — the agent needs a decision and the
+conversation waits — so they are one surface.
+
+**A row in the transcript, not a dialog over it.** The question is part of the
+conversation: it belongs where the conversation is, it survives a reload, and
+afterwards it still says what was asked and what was chosen. A dialog would take
+the screen, lose the history, and leave nothing behind. So an `ask` is a
+`ChatItem` like any other, persisted, with its answer written back onto it.
+
+**A panel with an accent edge, not a wash of colour.** A whole tinted block
+shouts, and these arrive in the middle of a conversation that has to stay
+readable: the tone lives in a 3px edge — informational for a question, warning
+for a permission — and goes quiet once the thing is answered, so a settled card
+sinks back into the transcript instead of still waving.
+
+**Options are rows, with their consequences.** A permission card used to be three
+buttons — *Allow once*, *Allow for session*, *Deny* — which you had to already
+understand. The same card now spells each one out underneath its label, because
+the difference between allowing once and allowing for a session is the whole
+decision. Questions from the agent are drawn the same way, and its own first
+option is marked *suggested* rather than preselected: a card that arrives with
+an answer already chosen turns a question into a formality. A chevron at the
+right edge of each row says the row is the thing you press, and only colours up
+under the pointer — at rest it is a hint rather than a decoration.
+
+**Nothing is assumed from silence.** Dismissing is an explicit answer — an empty
+list — and the agent is told it was dismissed rather than being given a default.
+A human walking away is not a decision, and acting as though it were is how an
+agent ends up doing something nobody agreed to.
+
+### Two of Claude's tools are questions
+
+`AskUserQuestion` and `ExitPlanMode` are intercepted in the permission hook and
+answered through this surface. The first *had* to be: allowed, it comes straight
+back "dismissed without an answer", because the CLI has no interface of its own
+in a headless session — verified, not assumed. The second replaces a refusal the
+agent had to read with the plan itself and two options, and approving it takes
+the session out of plan mode (§58).
+
+A hook may allow or deny a call but never supply its result, so the answer
+travels back as the denial's *reason*. That is how the model receives it, and it
+acts on it correctly. Neither tool appears as a tool call in the transcript: the
+card above says everything the row would, and a refusal that was really an
+answer should not be drawn as a failure.
+
+### Not built
+
+* **Permissions still have their own wire.** They share the surface and nothing
+  else. A permission decision grants for a whole session, which no other
+  question does, and the gate is the last thing in the app worth refactoring for
+  tidiness.
+* **No dialog protocol.** The SDK has `onUserDialog` with `ask_user_question` and
+  `plan_review` kinds — the names are in the CLI binary, not in the types — but
+  declaring them emitted nothing, so interception is what works today.
