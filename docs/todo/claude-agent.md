@@ -40,9 +40,10 @@ already written twice for the same reason.
   about subagents, and a fifteen-second `sleep` produced nothing. Picone shows
   how long a call has been running instead, which is most of what the output was
   being read for, but it is not the same thing.
-* **`acceptEdits` and `bypassPermissions`** are not offered as modes. The first
-  duplicates `permissions.files`; the second would take Picone's gate out of the
-  loop, which is the one thing the gate is for.
+* **`bypassPermissions` and `dontAsk` are not offered as modes.** The first
+  would take Picone's gate out of the loop, which is the one thing the gate is
+  for; the second denies anything not pre-approved, which is what a workspace
+  full of `deny` already says.
 * **`/compact` is sent as a prompt**, since Claude has no compaction API. It
   works and it appears in the transcript as a user message, which is not quite
   a lie but is not the way Pi's compaction reads either.

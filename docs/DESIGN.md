@@ -2784,34 +2784,46 @@ then nothing, which leaves the SDK to find its own copy and say so if there
 isn't one. A machine that already has Claude Code — which is most machines that
 would want this — needs neither the download nor the disk.
 
-### Planning, and the gate that has to mean it
+### Modes, and the gate that has to mean them
 
-Claude Code has three modes; Picone offers one of them, and enforces it itself.
+Claude Code has four modes. Picone offers all four, under its own names, and
+**enforces them itself** — which is the whole design, not an implementation
+detail.
 
-**Plan mode** is a switch to the *left* of the model picker — the larger
-decision of the two, being what the agent may do at all rather than which one is
-doing it — the same kind of decision
-about the next turn — drawn only for an agent whose `capabilities.modes` says it
-has one. In it, the agent reads and thinks and changes nothing, and says what it
-would do instead.
+| | what it does |
+|---|---|
+| `manual` | the workspace's settings as written: ask about what they say to ask about |
+| `edit` | file writes inside the workspace stop asking; shell and git still do |
+| `plan` | nothing is changed at all; it reads, thinks, and proposes |
+| `auto` | nothing is asked; whatever the settings would ask about, it does |
 
-The enforcement is the interesting part, and it is why this is a *Picone* mode
-rather than a flag passed through. Claude Code's own plan mode refuses edit
-tools; but Picone is its permission surface, so when the workspace said files
-may be written, our gate cheerfully authorised the write and a plan-only turn
-created a file. Observed, not theorised. So the session's gate refuses writes
-while planning — and refuses `ExitPlanMode` too, because left allowed the agent
-reported it had exited and then met a block it could not explain: the switch is
-the human's, and Picone had not moved.
+So a mode is a **lens over the permissions** (§9) that the session applies to
+its own gate, not a message passed through to the agent. Plan mode proved that
+it has to be: Claude Code's own plan mode refuses edit tools, but Picone is its
+permission surface, so when the workspace said files may be written our gate
+cheerfully authorised the write and a plan-only turn created a file. Observed,
+not theorised.
 
-Two exceptions, both deliberate. A write inside the agent's *own* directories is
-still allowed, because `~/.claude/plans` is where the plan itself goes and a
-planning mode that cannot record a plan is not one — a backend may declare the
-directories that are its own rather than the workspace's, and they appear in a
-refusal message like any other root. And `acceptEdits`, the third mode, is
-absent: it stops the *CLI* asking about edits, which changes nothing when our
-gate asks anyway, and `permissions.files` is the setting that already means it.
-Two switches for one decision is how they come to disagree.
+Two things sit outside every lens. An explicit `deny` is the user having already
+decided, and it holds in all four. And the writable roots are checked
+separately, so a mode may stop Picone *asking* but may never widen where an
+agent can write. That distinction is the difference between a convenience and a
+hole, so it has tests.
+
+Plan mode needs two more rules on top of the lens, because "changes nothing" is
+stronger than anything the settings can say. Writes are refused outright —
+except inside the agent's *own* directories, since `~/.claude/plans` is where
+the plan goes and a planning mode that cannot record a plan is not one, which is
+why a backend may declare the directories that are its own. And `ExitPlanMode`
+becomes a question (§59) rather than a tool: approving the plan is what leaving
+plan mode means, so the card does it, and the session goes back to `manual`.
+
+The switch sits to the *left* of the model picker — the larger of the two
+decisions, being what the agent may do at all rather than which one is doing
+it — and each row says what it will actually do, because `edit` and `auto` are
+not self-explanatory and the difference between them is the whole decision.
+Anything but `manual` fills the control, since a standing change to how a
+session behaves should be visible without being looked for.
 
 ### How long a tool has been running
 
