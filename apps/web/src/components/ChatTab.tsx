@@ -23,22 +23,32 @@ import { Spinner, Tag } from "./ui/primitives.tsx";
 export function ChatTab(props: { sessionId: string }) {
   let scroller: HTMLDivElement | undefined;
   let inner: HTMLDivElement | undefined;
+  let bottom: HTMLDivElement | undefined;
 
   /*
-   * Following the bottom, and the rules for stopping and starting again.
+   * Following the bottom.
    *
-   * Off the moment you scroll up. Back on when you scroll back down towards the
-   * bottom, or when you send something from near it. What it never does is
-   * re-attach on its own: every way back requires a deliberate move downwards.
+   * One question decides it: is the end of the transcript on screen? A sentinel
+   * element after the last row and an IntersectionObserver watching it answer
+   * that, which makes following a *position* rather than a gesture we have to
+   * catch.
+   *
+   * Catching gestures is what this used to do — wheel, touch, arrow keys — and
+   * it missed every other way to leave the bottom: a scrollbar drag, a
+   * selection dragged upwards, find-in-page, an anchor click. Worse, a wheel
+   * tick inside a tool-output box, which never moved the transcript at all,
+   * counted as leaving it. Asking where the end is instead gets all of those
+   * right without naming any of them.
+   *
+   * The same question answered the other way brings following back, so the end
+   * arriving under a still reader — a tool call collapsing above, say — now
+   * re-attaches too. That is the one thing the old rule did better, and it is
+   * the price of a mechanism with one input instead of five.
    */
   /**
-   * How close to the bottom counts as being at it — for sending, and for
-   * scrolling back down. One number for both, because they are the same
-   * judgement: near enough that you meant to be following.
-   *
-   * Generous on purpose. Re-attaching only on a perfect landing means chasing a
-   * moving target while an answer streams in; what matters is the *direction*
-   * you moved, and moving down is unambiguous.
+   * How close to the end counts as being at it, as the observer's bottom
+   * margin. Generous on purpose: re-attaching only on a perfect landing means
+   * chasing a moving target while an answer streams in.
    */
   const NEAR_BOTTOM = 120;
 
@@ -60,11 +70,9 @@ export function ChatTab(props: { sessionId: string }) {
   const WINDOW = 60;
   const LOAD_MORE_AT = 800;
 
-  let pinned = true;
+  let following = true;
   /** Last position we set ourselves, so a scroll we did not cause is visible. */
   let ownTop = 0;
-  /** Where a touch drag started, to tell scrolling up from scrolling down. */
-  let touchY: number | null = null;
 
   const [windowed, setWindowed] = createSignal(WINDOW);
   const items = () => transcriptOf(props.sessionId);
@@ -145,90 +153,113 @@ export function ChatTab(props: { sessionId: string }) {
   const agentState = () => state.agentStates[props.sessionId] ?? "idle";
   const working = () => agentState() !== "idle" && agentState() !== "waiting_permission";
 
-  const gap = () => (scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight : 0);
-
-  const stick = () => {
-    if (!pinned || !scroller) return;
-    scroller.scrollTop = scroller.scrollHeight;
-    ownTop = scroller.scrollTop;
-  };
-
   /**
-   * Let go, immediately.
+   * Put the end back on screen.
    *
-   * Called from the gestures themselves rather than from `scroll`, because the
-   * frame loop below writes `scrollTop` every frame: a wheel tick would be
-   * undone before the scroll event it produced had been handled, and the view
-   * would refuse to move at all.
+   * Scrolling the sentinel into view rather than assigning `scrollHeight` to
+   * `scrollTop`: one primitive that lands on the last pixel of content without
+   * this component doing the arithmetic, and it lands below the inner column's
+   * bottom padding, which the arithmetic version used to eat.
+   *
+   * `instant` because a streaming turn re-pins many times a second, and a
+   * smooth scroll restarted every frame is an animation that never arrives.
    */
-  const release = () => {
-    pinned = false;
+  const stick = () => {
+    if (!following || !bottom) return;
+    bottom.scrollIntoView({ block: "end", inline: "nearest", behavior: "instant" });
+    ownTop = scroller?.scrollTop ?? 0;
   };
 
   /*
-   * Following the bottom takes two mechanisms, because neither is enough.
+   * Two observers, one question each: the sentinel says whether the end is on
+   * screen, the boxes say when something changed shape. Both are needed — a
+   * streamed delta changes neither the message count nor, once we have
+   * corrected for it, where the sentinel sits.
    *
-   * Watching `items().length` only fires when a message is *added*, and a
-   * streaming message does not change the count — so the view stopped following
-   * the moment an answer began. A resize observer is the obvious replacement
-   * and is too coarse on its own: during a fast stream it delivered two
-   * callbacks for an entire turn while the bottom drifted 140px away.
+   * This replaced a `requestAnimationFrame` loop that wrote `scrollTop` on
+   * every frame of every turn. It cost a forced layout per frame per working
+   * tab, hidden ones included, and it made the bottom impossible to leave by
+   * any means slower than a wheel tick: it restored the position before the
+   * scroll event from a scrollbar drag had even been dispatched.
    *
-   * So: a frame loop while the agent is working, which is exactly when the
-   * transcript grows; and the observer for everything else — an image
-   * finishing, a tool call expanding, the window changing shape.
+   * The correction has to land in the same frame as the growth, and it does:
+   * resize observations are delivered before intersections are computed, so the
+   * sentinel is measured after we have already followed. The guard below is
+   * what covers us if that order ever fails.
    */
   onMount(() => {
     stick();
-    if (!inner || !("ResizeObserver" in window)) return;
-    const observer = new ResizeObserver(() => stick());
-    observer.observe(inner);
-    onCleanup(() => observer.disconnect());
+    if (!scroller || !bottom || !inner) return;
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const latest = entries[entries.length - 1];
+          if (!latest || !scroller) return;
+
+          // A background tab is `display: none` and has no box for anything to
+          // be inside of, so every target in it reads as off screen. Ignoring
+          // that is what leaves a tab still following when it comes back.
+          if (scroller.clientHeight === 0) return;
+
+          if (latest.isIntersecting) {
+            following = true;
+            return;
+          }
+
+          /*
+           * Off the end — but only the reader gets to stop the following. Still
+           * being where we last put ourselves means the end went away
+           * underneath us rather than us leaving it, so we go after it instead.
+           * One growth we were told about too late should not quietly end a
+           * turn's worth of following.
+           */
+          if (following && scroller.scrollTop >= ownTop - 1) {
+            stick();
+            return;
+          }
+
+          following = false;
+        },
+        { root: scroller, rootMargin: `0px 0px ${NEAR_BOTTOM}px 0px`, threshold: 0 },
+      );
+      observer.observe(bottom);
+      onCleanup(() => observer.disconnect());
+    }
+
+    if ("ResizeObserver" in window) {
+      // The column, for content arriving. The viewport too, because a growing
+      // composer or a shrinking window moves the end just as surely — and it is
+      // the browser clamping `scrollTop` behind our back that would otherwise
+      // leave `ownTop` describing a position which no longer exists.
+      const observer = new ResizeObserver(() => stick());
+      observer.observe(inner);
+      observer.observe(scroller);
+      onCleanup(() => observer.disconnect());
+    }
   });
 
-  /*
-   * One loop per turn, doing both halves of the job.
+  /**
+   * How far the end is from the viewport, right now.
    *
-   * Pinned, it follows. Released, it watches for the reader heading back down
-   * — and that check happens here rather than in the `scroll` handler, because
-   * a scroll event is dispatched at the end of the frame and by then a
-   * streaming transcript has grown underneath it. Measured: a scroll that
-   * landed exactly on the bottom was already ~100px above it by the time the
-   * handler ran. A frame is the shortest interval available, so what it
-   * measures is barely stale.
+   * The one place that still measures rather than asking the observer, because
+   * sending needs an answer in the same tick: scroll down and hit send in the
+   * same frame and the observer has not spoken yet, which would leave your own
+   * message off screen.
    */
-  createEffect(() => {
-    if (!working()) return;
-    let previousTop = scroller?.scrollTop ?? 0;
-
-    let frame = requestAnimationFrame(function follow() {
-      if (scroller) {
-        if (pinned) {
-          stick();
-        } else {
-          const top = scroller.scrollTop;
-          const distance = scroller.scrollHeight - scroller.clientHeight - top;
-          if (top > previousTop && distance <= NEAR_BOTTOM) pinned = true;
-          previousTop = top;
-        }
-      }
-      frame = requestAnimationFrame(follow);
-    });
-
-    onCleanup(() => cancelAnimationFrame(frame));
-  });
+  const gap = () => (scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight : 0);
 
   /*
-   * Sending is the only thing that starts following again, and only from near
-   * the bottom: send from halfway up a long transcript and you stay where you
-   * were reading. Keyed on the newest user message rather than on a callback
-   * from the composer, so a comment (§19) or a voice turn re-arms it too.
+   * Sending starts following again, and only from near the bottom: send from
+   * halfway up a long transcript and you stay where you were reading. Keyed on
+   * the newest user message rather than on a callback from the composer, so a
+   * comment (§19) or a voice turn re-arms it too.
    */
   createEffect((previous: string | undefined) => {
     const list = items();
     const latest = [...list].reverse().find((item) => item.kind === "user")?.id;
     if (latest && latest !== previous && gap() <= NEAR_BOTTOM) {
-      pinned = true;
+      following = true;
       // Back at the end, so the pages pulled in earlier are far off screen and
       // can go. Without this a long-lived session only ever grows.
       setWindowed(WINDOW);
@@ -241,47 +272,15 @@ export function ChatTab(props: { sessionId: string }) {
     <div
       data-slot="chat"
       ref={scroller}
-      /* Wheel and trackpad: any upward tick is a decision to stop following. */
-      onWheel={(event) => {
-        if (event.deltaY < 0) release();
-      }}
-      /* Touch: dragging the content down is scrolling up. */
-      onTouchStart={(event) => {
-        touchY = event.touches[0]?.clientY ?? null;
-      }}
-      onTouchMove={(event) => {
-        const y = event.touches[0]?.clientY ?? null;
-        if (touchY !== null && y !== null && y > touchY + 2) release();
-        touchY = y;
-      }}
-      onKeyDown={(event) => {
-        if (["ArrowUp", "PageUp", "Home"].includes(event.key)) release();
-      }}
       /*
-       * The backstop, for a scrollbar drag — which produces no wheel, no touch
-       * and no key.
-       *
-       * A drop in `scrollTop` is only the reader if it also moved us off the
-       * bottom. Content shrinking mid-turn — a tool call collapsing, a
-       * streaming block re-rendering shorter — makes the browser clamp
-       * `scrollTop` down all by itself, and reading that as a gesture unpinned
-       * the view in the middle of its own answer.
+       * Nothing about following is decided here any more; the observers own
+       * that. All this watches for is the reader nearing the top of what is
+       * rendered, which is a question about distance rather than about
+       * visibility — an observer would announce the top once on the way in and
+       * then say nothing at all while the reader kept climbing.
        */
       onScroll={() => {
-        if (!scroller) return;
-        const top = scroller.scrollTop;
-        const distance = scroller.scrollHeight - scroller.clientHeight - top;
-
-        if (top < LOAD_MORE_AT && hasEarlier()) showEarlier();
-
-        if (top < ownTop - 1 && distance > 1) {
-          release();
-        } else if (!pinned && top > ownTop && distance <= NEAR_BOTTOM) {
-          // Back at the bottom while nothing is streaming, so the measurement
-          // is trustworthy. During a turn the frame loop above does this.
-          pinned = true;
-        }
-        ownTop = top;
+        if (scroller && scroller.scrollTop < LOAD_MORE_AT && hasEarlier()) showEarlier();
       }}
     >
       <div data-slot="chat-inner" ref={inner}>
@@ -347,6 +346,14 @@ export function ChatTab(props: { sessionId: string }) {
           </Show>
         </div>
       </div>
+
+      {/*
+        The end of the transcript, as something that can be observed and
+        scrolled to. Outside the inner column on purpose: scrolling it into view
+        then lands below that column's bottom padding rather than on the last
+        row, so following the bottom shows the bottom.
+      */}
+      <div data-slot="chat-bottom" ref={bottom} aria-hidden="true" />
     </div>
   );
 }

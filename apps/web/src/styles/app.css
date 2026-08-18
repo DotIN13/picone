@@ -782,6 +782,13 @@
   padding: 20px 24px 40px;
 }
 
+/* The end of the transcript, for the observer that decides whether to follow
+   it. A pixel rather than nothing: a zero-area target is a question the
+   intersection rules answer inconsistently. */
+[data-slot="chat-bottom"] {
+  height: 1px;
+}
+
 [data-slot="chat-empty"] {
   display: flex;
   flex-direction: column;
