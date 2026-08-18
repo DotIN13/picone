@@ -1690,7 +1690,7 @@ Five are fire-and-forget:
 |---|---|
 | `notify` | chat notice, at info / warn / error |
 | `setStatus` | pill in the title bar; `undefined` clears it |
-| `setWidget` | monospace block above or below the composer |
+| `setWidget` | monospace block above or below the composer, folded to its first line until opened |
 | `setTitle` | session tab label |
 | `setEditorText` / `pasteToEditor` | composer contents |
 

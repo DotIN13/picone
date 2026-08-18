@@ -23,7 +23,6 @@ import {
   surfaceOf,
   widgetsAt,
 } from "../store.ts";
-import { COMPACT_QUERY, mediaQuery } from "../lib/media.ts";
 import { draftForModel, draftText, textDraft, type Draft } from "../lib/draft.ts";
 import { parseWidgetRows } from "../lib/widget-lines.ts";
 import { Dictation, isSpeechInputSupported, stopSpeaking } from "../voice/speech.ts";
@@ -109,18 +108,22 @@ const withNewline = (line: JSX.Element) => [line, "\n"];
 /**
  * Line blocks an extension pushed via `setWidget` (§55).
  *
- * On a phone they are folded down to their first line, which is where a widget
- * puts its title and its count. Two of them expanded is most of the screen
- * above the composer, and the thing you came to read is the conversation; the
- * heading is enough to say whether it is worth opening.
+ * Folded to their first line until asked for, which is where a widget puts its
+ * title and its count. This was a phone-only accommodation, on the reasoning
+ * that a desktop has the room — but room was never the point. A task list
+ * twenty rows long is most of the space above the composer on any screen, and
+ * what you came to read is the conversation; the heading says whether the rest
+ * is worth opening.
+ *
+ * A widget that is nothing but its first line has nothing to fold away, so it
+ * gets no control and simply shows.
  */
 function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
   const widgets = () => widgetsAt(props.placement);
-  const compact = mediaQuery(COMPACT_QUERY);
   /** By key, so a widget redrawing mid-turn does not close itself. */
   const [opened, setOpened] = createSignal<string[]>([]);
 
-  const open = (key: string) => !compact() || opened().includes(key);
+  const open = (key: string) => opened().includes(key);
   const toggle = (key: string) =>
     setOpened((keys) => (keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]));
 
@@ -134,7 +137,9 @@ function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
               return first?.kind === "row" ? first.spans : [{ text: "Widget" }];
             });
             // Nothing to fold away when the whole widget is its first line.
-            const foldable = () => compact() && afterFirst(widget.lines).length > 0;
+            const foldable = () => afterFirst(widget.lines).length > 0;
+            /** Foldable widgets wait to be opened; the rest have nothing to wait for. */
+            const shown = () => !foldable() || open(widget.key);
 
             return (
               <div
@@ -155,9 +160,9 @@ function ExtensionWidgets(props: { placement: "aboveEditor" | "belowEditor" }) {
                     <Icon name={open(widget.key) ? "chevron-up" : "chevron-down"} size={13} />
                   </button>
                 </Show>
-                <Show when={open(widget.key)}>
+                <Show when={shown()}>
                   {/* The heading is the button when folding; showing it twice
-                      would only repeat what was just tapped. */}
+                      would only repeat what was just clicked. */}
                   <WidgetBody lines={widget.lines} folded={foldable()} />
                 </Show>
               </div>

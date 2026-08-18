@@ -1631,6 +1631,13 @@ body[data-dragging-path] {
   color: var(--v2-text-text-base);
 }
 
+/* Folded, it is one line — so it is exactly as tall as one, with no cap to
+   scroll against. */
+[data-slot="ext-widget"][data-folded] {
+  max-height: none;
+  padding-block: 6px;
+}
+
 [data-slot="widget-row"] {
   /* Interior runs of spaces were the widget's column gaps; long paths wrap
      rather than pushing the card sideways. */
@@ -1649,8 +1656,8 @@ body[data-dragging-path] {
 }
 
 /*
- * The fold on a phone: the widget's first line, which is its title, and a
- * chevron. It is a row like any other, so it reads as the heading it replaces.
+ * The fold: the widget's first line, which is its title, and a chevron. It is a
+ * row like any other, so it reads as the heading it replaces.
  */
 [data-slot="widget-summary"] {
   display: flex;
@@ -2755,11 +2762,6 @@ body[data-dragging-path] {
     max-height: 132px;
   }
 
-  /* Folded, it is one line — so it is exactly as tall as one. */
-  [data-slot="ext-widget"][data-folded] {
-    max-height: none;
-    padding-block: 6px;
-  }
 }
 
 /* ───────────────────────────────────────────────────────────────────────────

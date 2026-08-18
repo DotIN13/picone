@@ -159,7 +159,34 @@ interface WidgetComponent {
   dispose?(): void;
 }
 
-type WidgetFactory = (tui: { requestRender(): void }, theme: MarkingTheme) => WidgetComponent;
+/**
+ * How many rows a factory is told it has, when it asks.
+ *
+ * Nothing here scrolls by rows, so this is only ever an answer to "how much
+ * room do I have". 32 because that is the number `pi-subagents` falls back to
+ * when the terminal will not say — borrowing an extension's own default is
+ * better than inventing one.
+ */
+export const WIDGET_ROWS = 32;
+
+/**
+ * What Picone hands a factory in place of the TUI.
+ *
+ * `requestRender` is the whole contract as far as drawing goes, but a factory
+ * may also *measure* — `tui.terminal.columns`, mostly — and a stub that omits
+ * `terminal` turns that into a `TypeError` inside a render we deliberately
+ * try/catch. The widget then draws nothing, with nothing anywhere to say why:
+ * exactly the silent invisibility that the factory form itself used to have,
+ * one level down. `@tintinweb/pi-tasks` reads `columns` on every render and is
+ * how we found it. So answer the question, in the same generous units as
+ * `WIDGET_WIDTH`.
+ */
+export const tuiStub = (requestRender: () => void) => ({
+  requestRender,
+  terminal: { columns: WIDGET_WIDTH, rows: WIDGET_ROWS },
+});
+
+type WidgetFactory = (tui: ReturnType<typeof tuiStub>, theme: MarkingTheme) => WidgetComponent;
 
 /**
  * A live factory widget: the component, and the way it asks to be redrawn.
@@ -172,7 +199,7 @@ export class FactoryWidget {
   private readonly component: WidgetComponent;
 
   constructor(factory: WidgetFactory, private readonly onLines: (lines: WidgetLine[]) => void) {
-    this.component = factory({ requestRender: () => this.push() }, markingTheme);
+    this.component = factory(tuiStub(() => this.push()), markingTheme);
   }
 
   /** Render now and hand the spans over. */

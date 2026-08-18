@@ -7,6 +7,7 @@ import {
   markingTheme,
   parseLines,
   plainLines,
+  tuiStub,
 } from "./widget-render.ts";
 
 /**
@@ -231,12 +232,10 @@ export class ExtensionUiBridge {
         }
       };
 
-      const tui = {
-        requestRender: () => {
-          const component = this.customs.get(id) as { render(width: number): string[] } | undefined;
-          if (component) this.hooks.frame(id, draw(component));
-        },
-      };
+      const tui = tuiStub(() => {
+        const component = this.customs.get(id) as { render(width: number): string[] } | undefined;
+        if (component) this.hooks.frame(id, draw(component));
+      });
 
       void (async () => {
         try {
