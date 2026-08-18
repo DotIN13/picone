@@ -95,7 +95,25 @@
   text-decoration: underline;
 }
 
+/*
+ * A table scrolls itself, rather than widening the transcript.
+ *
+ * `display: block` is what makes that possible: a table box sizes to its
+ * columns and ignores `overflow`, so on a phone a nine-column table used to
+ * reach past the column and leave the whole chat log scrolling sideways — every
+ * message shifting under a swipe meant for one table. As a block the box takes
+ * the column width and the rows lay themselves out inside it as they always
+ * did, in an anonymous table that is free to be wider than its scrollport.
+ *
+ * `overscroll-behavior-x` keeps that swipe here. Without it, reaching the last
+ * column hands the gesture to the next scroller out — the tab strip, which is
+ * horizontal too — and the reader loses their place in a different way.
+ */
 [data-component="markdown"] table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
   margin: 0 0 12px;
   border-collapse: collapse;
   font-size: calc(12.5px * var(--font-scale));
