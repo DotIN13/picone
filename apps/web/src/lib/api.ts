@@ -78,6 +78,13 @@ export const api = {
     }),
 
   comments: () => request<{ comments: FileComment[] }>("/comments"),
+  /*
+   * Over HTTP rather than the socket, because the answer is the point: a
+   * comment becomes a pill in the composer (§18), and a pill needs the id the
+   * server just made. The broadcast that follows tells every other browser.
+   */
+  addComment: (input: { path: string; matcher: string; lineStart?: number; lineEnd?: number; body: string }) =>
+    request<{ comment: FileComment }>("/comments", { method: "POST", body: JSON.stringify(input) }),
   setCommentStatus: (id: string, status: CommentStatus) =>
     request<{ comment: FileComment }>(`/comments/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
 

@@ -457,6 +457,27 @@
   cursor: text;
 }
 
+/*
+ * A comment parked in the composer (§18). Green, because it is the only pill
+ * that is a thing already said rather than a thing being named — and warmer
+ * than the file it sits next to, so a message carrying one is obvious at a
+ * glance without reading it.
+ */
+[data-component="mention-pill"][data-kind="comment"] {
+  color: var(--v2-state-fg-success);
+  cursor: text;
+}
+
+/*
+ * Where its mark sits. What size it is, and how heavily it is drawn, is the rule
+ * for hand-drawn icons in `app.css` — this one only has to place it in a line of
+ * text, small enough to sit inside the line box so the line does not grow.
+ */
+[data-component="mention-pill"][data-kind="comment"] [data-slot="icon-svg"] {
+  margin-inline-end: 3px;
+  vertical-align: -0.13em;
+}
+
 [data-component="mention-pill"][data-kind="subject"]:hover,
 [data-component="mention-pill"][data-kind="subject"]:focus-visible {
   background: var(--v2-state-bg-magic);
@@ -494,4 +515,8 @@
 
 [data-slot="composer-input"] [data-component="mention-pill"][data-kind="file"] {
   background: var(--v2-state-bg-info);
+}
+
+[data-slot="composer-input"] [data-component="mention-pill"][data-kind="comment"] {
+  background: var(--v2-state-bg-success);
 }

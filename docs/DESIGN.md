@@ -37,7 +37,7 @@ Core principles:
 * The interface has a VS Code-style file browser.
 * Sessions and files share one tab strip.
 * File tabs are read-only and commentable.
-* Comments are injected into the target session immediately.
+* Comments are saved when written and sent when the reader decides to.
 * File, shell, and git permissions are sufficient.
 * Voice input and output are browser-native.
 
@@ -372,11 +372,10 @@ the conversation: history, context, compaction, tool execution.
 class SessionRuntime {
   static create(options): Promise<SessionRuntime>
 
-  prompt(text, source, displayText?): Promise<void>
-  steer(text, source, displayText?): Promise<void>
+  prompt(text, source, displayText?, commentIds?): Promise<void>
+  steer(text, source, displayText?, commentIds?): Promise<void>
   abort(): Promise<void>
 
-  injectComment(modelText, displayText): Promise<void>
   respondToPermission(requestId, decision): void
   answerExtensionUi(answer): void
 
@@ -812,7 +811,7 @@ interface FileComment {
   lineStart?: number
   lineEnd?: number
   body: string
-  status: "open" | "addressed" | "resolved"
+  status: "open" | "resolved"
   createdAt: string
 }
 ```
@@ -843,8 +842,25 @@ On submit:
 
 1. Save the comment.
 2. Show it against the anchored lines.
-3. Inject it into the active session.
-4. If Pi is working, steer. Otherwise send it as the next user input.
+3. Park it in the composer as a pill — the comment icon, then `DESIGN.md:42`.
+
+And there it waits. Sending it is a separate decision, made in the composer with
+everything else: send it on its own, send it with a sentence explaining what you
+want, gather three of them into one message, or delete the pill and leave the
+comment for later. If the agent is working when it goes, it steers, exactly as
+any other message does (§28).
+
+**Saving and sending used to be one gesture**, and that made reading a draft
+adversarial: marking three things in a file sent three messages, each one
+interrupting whatever was running, and the third arrived before the agent had
+finished reacting to the first. The reader had no way to say "note this, I am
+still reading" — the only way to leave a comment unsent was not to write it.
+
+Nothing is lost by waiting. The comment is saved the moment it is written, it is
+in the navigator (§21), and an open one rides along the next time its file is
+named in a message (§19) — so a comment nobody ever sends still reaches the agent
+the next time the file comes up. The pill is the fast path, not the only one; a
+comment whose pill was deleted can be put back from the navigator.
 
 The two-step interaction — action, then composer — keeps a stray selection from
 opening a text box in the user's face.
@@ -854,9 +870,11 @@ composer guards against reading that as a deselection. This was a real bug.
 
 ---
 
-## 19. Comment injection
+## 19. Comment text
 
-The comment stays structured internally and becomes text at the Pi boundary:
+The comment stays structured internally and becomes text at the Pi boundary. The
+browser sends ids; the wording is built server-side from the stored row, so the
+two readings of a comment exist in exactly one place:
 
 ```text
 The user left a comment on:
@@ -878,13 +896,21 @@ Let's avoid adding another stateful service.
 """
 
 If the exact selected text has moved or changed, search the file for it. When you
-have acted on this feedback, call mark_comment_addressed with commentId "…".
+have dealt with this, call resolve_comment with commentId "…".
 ```
 
 This enters the normal message flow. There is no comment-processing subsystem.
 
+A message carrying comments is one message: whatever was typed, then a block per
+comment, separated by rules. A message that is *only* comments reads exactly as a
+lone comment used to, which is the case this grew out of.
+
 The transcript shows a compact card instead — filename, line, quoted selection,
-comment body.
+comment body — and the message is tagged as a file comment whether or not it also
+carries words.
+
+Comments already spelled out this way are left out of the file-named pass below,
+so nothing is said twice in one message.
 
 ---
 
@@ -897,15 +923,20 @@ Human opens DESIGN.md in another tab
       │
 Human reads the draft
       │
-Human leaves a comment
+Human leaves three comments      ← pills in the composer; Pi is undisturbed
+      │
+Human sends them, together, when they have finished reading
       ▼
-session.steer(comment)
+session.steer(text + comments)
       ▼
 Pi sees the feedback immediately
 ```
 
 Every tab stays mounted precisely so this works: reading a file never pauses the
-run, and the comment reaches the session that produced the work.
+run, and the comment reaches the session that produced the work. What changed is
+who decides *when* — reading a file used to mean interrupting the run three times
+to say three things, and now it means saying them once, when there is something
+worth saying.
 
 ---
 
@@ -919,7 +950,7 @@ highlighted in the gutter:
 43 │ a Redis-backed session layer.
    │ ┌──────────────────────────────────────────┐
    │ │ Let's avoid another stateful service.    │
-   │ │ Comment on lines 42–43   [addressed]  ✓  │
+   │ │ Comment on lines 42–43              ✓    │
    │ └──────────────────────────────────────────┘
 ```
 
@@ -927,17 +958,51 @@ The same card appears in the markdown view and, in condensed form, in the
 sidebar comment navigator. All three are one component with a display and an
 editor variant.
 
+A row in the navigator does three things: goes to the line, puts the comment back
+in the composer as a pill (§18), or resolves it (§22). Everything in the list is
+unsent or unfinished — resolved comments leave it — so the second is how a comment
+written an hour ago gets handed over now, and the only way back to one whose pill
+was deleted.
+
+The third is on the cards as well, in both file views, because that is where you
+are when you decide a note is finished. In the source view the card is a
+CodeMirror widget, so its click is stopped rather than let through — a widget that
+passes its events on is asking the editor to read them as clicks in the content,
+and this one is a button. A selection already made is dismissed by the press, as
+by any press outside the comment action.
+
 ---
 
 ## 22. Comment lifecycle
 
 ```text
-open        the user created it
-addressed   the agent believes it acted on it
-resolved    the human considers it done
+open        somebody wrote it
+resolved    it is finished — closed by the agent, or by the reader
 ```
 
+**Two states, and either side may reach the second one.** The agent closes what
+it has dealt with (§23). The reader closes what no longer needs anyone: a note
+they answered another way, changed their mind about, or wrote twice. That is a
+different act from confirming the agent's work, which is why it is not a third
+state — *done* should not mean two things depending on who noticed. And a comment
+left open is not inert: every later message naming its file carries it again
+(§19), so closing one is how it stops.
+
+There was an `addressed` between the two, meaning the agent had acted and the
+reader had yet to confirm it. It bought nothing — whether the work was done is
+visible in the file — and left finished comments in the list until someone cleared
+them one at a time. Now that either side can close a comment outright it has
+nobody left to wait for, so it is gone from the type as well as the interface, and
+rows saved under it are resolved when the database opens.
+
 No `seen` state. Receipt is inferable from session events.
+
+No `sent` state either, now that writing and sending are separate (§18). It is
+tempting — the list could grey out the ones already handed over — but the
+transcript already shows every comment that went, in the message that carried it,
+and a status that says "delivered" while the agent has plainly not read it yet
+would be answering a question nobody asked. What the list is for is what is still
+open.
 
 ---
 
@@ -946,12 +1011,16 @@ No `seen` state. Receipt is inferable from session events.
 The agent gets two tools:
 
 ```ts
-mark_comment_addressed({ commentId: string })
+resolve_comment({ commentId: string })
 list_open_comments()
 ```
 
-The agent may mark a comment *addressed*. Only the human marks it *resolved*.
-That gives the human the final say.
+It closes each one as it finishes it rather than in a batch at the end, having
+either changed the work or established that no change is needed — and says which
+in its reply, since the tool call itself says nothing about what was decided.
+
+The workspace prompt also tells it that the reader may close a comment
+themselves, so one disappearing untouched does not read as work it owes.
 
 ---
 
@@ -1153,7 +1222,6 @@ Client → server:
 ```text
 prompt · steer · abort            (optionally targeting a session)
 permission_response
-file_comment · resolve_comment
 watch_file · unwatch_file
 select_session · new_session
 extension_ui_answer · editor_text
@@ -1397,7 +1465,7 @@ File browser             multiple roots · lazy expansion · search · git statu
 Tabs                     sessions and files · reordering · read-only viewers
 Permissions              files/shell/git · allow/ask/deny · cards · path writes
 File comments            selection · matcher · composer · inline display
-Comment → session        steer when active, otherwise next input
+Comment → session        parked as a pill, sent with a message or saved
 File watching            open tabs only · refresh banner
 MCP and skills           from workspace JSON, scoped to the workspace
 Memory directories       global and per-workspace · read-only enforcement  §50
@@ -1455,9 +1523,9 @@ User opens DESIGN.md in a tab, reads while Pi keeps working
         ↓
 User selects a paragraph → "Don't introduce Redis."
         ↓
-Comment steers the running session
+User sends the pill, which steers the running session
         ↓
-Pi adjusts the design, marks the comment addressed
+Pi adjusts the design and resolves the comment
         ↓
 Tab shows "changed on disk" → user reviews again
 ```
@@ -2569,6 +2637,23 @@ sent as its absolute path, which is the thing that can be opened and the thing
 its comments are matched against (§17). A memory subject reads as `@Gio Choi`
 and is sent as `@gio-choi`, because the server has resolved those since §52 and
 still should.
+
+A comment pill is a third kind, and the only one that reads as *nothing* in
+either derivation (§18). It stands for a row the server already has, so both
+readings of it — the card the transcript shows and the block the model gets —
+are composed there and the ids travel beside the text. Its label is drawn but
+never spelled: writing the location into the message would put it there twice,
+once inline and once in the card underneath. Which is why `caretOffset` measures a
+pill from its node rather than from the text it draws — for a name the two agree,
+and for a comment they do not.
+
+Its mark is an icon and not a character. The field builds its own DOM, so the
+pill is the one thing in the interface Solid does not draw and the `Icon`
+component cannot be used — but an emoji is not the alternative: it renders as
+whatever glyph the platform has, it lands in `textContent` where the label
+should be alone, and it cannot take the hairline. So the same lucide outline is
+assembled by hand, stroked in `currentColor`, and sized and weighted in CSS
+against `--ui-scale`, which is where the zoom correction can still be read.
 
 **The field is `contenteditable`, and the pill is a real inline node** —
 `contenteditable="false"`, so the browser gives one press of backspace, one step

@@ -18,12 +18,14 @@ type SdkTools = NonNullable<Parameters<typeof createSdkMcpServer>[0]["tools"]>;
 export function piconeTools(host: AgentHost, workspace: Workspace): McpSdkServerConfigWithInstance {
   const tools: SdkTools = [
     /*
-     * Closing a comment is the agent's job, not the reader's (DESIGN §23).
+     * Closing a comment it has dealt with is the agent's job (DESIGN §23).
      *
      * It used to mark them "addressed" and leave the last step to a button,
      * which meant a queue of finished work waiting on a click that added
      * nothing: the person who wrote the comment can see whether it was dealt
-     * with by looking at the file. So the agent resolves, and the reader reads.
+     * with by looking at the file. So the agent closes what it has done, and the
+     * reader closes what no longer needs anyone (§22) — two ways into the same
+     * state, because *done* does not mean two different things.
      */
     tool(
       "resolve_comment",

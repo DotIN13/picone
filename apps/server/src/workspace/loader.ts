@@ -169,7 +169,7 @@ export function workspaceContext(ws: Workspace): string {
   lines.push("");
   lines.push(
     "The human reviews your work in a web UI and can leave comments anchored to selected text in a file. " +
-      'When a comment arrives, treat it as direct feedback on that text. Once you have dealt with it — changed the work, or established that no change is needed — call `resolve_comment` with the comment id. Nobody else closes them.',
+      'When a comment arrives, treat it as direct feedback on that text. Once you have dealt with it — changed the work, or established that no change is needed — call `resolve_comment` with the comment id, one at a time as you finish each. The human can also close one themselves, so a comment may disappear without you having touched it; do not read that as work you owe.',
   );
 
   return lines.join("\n");

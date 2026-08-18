@@ -19,7 +19,7 @@ import type {
   Workspace,
 } from "@picone/protocol";
 import { appendMessage, loadTranscriptTail, nextSeq, truncateTranscript } from "../db.ts";
-import { commentContext } from "../comments/matcher.ts";
+import { commentContext, withCommentBlocks, withCommentSummaries } from "../comments/matcher.ts";
 import { memorySubjects, mentionContext } from "../memory/subjects.ts";
 import path from "node:path";
 import { PermissionGate } from "../permissions/gate.ts";
@@ -247,15 +247,24 @@ export class SessionRuntime {
   }
 
   /**
-   * `displayText` lets the transcript stay readable when the model-facing text
-   * is a long structured block — a file comment, for instance.
+   * `commentIds` are the comments the message carries as pills (§18): the
+   * browser holds their ids, the wording is composed here from the stored rows.
+   * A message can be nothing but comments, which is what sending one straight
+   * out of a file view looks like — so an empty `text` is only empty if there
+   * are none.
    */
-  async prompt(text: string, source: "chat" | "voice" | "comment" = "chat", displayText?: string): Promise<void> {
-    if (!text.trim()) return;
-    this.recordUserMessage(displayText ?? text, source);
+  async prompt(
+    text: string,
+    source: "chat" | "voice" | "comment" = "chat",
+    displayText?: string,
+    commentIds?: string[],
+  ): Promise<void> {
+    const attached = this.attachedComments(commentIds);
+    if (!text.trim() && attached.length === 0) return;
+    this.recordUserMessage(withCommentSummaries(displayText ?? text, attached), attached.length > 0 ? "comment" : source);
 
     try {
-      await this.backend.prompt(this.withMentions(text));
+      await this.backend.prompt(this.withMentions(text, attached));
     } catch (err) {
       this.translator.notice(`Prompt failed: ${(err as Error).message}`, "error");
       this.translator.setState("idle");
@@ -265,14 +274,21 @@ export class SessionRuntime {
   }
 
   /** Explicit steering — used by voice and comments during an active run. */
-  async steer(text: string, source: "chat" | "voice" | "comment" = "chat", displayText?: string): Promise<void> {
+  async steer(
+    text: string,
+    source: "chat" | "voice" | "comment" = "chat",
+    displayText?: string,
+    commentIds?: string[],
+  ): Promise<void> {
     if (!this.backend.isStreaming) {
-      await this.prompt(text, source, displayText);
+      await this.prompt(text, source, displayText, commentIds);
       return;
     }
-    this.recordUserMessage(displayText ?? text, source);
+    const attached = this.attachedComments(commentIds);
+    if (!text.trim() && attached.length === 0) return;
+    this.recordUserMessage(withCommentSummaries(displayText ?? text, attached), attached.length > 0 ? "comment" : source);
     try {
-      await this.backend.steer(this.withMentions(text));
+      await this.backend.steer(this.withMentions(text, attached));
     } catch (err) {
       this.translator.notice(`Steering failed: ${(err as Error).message}`, "error");
     }
@@ -299,15 +315,37 @@ export class SessionRuntime {
   }
 
   /**
+   * The comments a message is carrying, in the order the composer sent them.
+   *
+   * Only open ones: a pill is made the moment a comment is created, and if the
+   * agent has closed it in between then it has already been dealt with.
+   */
+  private attachedComments(ids?: string[]): FileComment[] {
+    if (!ids || ids.length === 0) return [];
+    const byId = new Map(this.options.comments.open().map((comment) => [comment.id, comment]));
+    return ids.map((id) => byId.get(id)).filter((comment): comment is FileComment => comment !== undefined);
+  }
+
+  /**
    * What the agent receives on top of what was typed (§58, §16).
    *
-   * Two additions, both about things the message names rather than describes: a
-   * pointer to any memory subject it mentions, and the open comments on any
-   * file it names. Appended rather than woven in, and kept out of the
-   * transcript, so what the reader sees is what they wrote.
+   * Three additions, all about things the message names rather than describes:
+   * the comments it carries as pills, a pointer to any memory subject it
+   * mentions, and the open comments on any file it names. Appended rather than
+   * woven in, and kept out of the transcript, so what the reader sees is what
+   * they wrote.
+   *
+   * Order matters between the first two: a carried comment names its file, so
+   * the file-named step sees it and hands over whatever else is still open
+   * there — minus the ones already spelled out above it.
    */
-  private withMentions(text: string): string {
-    const comments = commentContext(text, this.options.comments.open());
+  private withMentions(text: string, attached: FileComment[] = []): string {
+    text = withCommentBlocks(text, attached);
+    const carried = new Set(attached.map((comment) => comment.id));
+    const comments = commentContext(
+      text,
+      this.options.comments.open().filter((comment) => !carried.has(comment.id)),
+    );
     if (comments) text = `${text}
 
 ---
@@ -377,15 +415,6 @@ ${pointers}` : text;
     this.options.emit(this.id, { type: "permission.resolved", requestId, decision });
     this.translator.setState("thinking");
     entry.resolve(decision);
-  }
-
-  /**
-   * Deliver a file comment as ordinary session input (DESIGN §19/§20).
-   * If the agent is working it steers; otherwise it is just the next message.
-   */
-  async injectComment(modelText: string, displayText: string): Promise<void> {
-    if (this.backend.isStreaming) await this.steer(modelText, "comment", displayText);
-    else await this.prompt(modelText, "comment", displayText);
   }
 
   // --- context and compaction (DESIGN §54) -----------------------------------

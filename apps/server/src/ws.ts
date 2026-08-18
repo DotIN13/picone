@@ -68,7 +68,13 @@ export function attachWebSocket(server: Server, app: App): WebSocketServer {
 async function handle(app: App, message: ClientMessage, watched: Set<string>): Promise<void> {
   switch (message.type) {
     case "prompt":
-      await app.prompt(message.text, message.source ?? "chat", message.sessionId, message.display);
+      await app.prompt(
+        message.text,
+        message.source ?? "chat",
+        message.sessionId,
+        message.display,
+        message.commentIds,
+      );
       break;
 
     case "steer":
@@ -81,14 +87,6 @@ async function handle(app: App, message: ClientMessage, watched: Set<string>): P
 
     case "permission_response":
       app.respondToPermission(message.requestId, message.decision);
-      break;
-
-    case "file_comment":
-      await app.addComment(message.input);
-      break;
-
-    case "resolve_comment":
-      app.setCommentStatus(message.commentId, message.status);
       break;
 
     case "watch_file": {

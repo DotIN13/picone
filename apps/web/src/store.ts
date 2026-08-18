@@ -27,6 +27,7 @@ import type {
   WorkspaceStateResponse,
 } from "@picone/protocol";
 import { api, type AgentAvailability } from "./lib/api.ts";
+import { commentLabel } from "./lib/comments.ts";
 import {
   applyAppearance,
   defaultAppSettings,
@@ -162,6 +163,14 @@ interface State {
    * something arbitrary dropped text can claim.
    */
   editorInsert: { text: string; at: number } | null;
+  /**
+   * A comment waiting to become a pill in the composer (§18).
+   *
+   * Same channel as a dropped file and for the same reason — the composer owns
+   * its draft, and this is how something outside it asks to be mentioned. The
+   * label is what the pill reads; the id is what travels with the message.
+   */
+  commentInsert: { id: string; label: string; at: number } | null;
 
   tabs: Tab[];
   activeTabId: string | null;
@@ -219,6 +228,7 @@ const [state, setState] = createStore<State>({
   extensionUi: {},
   editorPatch: null,
   editorInsert: null,
+  commentInsert: null,
 
   tabs: [],
   activeTabId: null,
@@ -833,10 +843,16 @@ export function showToast(text: string, level: "info" | "warn" | "error" = "info
  * Send a turn. `display` is what the transcript should show when it differs
  * from what the model is given — see the file mentions in §57.
  */
-export function sendPrompt(text: string, source: "chat" | "voice" = "chat", display?: string): void {
+export function sendPrompt(
+  text: string,
+  source: "chat" | "voice" = "chat",
+  display?: string,
+  commentIds?: string[],
+): void {
   const sessionId = state.activeSessionId;
-  if (!text.trim() || !sessionId) return;
-  socket.send({ type: "prompt", text, display, source, sessionId });
+  // A message can be nothing but the comments it carries (§18).
+  if ((!text.trim() && !commentIds?.length) || !sessionId) return;
+  socket.send({ type: "prompt", text, display, source, sessionId, commentIds });
 }
 
 /**
@@ -985,6 +1001,41 @@ export function consumeEditorInsert(): void {
   setState("editorInsert", null);
 }
 
+/**
+ * Park a comment in the composer, where the reader decides what happens to it.
+ *
+ * The pill is how "I have said something about this line" stops meaning "and
+ * the agent has been told": it sits there until it is sent with a message, or
+ * deleted, and either way the comment itself stays in the list (§21) until the
+ * agent resolves it.
+ */
+export function attachComment(comment: FileComment): void {
+  setState("commentInsert", { id: comment.id, label: commentLabel(comment), at: Date.now() });
+}
+
+export function consumeCommentInsert(): void {
+  setState("commentInsert", null);
+}
+
+/**
+ * Close a comment yourself (§22).
+ *
+ * The agent closes what it has dealt with, but it is not the only one entitled
+ * to: a note you have answered another way, changed your mind about, or written
+ * twice is finished the moment you say it is, and leaving it open means every
+ * later message that names the file carries it again (§19).
+ *
+ * No optimism here. The server broadcasts the change and the list is drawn from
+ * that, so one comment cannot be resolved in this browser and open in the next.
+ */
+export async function resolveComment(id: string): Promise<void> {
+  try {
+    await api.setCommentStatus(id, "resolved");
+  } catch (err) {
+    showToast(`Could not resolve the comment: ${(err as Error).message}`, "error");
+  }
+}
+
 /** The active session's extension surfaces, or an empty one before anything draws. */
 export function surfaceOf(sessionId: string | null = state.activeSessionId): ExtensionSurface {
   return (sessionId && state.extensionUi[sessionId]) || EMPTY_SURFACE;
@@ -1013,18 +1064,30 @@ export function respondPermission(requestId: string, decision: PermissionDecisio
   }
 }
 
-export function addComment(input: {
+/**
+ * Save a comment and park it in the composer (§18).
+ *
+ * Saving and sending are two decisions now, so this does only the first: the
+ * comment exists, it is in the list, and the pill it left behind is the reader's
+ * to send or to throw away.
+ */
+export async function addComment(input: {
   path: string;
   matcher: string;
   lineStart?: number;
   lineEnd?: number;
   body: string;
-}): void {
+}): Promise<void> {
   if (!state.activeSessionId) {
     showToast("Open a session before commenting.", "warn");
     return;
   }
-  socket.send({ type: "file_comment", input });
+  try {
+    const { comment } = await api.addComment(input);
+    attachComment(comment);
+  } catch (err) {
+    showToast(`Could not save the comment: ${(err as Error).message}`, "error");
+  }
 }
 
 // ---------------------------------------------------------------------------

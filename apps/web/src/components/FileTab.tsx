@@ -1,5 +1,5 @@
 import { Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { addComment, reloadFile, setFileView, state, type FileView } from "../store.ts";
+import { addComment, reloadFile, resolveComment, setFileView, state, type FileView } from "../store.ts";
 import { CodeView, type Selection } from "./CodeView.tsx";
 import { findLineRange } from "../lib/selection.ts";
 import { MarkdownView } from "./MarkdownView.tsx";
@@ -144,7 +144,8 @@ export function FileTab(props: { path: string }) {
   const submitComment = (body: string) => {
     const current = selection();
     if (!current) return;
-    addComment({
+    // Saved and parked in the composer; sending it is a separate decision (§18).
+    void addComment({
       path: props.path,
       matcher: current.text,
       lineStart: current.lineStart > 0 ? current.lineStart : undefined,
@@ -251,6 +252,7 @@ export function FileTab(props: { path: string }) {
                       language={fileContent().language}
                       comments={comments()}
                       onSelect={setSelection}
+                      onResolve={(id) => void resolveComment(id)}
                     />
                   </Match>
 

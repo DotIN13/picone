@@ -1,4 +1,5 @@
 import { Show, onMount, type JSX } from "solid-js";
+import type { CommentStatus } from "@picone/protocol";
 import { Button } from "./button.tsx";
 
 export interface LineCommentProps {
@@ -6,7 +7,7 @@ export interface LineCommentProps {
   /** Line / selection context, e.g. "Comment on line 40". */
   selection: JSX.Element;
   actions?: JSX.Element;
-  status?: "open" | "addressed" | "resolved";
+  status?: CommentStatus;
 }
 
 /** Display card for an existing comment — opencode's `line-comment-v2`, display variant. */

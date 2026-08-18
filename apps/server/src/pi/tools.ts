@@ -31,12 +31,14 @@ export function createSpeakTool(hooks: PiconeToolHooks): ToolDefinition {
 
 export function createCommentTools(hooks: PiconeToolHooks): ToolDefinition[] {
   /*
-   * Closing a comment is the agent's job, not the reader's (DESIGN §23).
+   * Closing a comment the agent has dealt with is the agent's job (DESIGN §23).
    *
    * It used to mark them "addressed" and leave the last step to a button, which
    * meant a queue of finished work waiting on a click that added nothing: the
    * person who wrote the comment can see whether it was dealt with by looking
-   * at the file. So the agent resolves, and the reader reads.
+   * at the file. So the agent closes what it has done — without waiting to be
+   * told — and the reader closes what no longer needs anyone (§22), which is a
+   * different thing and not a confirmation of this one.
    */
   const resolveComment = defineTool({
     name: "resolve_comment",

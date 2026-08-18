@@ -5,6 +5,7 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import type { FileComment } from "@picone/protocol";
 import { languageExtension } from "../lib/languages.ts";
+import { iconElement } from "../lib/icon-svg.ts";
 
 export interface Selection {
   text: string;
@@ -24,13 +25,18 @@ export interface CodeViewProps {
   content: string;
   language: string;
   comments: FileComment[];
+  /** The reader closing one themselves (§22). */
+  onResolve: (commentId: string) => void;
   onSelect: (selection: Selection | null) => void;
 }
 
-const setComments = StateEffect.define<{ comments: FileComment[] }>();
+const setComments = StateEffect.define<{ comments: FileComment[]; resolve: (commentId: string) => void }>();
 
 class CommentWidget extends WidgetType {
-  constructor(private readonly comments: FileComment[]) {
+  constructor(
+    private readonly comments: FileComment[],
+    private readonly resolve: (commentId: string) => void,
+  ) {
     super();
   }
 
@@ -71,18 +77,38 @@ class CommentWidget extends WidgetType {
           : comment.lineEnd && comment.lineEnd !== comment.lineStart
             ? `Comment on lines ${comment.lineStart}–${comment.lineEnd}`
             : `Comment on line ${comment.lineStart}`;
-      if (comment.status === "addressed") {
-        const tag = document.createElement("span");
-        tag.dataset.component = "tag";
-        tag.dataset.tone = "success";
-        tag.textContent = "addressed";
-        meta.appendChild(tag);
-      }
       column.appendChild(meta);
       shell.appendChild(column);
 
-      // No Resolve button: the agent closes a comment when it has dealt with
-      // it (§23), and a card that only ever waits is quieter without one.
+      /*
+       * Resolve, here as well as in the file's list and the navigator (§21).
+       *
+       * The click is stopped rather than allowed through: a widget that lets its
+       * events past is telling the editor to treat them as clicks in the
+       * content, and this one is a button, not a place in the file. What it
+       * cannot keep is a selection already made — the press lands outside the
+       * comment action and dismisses it, the same as a press anywhere else in
+       * the view, which is the behaviour rather than a shortcoming of it.
+       */
+      const tools = document.createElement("div");
+      tools.dataset.slot = "line-comment-tools";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.component = "icon-button";
+      button.dataset.size = "small";
+      button.dataset.variant = "ghost-muted";
+      const where = comment.lineStart == null ? "this file" : `line ${comment.lineStart}`;
+      button.title = `Resolve the comment on ${where}`;
+      button.setAttribute("aria-label", button.title);
+      button.appendChild(iconElement("check", 14));
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.resolve(comment.id);
+      });
+      tools.appendChild(button);
+      shell.appendChild(tools);
+
       card.appendChild(shell);
       wrap.appendChild(card);
     }
@@ -94,7 +120,11 @@ class CommentWidget extends WidgetType {
   }
 }
 
-function buildDecorations(state: EditorState, comments: FileComment[]): DecorationSet {
+function buildDecorations(
+  state: EditorState,
+  comments: FileComment[],
+  resolve: (commentId: string) => void,
+): DecorationSet {
   const byEndLine = new Map<number, FileComment[]>();
   const highlighted = new Set<number>();
   const totalLines = state.doc.lines;
@@ -121,7 +151,7 @@ function buildDecorations(state: EditorState, comments: FileComment[]): Decorati
       builder.add(
         line.to,
         line.to,
-        Decoration.widget({ widget: new CommentWidget(widgets), block: true, side: 1 }),
+        Decoration.widget({ widget: new CommentWidget(widgets, resolve), block: true, side: 1 }),
       );
     }
   }
@@ -132,7 +162,7 @@ const commentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(value, tr) {
     for (const effect of tr.effects) {
-      if (effect.is(setComments)) return buildDecorations(tr.state, effect.value.comments);
+      if (effect.is(setComments)) return buildDecorations(tr.state, effect.value.comments, effect.value.resolve);
     }
     return tr.docChanged ? Decoration.none : value;
   },
@@ -181,6 +211,14 @@ export function CodeView(props: CodeViewProps) {
   let host: HTMLDivElement | undefined;
   let view: EditorView | undefined;
 
+  /*
+   * One handler, made once, that reads the prop when it is called.
+   *
+   * A widget outlives the render that made it and holds whatever it was given,
+   * so handing it `props.onResolve` directly would pin the first one it ever saw.
+   */
+  const resolve = (commentId: string) => props.onResolve(commentId);
+
   createEffect(() => {
     // Rebuild when the document or language changes; the doc is replaced wholesale on refresh.
     const content = props.content;
@@ -220,12 +258,12 @@ export function CodeView(props: CodeViewProps) {
     ];
 
     view = new EditorView({ state: EditorState.create({ doc: content, extensions }), parent: host });
-    view.dispatch({ effects: setComments.of({ comments: props.comments }) });
+    view.dispatch({ effects: setComments.of({ comments: props.comments, resolve }) });
   });
 
   createEffect(() => {
     const comments = props.comments;
-    view?.dispatch({ effects: setComments.of({ comments }) });
+    view?.dispatch({ effects: setComments.of({ comments, resolve }) });
   });
 
   onCleanup(() => view?.destroy());

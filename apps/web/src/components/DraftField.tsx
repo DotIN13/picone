@@ -1,6 +1,7 @@
 import { onCleanup, onMount } from "solid-js";
 import {
   DRAFT_MIME,
+  draftLabel,
   draftText,
   normalize,
   parseDraft,
@@ -9,6 +10,7 @@ import {
   type Draft,
   type DraftNode,
 } from "../lib/draft.ts";
+import { iconElement } from "../lib/icon-svg.ts";
 
 /**
  * The composer's field: a small rich text editor whose only rich thing is a
@@ -56,7 +58,10 @@ function mentionElement(node: Extract<DraftNode, { type: "mention" }>): HTMLElem
   span.dataset.kind = node.kind;
   span.dataset.mentionId = node.id;
   span.dataset.mentionLabel = node.label;
-  span.textContent = `@${node.label}`;
+  span.textContent = draftLabel(node);
+  // In front of the label, and no part of it: an icon contributes no text, so
+  // the pill still reads as the place it points at (§57).
+  if (node.kind === "comment") span.prepend(iconElement("comment", 11));
   return span;
 }
 
@@ -64,7 +69,7 @@ function nodeOf(el: Element): DraftNode | null {
   const id = (el as HTMLElement).dataset?.mentionId;
   const label = (el as HTMLElement).dataset?.mentionLabel;
   const kind = (el as HTMLElement).dataset?.kind;
-  if (!id || !label || (kind !== "subject" && kind !== "file")) return null;
+  if (!id || !label || (kind !== "subject" && kind !== "file" && kind !== "comment")) return null;
   return { type: "mention", kind, id, label };
 }
 
@@ -124,7 +129,14 @@ function writeDraft(root: HTMLElement, draft: Draft): void {
   root.replaceChildren(draftFragment(draft));
 }
 
-/** How far into `draftText` the caret sits, counting a mention as its label. */
+/**
+ * How far into `draftText` the caret sits, counting a mention as its label.
+ *
+ * Measured from the node rather than from the element's own text, because those
+ * two agree for a name and not for a comment: a comment pill is a whole word on
+ * screen and nothing in the text (§18), so counting what it draws would put
+ * every offset after it — and so the `@` menu — that far out.
+ */
 function caretOffset(root: HTMLElement): number {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return draftText(readDraft(root)).length;
@@ -136,8 +148,9 @@ function caretOffset(root: HTMLElement): number {
   const walk = (parent: Node) => {
     for (const child of Array.from(parent.childNodes)) {
       if (!range.intersectsNode(child)) continue;
-      if (child instanceof HTMLElement && nodeOf(child)) {
-        offset += (child.textContent ?? "").length;
+      const mention = child instanceof HTMLElement ? nodeOf(child) : null;
+      if (mention) {
+        offset += draftText([mention]).length;
         continue;
       }
       if (child.nodeType === Node.TEXT_NODE) {

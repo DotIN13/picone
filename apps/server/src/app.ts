@@ -16,7 +16,6 @@ import type {
   WorkspaceStateResponse,
 } from "@picone/protocol";
 import { createComment, listComments, resolveComment, setCommentStatus } from "./comments/comments.ts";
-import { commentSummary, commentToInput, formatCommentForModel } from "./comments/matcher.ts";
 import {
   deleteSession,
   getUiState,
@@ -564,14 +563,22 @@ export class App {
    * Save → show → inject (DESIGN §18). Steering vs. normal input is decided by
    * whether Pi is currently working.
    */
-  async addComment(input: Omit<FileCommentInput, "type" | "commentId">): Promise<FileComment> {
+  /**
+   * Save a comment. Nothing is said to the agent yet (DESIGN §18).
+   *
+   * It used to go straight into the session, which made leaving a note and
+   * interrupting the work the same gesture: reading a draft and marking three
+   * things in it sent three messages, each one steering whatever was running.
+   * So creating it only records it — the browser parks it as a pill and sends it
+   * when the reader decides to, and an unsent one waits in the list (§21) and
+   * rides along the next time its file is named (§19).
+   */
+  addComment(input: Omit<FileCommentInput, "commentId">): FileComment {
     const workspace = this.requireWorkspace();
     const session = this.requireActiveSession();
 
     const comment = createComment(workspace.path, session.id, input);
     this.hub.publish(null, { type: "comment.created", comment });
-
-    await session.injectComment(formatCommentForModel(commentToInput(comment)), commentSummary(comment));
     return comment;
   }
 
@@ -595,8 +602,14 @@ export class App {
     return session;
   }
 
-  async prompt(text: string, source: "chat" | "voice", sessionId?: string, display?: string): Promise<void> {
-    await this.target(sessionId).prompt(text, source, display);
+  async prompt(
+    text: string,
+    source: "chat" | "voice",
+    sessionId?: string,
+    display?: string,
+    commentIds?: string[],
+  ): Promise<void> {
+    await this.target(sessionId).prompt(text, source, display, commentIds);
   }
 
   async steer(text: string, sessionId?: string): Promise<void> {

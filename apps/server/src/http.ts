@@ -321,7 +321,7 @@ export function createApiRouter(app: App): Router {
       if (typeof filePath !== "string" || typeof matcher !== "string" || typeof body !== "string") {
         throw new Error("path, matcher and body are required");
       }
-      const comment = await app.addComment({
+      const comment = app.addComment({
         path: filePath,
         matcher,
         body,
@@ -336,7 +336,7 @@ export function createApiRouter(app: App): Router {
     "/comments/:id/status",
     asyncRoute(async (req, res) => {
       const status = String(req.body?.status ?? "") as CommentStatus;
-      if (!["open", "addressed", "resolved"].includes(status)) throw new Error("invalid status");
+      if (!["open", "resolved"].includes(status)) throw new Error("invalid status");
       const comment = app.setCommentStatus(String(req.params.id), status);
       res.json({ comment });
     }),

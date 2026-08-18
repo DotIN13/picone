@@ -38,7 +38,6 @@ export function formatCommentForModel(input: FileCommentInput): string {
 
 export function commentToInput(comment: FileComment): FileCommentInput {
   return {
-    type: "file_comment",
     path: comment.path,
     matcher: comment.matcher,
     lineStart: comment.lineStart,
@@ -46,6 +45,25 @@ export function commentToInput(comment: FileComment): FileCommentInput {
     body: comment.body,
     commentId: comment.id,
   };
+}
+
+/**
+ * What a message carrying comments looks like, in both readings (DESIGN §19).
+ *
+ * A comment is parked as a pill in the composer and sent when the reader
+ * decides to send it (§18), so it arrives beside whatever they typed rather
+ * than as a message of its own. Both readings are composed here, from the
+ * stored row: the browser sends ids, and never has to hold a second copy of the
+ * wording. A message with no words at all reads exactly as a lone comment used
+ * to, which is the case this grew out of.
+ */
+export function withCommentBlocks(text: string, comments: FileComment[]): string {
+  const parts = [text.trim(), ...comments.map((comment) => formatCommentForModel(commentToInput(comment)))];
+  return parts.filter((part) => part !== "").join("\n\n---\n\n");
+}
+
+export function withCommentSummaries(display: string, comments: FileComment[]): string {
+  return [display.trim(), ...comments.map(commentSummary)].filter((part) => part !== "").join("\n\n");
 }
 
 /**
@@ -75,7 +93,9 @@ function quote(text: string): string {
  * dropping a file or completing an `@` puts in the message.
  *
  * Resolved comments are left out: they were dealt with, and repeating them
- * every time the file comes up would grow without limit.
+ * every time the file comes up would grow without limit. So are the ones the
+ * message is already carrying as pills (§18) — the agent is about to read those
+ * in full, a few lines further up.
  */
 export function commentContext(text: string, comments: FileComment[]): string | null {
   const posix = (value: string) => value.toLowerCase().split("\\").join("/");

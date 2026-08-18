@@ -5,7 +5,7 @@ import { insertComment, listCommentsForWorkspace, setCommentStatus } from "../db
 export function createComment(
   workspaceId: string,
   sessionId: string,
-  input: Omit<FileCommentInput, "type" | "commentId">,
+  input: Omit<FileCommentInput, "commentId">,
 ): FileComment {
   const comment: FileComment = {
     id: randomUUID(),
@@ -24,13 +24,17 @@ export function createComment(
 }
 
 /**
- * The agent has dealt with a comment, so it leaves the list (§23).
+ * A comment is finished, so it leaves the list (§22).
  *
- * There was an "addressed" step between this and resolved, waiting on a click
+ * Either side may say so: the agent when it has dealt with the feedback, the
+ * reader when the note no longer needs anyone. One status, because "done" does
+ * not mean two different things depending on who noticed.
+ *
+ * There was an "addressed" step between open and resolved, waiting on a click
  * from the reader. It bought nothing — whether the work was done is visible in
- * the file — and left finished comments cluttering the list until someone
- * cleared them one at a time. The status remains in the type for comments
- * already saved under it.
+ * the file — and left finished comments cluttering the list until someone cleared
+ * them one at a time. Rows saved under it are migrated on open (`db.ts`), so the
+ * status is gone from the type as well as from the interface.
  */
 export function resolveComment(commentId: string): FileComment | null {
   return setCommentStatus(commentId, "resolved");

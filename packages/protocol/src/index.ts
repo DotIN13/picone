@@ -578,7 +578,14 @@ export type AgentState = "idle" | "thinking" | "streaming" | "tool" | "waiting_p
 // Comments (DESIGN §16)
 // ---------------------------------------------------------------------------
 
-export type CommentStatus = "open" | "addressed" | "resolved";
+/**
+ * Two states, and nothing between them (§22).
+ *
+ * There was an `addressed` — the agent saying it had acted, waiting on a click
+ * from the reader to become resolved. Both sides can close a comment now, so the
+ * middle step had nobody left to wait for.
+ */
+export type CommentStatus = "open" | "resolved";
 
 export interface FileComment {
   id: string;
@@ -594,8 +601,8 @@ export interface FileComment {
   createdAt: string;
 }
 
+/** A comment as the text the agent reads is built from (§19). */
 export interface FileCommentInput {
-  type: "file_comment";
   path: string;
   matcher: string;
   lineStart?: number;
@@ -830,14 +837,20 @@ export type ClientMessage =
    * is given — a file mention reads as `@report.html` and is sent as the path
    * it stands for (§51).
    */
-  | { type: "prompt"; text: string; display?: string; source?: "chat" | "voice"; sessionId?: string }
+  | {
+      type: "prompt";
+      text: string;
+      display?: string;
+      source?: "chat" | "voice";
+      sessionId?: string;
+      /** Comments the composer was holding as pills, sent with it (§18). */
+      commentIds?: string[];
+    }
   | { type: "steer"; text: string; sessionId?: string }
   | { type: "abort"; sessionId?: string }
   | { type: "permission_response"; requestId: string; decision: PermissionDecision }
   /** The human's answer to something the agent asked (§59). Empty means dismissed. */
   | { type: "ask_response"; askId: string; answer: string[] }
-  | { type: "file_comment"; input: Omit<FileCommentInput, "type" | "commentId"> }
-  | { type: "resolve_comment"; commentId: string; status: CommentStatus }
   | { type: "watch_file"; path: string }
   | { type: "unwatch_file"; path: string }
   | { type: "select_session"; sessionId: string }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { FileComment } from "@picone/protocol";
-import { commentContext } from "./matcher.ts";
+import { commentContext, commentSummary, withCommentBlocks, withCommentSummaries } from "./matcher.ts";
 
 const comment = (over: Partial<FileComment> = {}): FileComment => ({
   id: "c1",
@@ -15,6 +15,34 @@ const comment = (over: Partial<FileComment> = {}): FileComment => ({
   status: "open",
   createdAt: "2026-08-11T00:00:00.000Z",
   ...over,
+});
+
+test("a message carries its comments after the words", () => {
+  const out = withCommentBlocks("can we avoid Redis?", [comment()]);
+  assert.ok(out.startsWith("can we avoid Redis?"));
+  assert.ok(out.includes("The user left a comment on:"));
+  assert.ok(out.includes("Does this hold at 8k?"));
+  assert.ok(out.includes("c1"));
+});
+
+test("a message that is nothing but a comment reads as one", () => {
+  // What sending a comment straight out of a file view used to produce, exactly.
+  const alone = withCommentBlocks("", [comment()]);
+  assert.equal(alone.startsWith("The user left a comment on:"), true);
+  assert.equal(alone.includes("---"), false);
+  assert.equal(withCommentSummaries("", [comment()]), commentSummary(comment()));
+});
+
+test("several comments are kept apart, in the order they were sent", () => {
+  const out = withCommentBlocks("both of these", [comment(), comment({ id: "c2", body: "and this" })]);
+  assert.equal(out.split("The user left a comment on:").length - 1, 2);
+  assert.ok(out.indexOf("Does this hold at 8k?") < out.indexOf("and this"));
+  assert.equal(out.split("\n\n---\n\n").length, 3);
+});
+
+test("nothing carried leaves the message alone", () => {
+  assert.equal(withCommentBlocks("just a question", []), "just a question");
+  assert.equal(withCommentSummaries("just a question", []), "just a question");
 });
 
 test("a message naming no file gets nothing", () => {

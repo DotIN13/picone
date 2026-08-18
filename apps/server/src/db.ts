@@ -72,6 +72,15 @@ export function openDb(): DatabaseSync {
   } catch {
     /* already migrated */
   }
+  /*
+   * A comment is open or resolved, and nothing in between (§22).
+   *
+   * `addressed` meant the agent had acted and the reader had yet to confirm it.
+   * Nobody confirms one now — either side closes it outright — so a row left in
+   * that state would sit in the list under a status no part of the interface
+   * knows how to draw. The agent had dealt with it, so it is done.
+   */
+  db.exec(`UPDATE comments SET status = 'resolved' WHERE status = 'addressed'`);
 
   return db;
 }

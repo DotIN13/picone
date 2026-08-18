@@ -18,11 +18,11 @@ export type DraftNode =
   | { type: "text"; text: string }
   | {
       type: "mention";
-      /** A memory subject (§52), or a file (§51). */
-      kind: "subject" | "file";
-      /** The slug, or the absolute path — whatever the agent needs. */
+      /** A memory subject (§52), a file (§51), or a file comment (§18). */
+      kind: "subject" | "file" | "comment";
+      /** The slug, the absolute path, or the comment's id — whatever the agent needs. */
       id: string;
-      /** What the reader sees: a name, or a filename. */
+      /** What the reader sees: a name, a filename, or `file:line`. */
       label: string;
     };
 
@@ -48,13 +48,33 @@ export function normalize(draft: Draft): Draft {
 }
 
 /**
+ * What a pill draws, which is not always what it reads as.
+ *
+ * A name is spelled the way it was typed, `@` included. A comment is not
+ * something anyone types — it is a place in a file — so it carries no sigil at
+ * all, and what marks it out as a comment is the icon the field puts in front of
+ * it, drawn like every other icon in the app rather than written into the text.
+ */
+export function draftLabel(node: Extract<DraftNode, { type: "mention" }>): string {
+  return node.kind === "comment" ? node.label : `@${node.label}`;
+}
+
+/**
  * What the draft reads as — `@notes.md`, `@Sarah`.
  *
  * The transcript shows this, and it is what goes back into the field when a
  * message is rewound. It is a view, not the record.
+ *
+ * A comment pill reads as nothing at all. It stands for a comment the server
+ * already holds, and both readings of that — the card the transcript shows and
+ * the block the model gets — are composed there from the stored row (§19). All
+ * this side carries is the id, so writing the label in would put the location
+ * in the message twice: once inline, once in the card underneath it.
  */
 export function draftText(draft: Draft): string {
-  return draft.map((node) => (node.type === "text" ? node.text : `@${node.label}`)).join("");
+  return draft
+    .map((node) => (node.type === "text" ? node.text : node.kind === "comment" ? "" : `@${node.label}`))
+    .join("");
 }
 
 /**
@@ -68,14 +88,28 @@ export function draftForModel(draft: Draft): string {
   return draft
     .map((node) => {
       if (node.type === "text") return node.text;
+      if (node.kind === "comment") return "";
       return node.kind === "file" ? node.id : `@${node.id}`;
     })
     .join("");
 }
 
-/** Nothing typed, and nothing mentioned. */
+/**
+ * The comments the draft carries, in the order their pills sit in it (§18).
+ *
+ * Sent beside the text rather than woven into it: the agent's copy of a comment
+ * is a structured block built from the row the server already has, and the id
+ * is the only part of that this side is entitled to know.
+ */
+export function draftComments(draft: Draft): string[] {
+  const ids: string[] = [];
+  for (const node of draft) if (node.type === "mention" && node.kind === "comment") ids.push(node.id);
+  return ids;
+}
+
+/** Nothing typed, and nothing mentioned — a parked comment counts as mentioned. */
 export function draftIsEmpty(draft: Draft): boolean {
-  return draftText(draft).trim() === "";
+  return draftText(draft).trim() === "" && draftComments(draft).length === 0;
 }
 
 /** A draft holding one run of text, which is most of them. */
@@ -110,7 +144,7 @@ export function parseDraft(raw: string): Draft | null {
       }
       if (
         value.type === "mention" &&
-        (value.kind === "subject" || value.kind === "file") &&
+        (value.kind === "subject" || value.kind === "file" || value.kind === "comment") &&
         typeof value.id === "string" &&
         typeof value.label === "string"
       ) {

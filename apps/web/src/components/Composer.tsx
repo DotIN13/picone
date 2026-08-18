@@ -11,6 +11,7 @@ import {
   sessionStats,
   setAutoCompaction,
   closeTab,
+  consumeCommentInsert,
   consumeEditorInsert,
   consumeEditorPatch,
   newSession,
@@ -23,7 +24,7 @@ import {
   surfaceOf,
   widgetsAt,
 } from "../store.ts";
-import { draftForModel, draftText, textDraft, type Draft } from "../lib/draft.ts";
+import { draftComments, draftForModel, draftText, textDraft, type Draft } from "../lib/draft.ts";
 import { parseWidgetRows } from "../lib/widget-lines.ts";
 import { Dictation, isSpeechInputSupported, stopSpeaking } from "../voice/speech.ts";
 import { Button } from "./ui/button.tsx";
@@ -201,6 +202,9 @@ export function Composer() {
    */
   const [draft, setDraft] = createSignal<Draft>([]);
   const text = () => draftText(draft());
+  /** A comment pill reads as nothing, so a draft can be worth sending with no words in it (§18). */
+  const carried = () => draftComments(draft());
+  const sendable = () => text().trim() !== "" || carried().length > 0;
   const [listening, setListening] = createSignal(false);
   const [voiceError, setVoiceError] = createSignal<string | null>(null);
   const [menuIndex, setMenuIndex] = createSignal(0);
@@ -311,6 +315,21 @@ export function Composer() {
     field?.focus();
   });
 
+  /*
+   * A comment left on a file, or picked out of the list to send now (§18).
+   *
+   * It arrives as a pill rather than as a message: the comment is already saved,
+   * and this is where the reader decides whether the agent hears about it now,
+   * along with whatever else they want to say, or not yet.
+   */
+  createEffect(() => {
+    const parked = state.commentInsert;
+    if (!parked) return;
+    consumeCommentInsert();
+    field?.append({ type: "mention", kind: "comment", id: parked.id, label: parked.label });
+    field?.focus();
+  });
+
   const runAppCommand = (name: string, argument?: string): boolean => {
     switch (name) {
       case "new":
@@ -378,7 +397,7 @@ export function Composer() {
 
   const submit = (source: "chat" | "voice" = "chat") => {
     const value = text().trim();
-    if (!value) return;
+    if (!sendable()) return;
 
     const [word, ...rest] = value.split(/\s+/);
     const appCommand = value.startsWith("/") ? APP_COMMANDS.find((c) => `/${c.name}` === word) : undefined;
@@ -396,7 +415,7 @@ export function Composer() {
      */
     const sent = draftForModel(draft());
     // During an active run this becomes steering server-side (DESIGN §28).
-    sendPrompt(sent, source, sent === value ? undefined : value);
+    sendPrompt(sent, source, sent === value ? undefined : value, carried());
     field?.set([]);
     stopSpeaking();
   };
@@ -545,12 +564,12 @@ export function Composer() {
               back.
             */}
             <Show
-              when={busy() && !text().trim()}
+              when={busy() && !sendable()}
               fallback={
                 <button
                   type="button"
                   data-slot="composer-send"
-                  disabled={!text().trim() || disabled()}
+                  disabled={!sendable() || disabled()}
                   aria-label={busy() ? "Steer the agent" : "Send"}
                   onClick={() => submit()}
                 >

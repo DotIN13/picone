@@ -4,7 +4,8 @@ import { Markdown } from "./Markdown.tsx";
 import { findLineRange } from "../lib/selection.ts";
 import type { Selection } from "./CodeView.tsx";
 import { LineComment } from "./ui/line-comment.tsx";
-import { Tag } from "./ui/primitives.tsx";
+import { IconButton } from "./ui/button.tsx";
+import { resolveComment } from "../store.ts";
 
 export interface MarkdownViewProps {
   content: string;
@@ -124,12 +125,21 @@ export function MarkdownView(props: MarkdownViewProps) {
                         {comment.lineStart ? `Comment on line ${comment.lineStart}` : "Comment on selection"} ·{" "}
                         <span class="italic">“{truncate(comment.matcher)}”</span>
                       </span>
-                      <Show when={comment.status === "addressed"}>
-                        <Tag tone="success">addressed</Tag>
-                      </Show>
                     </>
                   }
-                  /* Resolving is the agent's (§23), so there is nothing to offer here. */
+                  actions={
+                    <IconButton
+                      icon="check"
+                      size="small"
+                      variant="ghost-muted"
+                      label={
+                        comment.lineStart
+                          ? `Resolve the comment on line ${comment.lineStart}`
+                          : "Resolve the comment on this file"
+                      }
+                      onClick={() => void resolveComment(comment.id)}
+                    />
+                  }
                 />
               )}
             </For>

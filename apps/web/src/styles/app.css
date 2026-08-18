@@ -556,8 +556,62 @@
   color: var(--v2-text-text-muted);
 }
 
-[data-slot="comment-row"][data-status="addressed"] [data-slot="comment-file"] {
+/*
+ * The row's two actions: send this one now, as a pill in the composer (§18), and
+ * call it finished (§22).
+ *
+ * Hidden until the row is under the pointer, like the session actions. The list
+ * is for finding where you left notes, and two columns of buttons down the side
+ * of it would read as the point of the list rather than as a second thought.
+ */
+[data-slot="comment-attach"],
+[data-slot="comment-resolve"] {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-inline-end: 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--v2-text-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+[data-slot="comment-row"]:hover :is([data-slot="comment-attach"], [data-slot="comment-resolve"]),
+[data-slot="comment-attach"]:focus-visible,
+[data-slot="comment-resolve"]:focus-visible {
+  opacity: 1;
+}
+
+[data-slot="comment-attach"]:hover {
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-base);
+}
+
+/* Green on the way to being pressed, because it is the one that ends something. */
+[data-slot="comment-resolve"]:hover {
+  background: var(--v2-state-bg-success);
   color: var(--v2-state-fg-success);
+}
+
+/*
+ * Icons the interface draws itself, outside Solid (§57): the composer's comment
+ * pill and the card inside the source view. `--icon-size` is set on the element
+ * in design pixels, and both the box and the stroke are derived from it — the
+ * stroke divided by `--ui-scale`, the zoom actually applied, so the hairline
+ * stays put on the glass at every interface size exactly as `Icon` keeps it.
+ *
+ * `inline-block` against the preflight, which makes every `svg` a block: left at
+ * that, a mark inside a line of text takes a line of its own.
+ */
+[data-slot="icon-svg"][data-drawn] {
+  display: inline-block;
+  width: calc(var(--icon-size) * 1px);
+  height: calc(var(--icon-size) * 1px);
+  stroke-width: calc(1.5 * 24 / (var(--icon-size) * var(--ui-scale, 1)));
 }
 
 [data-slot="mcp-row"] {
