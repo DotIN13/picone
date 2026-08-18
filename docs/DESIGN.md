@@ -1225,11 +1225,48 @@ permission_response
 watch_file · unwatch_file
 select_session · new_session
 extension_ui_answer · editor_text
+ping                              (answered with pong, and nothing else)
 ```
 
 The socket reconnects with backoff and queues anything sent while down. On
 connect the server replays session list, workspace, MCP state, the active
-session's snapshot, and its slash commands.
+session's snapshot, and its slash commands, and the client asks again for the
+files it has open — a watch belongs to the socket that requested it, so after a
+reconnect every open tab is being watched by nobody.
+
+**A socket does not notice its network going away.** Close the lid, or walk out
+of range, and `readyState` stays `OPEN` until TCP gives up — minutes — while
+every `send()` in the meantime is accepted and dropped without an error. That was
+a real bug and a bad one: the page looked connected, a message went nowhere, and
+the only way out was a reload.
+
+So liveness is asked about rather than assumed. The client pings every five
+seconds and expects an answer within four, and there are two rules about writing:
+
+* **Nothing is written through a socket that has not answered.** A send while a
+  ping is outstanding is queued, not written, and the socket is asked again.
+* **A queue goes out the moment proof arrives** — the `pong` on the socket we had,
+  or the `open` on the one that replaces it. So the pause costs a millisecond on
+  a slow link and a reconnect on a dead one, and the message survives both.
+
+A ping is answered on the connection rather than in the app's message handler,
+because the question is about the socket and not about the session. Protocol-level
+ping and pong exist for exactly this and browsers do not expose them to
+JavaScript, which is why the application has to ask in its own words.
+
+`online`, `focus` and becoming visible each prompt a ping straight away, since the
+device knows its network came back sooner than a five-second timer will — and a
+lid opening is the case where the timers were frozen and the socket may have died
+in its sleep. A queued prompt says so in a toast: the composer has already
+emptied itself, and a transcript that sits there saying nothing is
+indistinguishable from having swallowed it.
+
+**The server asks the same question in the other direction**, with `ws`'s own
+ping, since a client whose network vanished never closes its socket either: the
+hub would keep publishing to a browser that is not there and holding file watches
+nobody is reading. The protocol ping is right for this end because a browser
+answers it from its network stack, so it keeps answering while the tab is
+backgrounded or frozen, which an application-level ping does not.
 
 **A transcript is pushed, so the client has to notice when it was not.** Three
 paths deliver a snapshot — connecting, activating a session, and selecting one —

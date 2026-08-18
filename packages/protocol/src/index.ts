@@ -763,6 +763,15 @@ export type AgentEvent =
   | { type: "comment.created"; comment: FileComment }
   | { type: "comment.updated"; comment: FileComment }
   | { type: "voice.speak"; text: string }
+  /**
+   * The answer to a `ping`, and the only proof a socket is still connected.
+   *
+   * The browser will not tell us: a WebSocket whose network has gone away stays
+   * `OPEN` until TCP gives up, and swallows everything written to it meanwhile.
+   * Protocol-level ping and pong exist for exactly this and are not exposed to
+   * JavaScript, so the question has to be asked in the application's own words.
+   */
+  | { type: "pong" }
   | { type: "agent.state"; state: AgentState }
   | { type: "notice"; text: string; level: "info" | "warn" | "error" }
   | { type: "workspace.updated"; workspace: Workspace }
@@ -847,6 +856,8 @@ export type ClientMessage =
       commentIds?: string[];
     }
   | { type: "steer"; text: string; sessionId?: string }
+  /** Are you still there? Answered with `pong`, and with nothing else. */
+  | { type: "ping" }
   | { type: "abort"; sessionId?: string }
   | { type: "permission_response"; requestId: string; decision: PermissionDecision }
   /** The human's answer to something the agent asked (§59). Empty means dismissed. */

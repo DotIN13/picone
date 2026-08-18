@@ -4,6 +4,9 @@ import type { ClientMessage } from "@picone/protocol";
 import type { App } from "./app.ts";
 import { resolveWithinRoots } from "./util/paths.ts";
 
+/** How often to check that a client is still on the other end of its socket. */
+const KEEPALIVE = 15_000;
+
 /**
  * One socket carries everything for the active session (DESIGN §31).
  * The path is `/ws` rather than `/sessions/:id/events` because the server owns
@@ -23,6 +26,29 @@ export function attachWebSocket(server: Server, app: App): WebSocketServer {
   wss.on("connection", (socket: WebSocket) => {
     app.hub.add(socket);
     const watched = new Set<string>();
+
+    /*
+     * The same problem from this end: a client whose network vanished never
+     * closes its socket, so without asking, the hub keeps publishing to a
+     * browser that is not there and holds file watches nobody is reading.
+     *
+     * This is the protocol's own ping, which a browser answers from its network
+     * stack — no page code involved, so it keeps answering while the tab is
+     * backgrounded or frozen, which an application-level ping does not. Missing
+     * one answer is enough: they arrive in milliseconds when anything is there.
+     */
+    let answered = true;
+    socket.on("pong", () => {
+      answered = true;
+    });
+    const keepalive = setInterval(() => {
+      if (!answered) {
+        socket.terminate();
+        return;
+      }
+      answered = false;
+      socket.ping();
+    }, KEEPALIVE);
 
     // Bring a fresh (or reconnected) client up to date immediately.
     const state = app.state();
@@ -46,12 +72,23 @@ export function attachWebSocket(server: Server, app: App): WebSocketServer {
       } catch {
         return;
       }
+      /*
+       * Answered here rather than in `handle`, because it is a question about
+       * the connection and not about the app: whether this socket still reaches
+       * the browser that opened it. Nothing else in the protocol replies, and a
+       * browser cannot see protocol-level pongs, so it has to be able to ask.
+       */
+      if (message.type === "ping") {
+        app.hub.send(socket, null, { type: "pong" });
+        return;
+      }
       void handle(app, message, watched).catch((err: Error) => {
         app.hub.send(socket, null, { type: "notice", text: err.message, level: "error" });
       });
     });
 
     socket.on("close", () => {
+      clearInterval(keepalive);
       for (const path of watched) app.watcher.unwatch(path);
       watched.clear();
       app.hub.remove(socket);

@@ -317,12 +317,29 @@ export async function init(): Promise<void> {
     // development `tsx watch` restarts the server on every edit, and at startup
     // the browser is usually served before the API is listening — without this
     // the app keeps whatever it managed to fetch before the drop, or nothing.
-    if (connected && !wasConnected) void sync();
+    if (connected && !wasConnected) {
+      void sync();
+      rewatchOpenFiles();
+    }
   });
 
   socket.onFrame(applyFrame);
   socket.connect();
   await sync();
+}
+
+/**
+ * Ask again for the files this page has open (§24).
+ *
+ * A watch belongs to the socket that asked for it — the server drops them all
+ * when one closes — so after a reconnect every open tab is being watched by
+ * nobody, and a file changing under it says nothing until the page is reloaded.
+ * Which was the other half of "I had to refresh".
+ */
+function rewatchOpenFiles(): void {
+  for (const tab of state.tabs) {
+    if (tab.kind === "file") socket.send({ type: "watch_file", path: tab.id });
+  }
 }
 
 export async function refreshState(): Promise<void> {
@@ -852,7 +869,15 @@ export function sendPrompt(
   const sessionId = state.activeSessionId;
   // A message can be nothing but the comments it carries (§18).
   if ((!text.trim() && !commentIds?.length) || !sessionId) return;
-  socket.send({ type: "prompt", text, display, source, sessionId, commentIds });
+  /*
+   * The composer has already emptied itself, so if this is waiting on a
+   * connection the transcript will sit there saying nothing at all. Say it
+   * instead: the message is kept and goes out as soon as the socket is back
+   * (§31), which is a different thing from having been swallowed.
+   */
+  if (!socket.send({ type: "prompt", text, display, source, sessionId, commentIds })) {
+    showToast("Offline — your message will go as soon as the connection is back.", "warn");
+  }
 }
 
 /**
